@@ -36,7 +36,7 @@ network_sim/
 ├── ai_factory_simulation/              # AI workload modeling
 │   ├── core/                           # Core entities (jobs, workers, collectives)
 │   ├── scenarios/                      # Scenario definitions and configurations
-│   │   └── scenarios_configuration/    # YAML configuration files
+│   │   └── config/                     # YAML configuration files
 │   │       ├── testing/                # Lightweight configs for quick tests
 │   │       ├── ai_factory_su_dp_heavy_scenario_*.yaml
 │   │       └── ai_factory_su_mixed_scenario_*.yaml
@@ -168,7 +168,7 @@ python testing_scenarios.py simple-star simple-star-all-to-all --link-failure 5.
 ### 2. AI Factory Scenarios (Main Experiments)
 
 Use `ai_factory_network_simulation.py` with YAML configuration files for comprehensive AI workload simulations.
-YAML files are located in `ai_factory_simulation/scenarios/scenarios_configuration/` and define all parameters for topology, routing, workload, and run settings.
+YAML files are located in `ai_factory/scenarios/config/` and define all parameters for topology, routing, workload, and run settings.
 
 #### Command Syntax
 
@@ -182,23 +182,23 @@ For fast validation (completes in seconds):
 
 ```bash
 # DP-heavy workload with ECMP routing
-python ai_factory_network_simulation.py ai_factory_simulation/scenarios/scenarios_configuration/testing/ai_factory_su_dp_light_scenario_ecmp.yaml
+python ai_factory_network_simulation.py ai_factory/scenarios/config/testing/ai_factory_su_dp_light_scenario_ecmp.yaml
 
 # DP-heavy workload with Adaptive routing
-python ai_factory_network_simulation.py ai_factory_simulation/scenarios/scenarios_configuration/testing/ai_factory_su_dp_light_scenario_adaptive.yaml
+python ai_factory_network_simulation.py ai_factory/scenarios/config/testing/ai_factory_su_dp_light_scenario_adaptive.yaml
 
 # Mixed workload with ECMP routing
-python ai_factory_network_simulation.py ai_factory_simulation/scenarios/scenarios_configuration/testing/ai_factory_su_mixed_scenario_ecmp_light.yaml
+python ai_factory_network_simulation.py ai_factory/scenarios/config/testing/ai_factory_su_mixed_scenario_ecmp_light.yaml
 
 # Mixed workload with Adaptive routing
-python ai_factory_network_simulation.py ai_factory_simulation/scenarios/scenarios_configuration/testing/ai_factory_su_mixed_scenario_adaptive_light.yaml
+python ai_factory_network_simulation.py ai_factory/scenarios/config/testing/ai_factory_su_mixed_scenario_adaptive_light.yaml
 ```
 
 #### Full Experiments (Heavy Workloads)
 
 **Warning:** These configurations run full-scale experiments and can take **hours to complete**. They are designed for batch execution.
 
-Located in `ai_factory_simulation/scenarios/scenarios_configuration/`:
+Located in `ai_factory/scenarios/config/`:
 
 **DP-Heavy Workload Scenarios:**
 - `ai_factory_su_dp_heavy_scenario_ecmp_low.yaml` - Low load (X1)
@@ -216,7 +216,7 @@ Located in `ai_factory_simulation/scenarios/scenarios_configuration/`:
 
 **Example (Heavy Run):**
 ```bash
-python ai_factory_network_simulation.py ai_factory_simulation/scenarios/scenarios_configuration/ai_factory_su_dp_heavy_scenario_ecmp_high.yaml
+python ai_factory_network_simulation.py ai_factory/scenarios/config/ai_factory_su_dp_heavy_scenario_ecmp_high.yaml
 ```
 
 ---
@@ -508,10 +508,10 @@ run:
 
 ### Adding New Scenarios
 
-1. Create scenario class in `scenarios/` or `ai_factory_simulation/scenarios/`
+1. Create scenario class in `network/scenarios/` or `ai_factory/scenarios/`
 2. Implement required methods: `setup()`, `run_step()`
 3. Register scenario name in entry point (`ai_factory_network_simulation.py`)
-4. Create YAML configuration in `scenarios_configuration/`
+4. Create YAML configuration in `ai_factory/scenarios/config/`
 
 ### Adding New Routing Algorithms
 
