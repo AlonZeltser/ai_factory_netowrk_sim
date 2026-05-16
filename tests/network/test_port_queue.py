@@ -48,8 +48,6 @@ class TestPortQueue(unittest.TestCase):
         h1.set_ip_routing("10.0.0.2/32", 1)
         h2.set_ip_routing("10.0.0.1/32", 1)
 
-        # Create 2 packets at time 0. They should serialize on the link.
-        # unit_tests/network_sim_tests/test_port_queue.py
 
         # Create 2 packets at time 0. They should serialize on the link.
         h1.send_message(

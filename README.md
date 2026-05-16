@@ -71,11 +71,10 @@ network_sim/
 │   ├── simple_star_all_to_all.py
 │   └── none_scenario.py
 │
-├── unit_tests/                         # Unit tests (pytest)
-│   ├── des_tests/
-│   ├── network_sim_tests/
-│   ├── mixed_scenario_tests/
-│   └── ip_tests/
+├── tests/                              # Unit tests (pytest)
+│   ├── des/
+│   ├── network/
+│   └── ai_factory/
 │
 ├── batch_logs/                         # Output logs from batch runs
 └── results/                            # Output graphs and visualizations
@@ -108,7 +107,7 @@ network_sim/
 
 3. Verify installation by running unit tests:
    ```bash
-   python -m pytest unit_tests/ -v
+   python -m pytest tests/ -v
    ```
 
 
@@ -406,13 +405,12 @@ The project includes comprehensive unit tests for core components:
 
 ```bash
 # Run all tests
-python -m pytest unit_tests/ -v
+python -m pytest tests/ -v
 
 # Run specific test suites
-python -m pytest unit_tests/des_tests/ -v
-python -m pytest unit_tests/network_sim_tests/ -v
-python -m pytest unit_tests/mixed_scenario_tests/ -v
-python -m pytest unit_tests/ip_tests/ -v
+python -m pytest tests/des/ -v
+python -m pytest tests/network/ -v
+python -m pytest tests/ai_factory/ -v
 ```
 
 **Test Coverage:**
