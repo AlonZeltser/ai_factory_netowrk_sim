@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
@@ -6,7 +6,7 @@ from typing import Callable, List
 
 from des.des import DiscreteEventSimulator
 
-from ai_factory_simulation.core.entities import (
+from ai_factory.core.entities import (
     Job,
     JobMetrics,
     StepMetrics,
@@ -15,8 +15,8 @@ from ai_factory_simulation.core.entities import (
     CommPhase,
     Bucket,
 )
-from ai_factory_simulation.core.schedule import BarrierBookkeeper, Join, schedule_timer
-from ai_factory_simulation.traffic.flow import Flow
+from ai_factory.core.schedule import BarrierBookkeeper, Join, schedule_timer
+from ai_factory.traffic.flow import Flow
 
 _logger = logging.getLogger(__name__)
 
@@ -196,4 +196,5 @@ class JobRunner:
                 self.sim.schedule_event(delay, _inject)
 
         run_bucket(0)
+
 

@@ -2,11 +2,11 @@
 
 from network.scenarios.base import Scenario
 
-from ai_factory_simulation.core.runner import JobRunner
-from ai_factory_simulation.scenarios.network_flow_injector import NetworkFlowInjector
-from ai_factory_simulation.traffic.collective import CollectiveAlgorithm
-from ai_factory_simulation.workloads.workload1_dp_heavy import Workload1Config, build_workload1_dp_heavy_job
-from ai_factory_simulation.scenarios.mice_flow_injector import MiceConfig, MiceFlowInjector
+from ai_factory.core.runner import JobRunner
+from ai_factory.scenarios.network_flow_injector import NetworkFlowInjector
+from ai_factory.traffic.collective import CollectiveAlgorithm
+from ai_factory.workloads.workload1_dp_heavy import Workload1Config, build_workload1_dp_heavy_job
+from ai_factory.scenarios.mice_flow_injector import MiceConfig, MiceFlowInjector
 
 
 class AIFactorySUDpHeavyScenario(Scenario):
@@ -79,5 +79,6 @@ class AIFactorySUDpHeavyScenario(Scenario):
             out["mice_packets_range"] = f"{self.mice.min_packets}-{self.mice.max_packets}"
             out["mice_force_cross_rack"] = self.mice.force_cross_rack
         return out
+
 
 

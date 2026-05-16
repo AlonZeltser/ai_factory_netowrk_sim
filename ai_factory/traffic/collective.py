@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
 
-from ai_factory_simulation.core.ids import IdGenerator
-from ai_factory_simulation.traffic.flow import Flow
-from ai_factory_simulation.traffic.patterns.ring import expand_ring_neighbor_sends
+from ai_factory.core.ids import IdGenerator
+from ai_factory.traffic.flow import Flow
+from ai_factory.traffic.patterns.ring import expand_ring_neighbor_sends
 
 
 class CollectiveKind(str, Enum):
@@ -56,4 +56,5 @@ def expand_collective(
         bucket_id=bucket_id,
     )
     return CollectiveResult(flows=flows, join_flow_ids={f.flow_id for f in flows})
+
 

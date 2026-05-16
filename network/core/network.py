@@ -199,7 +199,7 @@ class Network(ABC):
 
         # --- AI-factory app metrics (if present) ---
         try:
-            from ai_factory_simulation.core.runner import _compute_step_stats  # type: ignore
+            from ai_factory.core.runner import _compute_step_stats  # type: ignore
 
             job_metrics = self.entities.get("ai_factory_job_metrics")
             if job_metrics is not None:
@@ -282,4 +282,5 @@ class Network(ABC):
     @property
     def links(self):
         return self._links
+
 

@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List
 import random
 
-from ai_factory_simulation.core.ids import IdGenerator
-from ai_factory_simulation.traffic.flow import Flow
+from ai_factory.core.ids import IdGenerator
+from ai_factory.traffic.flow import Flow
 
 
 @dataclass(frozen=True)
@@ -95,4 +95,5 @@ def expand_ring_neighbor_sends(
             )
 
     return flows
+
 

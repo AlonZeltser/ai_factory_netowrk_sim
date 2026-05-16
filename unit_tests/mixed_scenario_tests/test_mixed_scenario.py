@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from ai_factory_simulation.scenarios.mixed_scenario import MixedScenario
+from ai_factory.scenarios.mixed_scenario import MixedScenario
 from network.core.network_node import RoutingMode
 from network_simulators.ai_factory_su_network_simulator import AIFactorySUNetworkSimulator
 
@@ -83,4 +83,5 @@ def test_mixed_scenario_deterministic_first_step_signature() -> None:
     sig2 = network2.entities.get("mixed_scenario_first_step_signature")
 
     assert sig1 == sig2
+
 

@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ai_factory_simulation.core.entities import Bucket, CommPhase, ComputePhase, Job, JobStep
-from ai_factory_simulation.core.ids import IdGenerator
-from ai_factory_simulation.traffic.flow import Flow
-from ai_factory_simulation.traffic.collective import CollectiveAlgorithm, CollectiveKind, expand_collective
+from ai_factory.core.entities import Bucket, CommPhase, ComputePhase, Job, JobStep
+from ai_factory.core.ids import IdGenerator
+from ai_factory.traffic.flow import Flow
+from ai_factory.traffic.collective import CollectiveAlgorithm, CollectiveKind, expand_collective
 
 
 @dataclass(frozen=True)
@@ -342,3 +342,4 @@ def _retag(flows: list[Flow], *, job_id: int, tag_prefix: str) -> list[Flow]:
             )
         )
     return out
+

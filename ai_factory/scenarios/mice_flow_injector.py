@@ -1,12 +1,12 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 import random
 from dataclasses import dataclass
 
-from ai_factory_simulation.core.runner import _compute_percentile
-from ai_factory_simulation.scenarios.rack_utils import default_rack_key
-from ai_factory_simulation.traffic.flow import Flow
+from ai_factory.core.runner import _compute_percentile
+from ai_factory.scenarios.rack_utils import default_rack_key
+from ai_factory.traffic.flow import Flow
 
 
 @dataclass(frozen=True)
@@ -152,3 +152,4 @@ class MiceFlowInjector:
 
 
 __all__ = ["MiceConfig", "MiceFlowInjector"]
+

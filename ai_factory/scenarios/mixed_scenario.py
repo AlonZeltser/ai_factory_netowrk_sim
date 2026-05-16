@@ -6,17 +6,17 @@ import hashlib
 
 from network.scenarios.base import Scenario
 
-from ai_factory_simulation.core.runner import JobRunner
-from ai_factory_simulation.scenarios.network_flow_injector import NetworkFlowInjector
-from ai_factory_simulation.scenarios.mice_flow_injector import MiceConfig, MiceFlowInjector
-from ai_factory_simulation.traffic.collective import CollectiveAlgorithm
-from ai_factory_simulation.workloads.mixed_scenario import (
+from ai_factory.core.runner import JobRunner
+from ai_factory.scenarios.network_flow_injector import NetworkFlowInjector
+from ai_factory.scenarios.mice_flow_injector import MiceConfig, MiceFlowInjector
+from ai_factory.traffic.collective import CollectiveAlgorithm
+from ai_factory.workloads.mixed_scenario import (
     MixedScenarioTpHeavyConfig,
     MixedScenarioPpDpConfig,
     build_mixed_scenario_tp_heavy,
     build_mixed_scenario_pp_dp,
 )
-from ai_factory_simulation.scenarios.rack_utils import default_rack_key
+from ai_factory.scenarios.rack_utils import default_rack_key
 
 
 AllocationMode = Literal["rack_balanced", "contiguous"]
@@ -261,4 +261,5 @@ def _job_first_step_signature(job) -> str:
 
 
 __all__ = ["MixedScenario"]
+
 

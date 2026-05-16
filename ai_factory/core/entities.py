@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from ai_factory_simulation.traffic.flow import Flow
+from ai_factory.traffic.flow import Flow
 
 
 @dataclass(frozen=True)
@@ -69,4 +69,5 @@ class JobMetrics:
 
 
 FlowCompleteCallback = Callable[[int], None]
+
 

@@ -1,5 +1,5 @@
-from ai_factory_simulation.traffic.flow import Flow
-from ai_factory_simulation.traffic.collective import (
+﻿from ai_factory.traffic.flow import Flow
+from ai_factory.traffic.collective import (
     CollectiveAlgorithm,
     CollectiveKind,
     CollectiveResult,
@@ -13,4 +13,5 @@ __all__ = [
     "CollectiveResult",
     "expand_collective",
 ]
+
 

@@ -1,4 +1,4 @@
-# Runs all NON "*_light.yaml" scenario YAMLs (testing + heavy/mixed) using an editable list.
+﻿# Runs all NON "*_light.yaml" scenario YAMLs (testing + heavy/mixed) using an editable list.
 #
 # Usage:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\run_all_not_light.ps1
@@ -39,30 +39,30 @@ if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $entry))) {
 
 # === Edit this list (comment/uncomment freely) ===
 $Scenarios = @(
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_adaptive_high.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_adaptive_high_failures.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_adaptive_low.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_adaptive_mid.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_ecmp_high.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_ecmp_high_failures.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_ecmp_low.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_ecmp_mid.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_flowlet_high.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_flowlet_high_failures.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_flowlet_low.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_flowlet_mid.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_adaptive_high.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_adaptive_high_failures.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_adaptive_low.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_adaptive_mid.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_ecmp_high.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_ecmp_high_failures.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_ecmp_low.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_ecmp_mid.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_flowlet_high.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_flowlet_high_failures.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_flowlet_low.yaml',
-    'ai_factory_simulation\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_flowlet_mid.yaml'
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_adaptive_high.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_adaptive_high_failures.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_adaptive_low.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_adaptive_mid.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_ecmp_high.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_ecmp_high_failures.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_ecmp_low.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_ecmp_mid.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_flowlet_high.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_flowlet_high_failures.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_flowlet_low.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_dp_heavy_scenario_flowlet_mid.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_adaptive_high.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_adaptive_high_failures.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_adaptive_low.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_adaptive_mid.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_ecmp_high.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_ecmp_high_failures.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_ecmp_low.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_ecmp_mid.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_flowlet_high.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_flowlet_high_failures.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_flowlet_low.yaml',
+    'ai_factory\scenarios\scenarios_configuration\ai_factory_su_mixed_scenario_flowlet_mid.yaml'
 
 )
 # ================================================
@@ -147,3 +147,4 @@ Write-Host "Wrote summary: $summaryPath"
 
 
 exit 0
+

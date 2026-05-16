@@ -4,8 +4,8 @@ from typing import Callable
 
 from network.core.packet import Protocol
 
-from ai_factory_simulation.core.runner import FlowInjector
-from ai_factory_simulation.traffic.flow import Flow
+from ai_factory.core.runner import FlowInjector
+from ai_factory.traffic.flow import Flow
 
 
 class NetworkFlowInjector(FlowInjector):
@@ -65,4 +65,5 @@ class NetworkFlowInjector(FlowInjector):
             size_bytes=int(flow.size_bytes),
             protocol=Protocol.TCP,
         )
+
 

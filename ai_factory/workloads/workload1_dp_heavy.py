@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 import secrets
 
-from ai_factory_simulation.core.entities import Bucket, CommPhase, ComputePhase, Job, JobStep
-from ai_factory_simulation.core.ids import IdGenerator
-from ai_factory_simulation.traffic.collective import CollectiveAlgorithm, CollectiveKind, expand_collective
+from ai_factory.core.entities import Bucket, CommPhase, ComputePhase, Job, JobStep
+from ai_factory.core.ids import IdGenerator
+from ai_factory.traffic.collective import CollectiveAlgorithm, CollectiveKind, expand_collective
 
 
 @dataclass(frozen=True)
@@ -93,4 +93,5 @@ def build_workload1_dp_heavy_job(
         steps.append(JobStep(step_id=step_idx, phases=phases))
 
     return Job(job_id=job_id, name=job_name, steps=steps, participants=participants)
+
 
