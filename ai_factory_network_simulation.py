@@ -1,4 +1,4 @@
-"""AI factory network simulation entrypoint (YAML-driven).
+﻿"""AI factory network simulation entrypoint (YAML-driven).
 
 Usage:
     python ai_factory_network_simulation.py <path-to-config.yaml>
@@ -18,7 +18,7 @@ import yaml
 from log_setup import configure_run_logging
 from ai_factory_simulation.scenarios.ai_factory_su_dp_heavy_scenario import AIFactorySUDpHeavyScenario
 from ai_factory_simulation.scenarios.mixed_scenario import MixedScenario
-from network_simulation.network_node import RoutingMode
+from network.core.network_node import RoutingMode
 from network_simulators.ai_factory_su_network_simulator import AIFactorySUNetworkSimulator, AIFactorySUTopologyConfig
 from visualization.experiment_visualizer import visualize_experiment_results
 from ai_factory_simulation.scenarios.mice_flow_injector import MiceConfig
@@ -300,3 +300,4 @@ def main(argv) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
+

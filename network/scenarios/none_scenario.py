@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from network_simulation.scenario import Scenario
+from network.scenarios.base import Scenario
 
 
 class NoneScenario(Scenario):
@@ -10,4 +10,5 @@ class NoneScenario(Scenario):
 
     def install(self, creator) -> None:
         return
+
 

@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from network_simulation.network import Network
-from network_simulation.network_node import RoutingMode
+from network.core.network import Network
+from network.core.network_node import RoutingMode
 
 
 @dataclass(frozen=True)
@@ -251,3 +251,4 @@ class AIFactorySUNetworkSimulator(Network):
     @property
     def identifier(self):
         return self._identifier
+

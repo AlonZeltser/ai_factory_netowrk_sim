@@ -1,8 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Callable
 
-from network_simulation.packet import Protocol
+from network.core.packet import Protocol
 
 from ai_factory_simulation.core.runner import FlowInjector
 from ai_factory_simulation.traffic.flow import Flow
@@ -65,3 +65,4 @@ class NetworkFlowInjector(FlowInjector):
             size_bytes=int(flow.size_bytes),
             protocol=Protocol.TCP,
         )
+

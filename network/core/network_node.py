@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import random
 from abc import ABC, abstractmethod
 from collections import defaultdict, deque
@@ -6,10 +6,10 @@ from enum import Enum
 from typing import Deque, Dict, List, Tuple
 
 from des.des import DiscreteEventSimulator
-from network_simulation.ip import IPPrefix
-from network_simulation.link import Link
-from network_simulation.packet import Packet
-from network_simulation.port import Port
+from network.core.ip import IPPrefix
+from network.core.link import Link
+from network.core.packet import Packet
+from network.core.port import Port
 
 _logger = logging.getLogger(__name__)
 
@@ -195,3 +195,4 @@ class NetworkNode(ABC):
     @property
     def links(self) -> List[Link]:
         return [p.get_link() for p in self.ports]
+

@@ -1,14 +1,14 @@
-import logging
+﻿import logging
 import random
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
 from des.des import DiscreteEventSimulator
-from network_simulation.host import Host
-from network_simulation.link import Link
-from network_simulation.switch import Switch
-from network_simulation.scenario import Scenario
-from network_simulation.network_node import RoutingMode
+from network.core.host import Host
+from network.core.link import Link
+from network.core.switch import Switch
+from network.scenarios.base import Scenario
+from network.core.network_node import RoutingMode
 from visualization.visualizer import visualize_topology
 
 _logger = logging.getLogger(__name__)
@@ -282,3 +282,4 @@ class Network(ABC):
     @property
     def links(self):
         return self._links
+

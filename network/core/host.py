@@ -1,11 +1,11 @@
-import itertools
+﻿import itertools
 import logging
 from dataclasses import dataclass
 
 from des.des import DiscreteEventSimulator
-from network_simulation.packet import FiveTupleExt, Protocol, PacketL3, PacketTransport, \
+from network.core.packet import FiveTupleExt, Protocol, PacketL3, PacketTransport, \
     PacketTrackingInfo, Packet
-from network_simulation.network_node import NetworkNode, RoutingMode
+from network.core.network_node import NetworkNode, RoutingMode
 
 _logger = logging.getLogger(__name__)
 
@@ -134,4 +134,5 @@ class Host(NetworkNode):
     @property
     def received_count(self) -> int:
         return self._received_count
+
 

@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 
-from network_simulation.host import Host
-from network_simulation.packet import Protocol
-from network_simulation.scenario import Scenario
+from network.core.host import Host
+from network.core.packet import Protocol
+from network.scenarios.base import Scenario
 
 
 @dataclass(frozen=True)
@@ -47,3 +47,4 @@ class HSHPingPongScenario(Scenario):
     def parameters_summary(self):
         out = super().parameters_summary()
         return out
+

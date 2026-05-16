@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Literal
 import hashlib
 
-from network_simulation.scenario import Scenario
+from network.scenarios.base import Scenario
 
 from ai_factory_simulation.core.runner import JobRunner
 from ai_factory_simulation.scenarios.network_flow_injector import NetworkFlowInjector
@@ -261,3 +261,4 @@ def _job_first_step_signature(job) -> str:
 
 
 __all__ = ["MixedScenario"]
+

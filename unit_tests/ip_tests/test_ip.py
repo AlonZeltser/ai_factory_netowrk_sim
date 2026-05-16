@@ -1,5 +1,5 @@
-import pytest
-from network_simulation.ip import IPAddress, IPPrefix
+﻿import pytest
+from network.core.ip import IPAddress, IPPrefix
 
 
 def test_parse_and_str_and_int():
@@ -27,4 +27,5 @@ def test_prefix_zero_and_full():
     p32 = IPPrefix.from_string('10.1.2.3/32')
     assert p32.contains('10.1.2.3')
     assert not p32.contains('10.1.2.4')
+
 

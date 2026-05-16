@@ -1,10 +1,10 @@
-import unittest
+﻿import unittest
 
 from des.des import DiscreteEventSimulator
-from network_simulation.host import Host
-from network_simulation.link import Link
-from network_simulation.packet import Protocol
-from network_simulation.network_node import RoutingMode
+from network.core.host import Host
+from network.core.link import Link
+from network.core.packet import Protocol
+from network.core.network_node import RoutingMode
 
 
 class TestPortQueue(unittest.TestCase):
@@ -88,3 +88,4 @@ class TestPortQueue(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

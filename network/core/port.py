@@ -1,15 +1,15 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import logging
 from collections import deque
 from typing import Deque, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from network_simulation.link import Link
-from network_simulation.packet import Packet
+    from network.core.link import Link
+from network.core.packet import Packet
 
 if TYPE_CHECKING:
-    from network_simulation.network_node import NetworkNode
+    from network.core.network_node import NetworkNode
 
 _logger = logging.getLogger(__name__)
 
@@ -113,3 +113,4 @@ class Port:
 
     def get_link(self) -> Link | None:
         return self.link
+

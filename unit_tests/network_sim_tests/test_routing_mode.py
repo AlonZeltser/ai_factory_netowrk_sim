@@ -1,10 +1,10 @@
-import unittest
+﻿import unittest
 
 from des.des import DiscreteEventSimulator
-from network_simulation.link import Link
-from network_simulation.packet import FiveTupleExt, Packet, PacketL3, PacketTrackingInfo, PacketTransport, Protocol
-from network_simulation.switch import Switch
-from network_simulation.network_node import RoutingMode
+from network.core.link import Link
+from network.core.packet import FiveTupleExt, Packet, PacketL3, PacketTrackingInfo, PacketTransport, Protocol
+from network.core.switch import Switch
+from network.core.network_node import RoutingMode
 
 
 class TestRoutingMode(unittest.TestCase):
@@ -63,3 +63,4 @@ class TestRoutingMode(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

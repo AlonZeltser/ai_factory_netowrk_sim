@@ -1,5 +1,5 @@
-from network_simulation.network import Network
-from network_simulation.network_node import RoutingMode
+﻿from network.core.network import Network
+from network.core.network_node import RoutingMode
 
 
 class SimpleStarNetworkSimulator(Network):
@@ -67,3 +67,4 @@ class SimpleStarNetworkSimulator(Network):
 
         s_core.set_ip_routing("10.1.0.0/16", 1)
         s_core.set_ip_routing("10.2.0.0/16", 2)
+

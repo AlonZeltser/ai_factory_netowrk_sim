@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from network_simulation.scenario import Scenario
+from network.scenarios.base import Scenario
 
 from ai_factory_simulation.core.runner import JobRunner
 from ai_factory_simulation.scenarios.network_flow_injector import NetworkFlowInjector
@@ -79,4 +79,5 @@ class AIFactorySUDpHeavyScenario(Scenario):
             out["mice_packets_range"] = f"{self.mice.min_packets}-{self.mice.max_packets}"
             out["mice_force_cross_rack"] = self.mice.force_cross_rack
         return out
+
 

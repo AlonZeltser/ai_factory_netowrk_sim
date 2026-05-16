@@ -1,6 +1,6 @@
-# Ensure logging is configured before importing modules that may alter logging behavior
+﻿# Ensure logging is configured before importing modules that may alter logging behavior
 from log_setup import ensure_logging
-from network_simulation.network_node import RoutingMode
+from network.core.network_node import RoutingMode
 
 ensure_logging()
 
@@ -10,13 +10,13 @@ import random
 import sys
 import time
 
-from network_simulation.network import Network
-from network_simulators.hsh_network_simulator import HSHNetworkSimulator
-from network_simulators.simple_star_network_simulator import SimpleStarNetworkSimulator
+from network.core.network import Network
+from network.simulators.hsh_network_simulator import HSHNetworkSimulator
+from network.simulators.simple_star_network_simulator import SimpleStarNetworkSimulator
 from visualization.experiment_visualizer import visualize_experiment_results
-from scenarios.none_scenario import NoneScenario
-from scenarios.hsh_pingpong import HSHPingPongScenario
-from scenarios.simple_star_all_to_all import SimpleStarAllToAllScenario
+from network.scenarios.none_scenario import NoneScenario
+from network.scenarios.hsh_pingpong import HSHPingPongScenario
+from network.scenarios.simple_star_all_to_all import SimpleStarAllToAllScenario
 
 
 def _scenario_from_name(name: str):
@@ -117,3 +117,4 @@ def main(argv) -> int:
 if __name__ == "__main__":
     random.seed(1972)
     raise SystemExit(main(sys.argv[1:]))
+

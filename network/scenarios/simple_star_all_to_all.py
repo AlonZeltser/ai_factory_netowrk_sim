@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
-from network_simulation.packet import Protocol
+from network.core.packet import Protocol
 
-from network_simulation.scenario import Scenario
+from network.scenarios.base import Scenario
 
 
 @dataclass(frozen=True)
@@ -38,4 +38,5 @@ class SimpleStarAllToAllScenario(Scenario):
         out = super().parameters_summary()
         out.update({"repeats": self.repeats, "message_size_bytes": self.message_size_bytes})
         return out
+
 

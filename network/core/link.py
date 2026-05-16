@@ -1,9 +1,9 @@
-import logging
+﻿import logging
 from typing import Optional
 
 from des.des import DiscreteEventSimulator
-from network_simulation.packet import Packet
-from network_simulation.port import Port
+from network.core.packet import Packet
+from network.core.port import Port
 
 
 class Link:
@@ -56,3 +56,4 @@ class Link:
 
         # at arrival nominal time, the packet will be posted on the destination Host / Switch
         self.scheduler.schedule_event(arrival_time - now, deliver)
+

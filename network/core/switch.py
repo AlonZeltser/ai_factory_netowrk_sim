@@ -1,6 +1,6 @@
-import logging
+﻿import logging
 
-from network_simulation.network_node import NetworkNode, RoutingMode
+from network.core.network_node import NetworkNode, RoutingMode
 
 _logger = logging.getLogger(__name__)
 
@@ -39,3 +39,4 @@ class Switch(NetworkNode):
                 _logger.debug(
                     f"[sim_t={now:012.6f}s] Packet forwarding  switch={self.name} packet_id={packet.tracking_info.global_id} dst={packet.routing_header.five_tuple.dst_ip}")
             self._internal_send_packet(packet)
+

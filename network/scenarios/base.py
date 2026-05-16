@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from network_simulation.network import Network
+    from network.core.network import Network
 
 
 class Scenario(ABC):
@@ -26,4 +26,5 @@ class Scenario(ABC):
 
     def parameters_summary(self) -> Dict[str, Any]:
         return {"scenario": getattr(self, "name", self.__class__.__name__)}
+
 

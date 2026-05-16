@@ -1,10 +1,10 @@
-from dataclasses import dataclass, field
+﻿from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
 import xxhash
 
-from network_simulation.ip import IPAddress
+from network.core.ip import IPAddress
 
 
 class Protocol(Enum):
@@ -104,3 +104,4 @@ class Packet:
     @arrival_time.setter
     def arrival_time(self, value: Optional[float]) -> None:
         self.tracking_info.arrival_time = value
+

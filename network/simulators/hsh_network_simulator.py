@@ -1,5 +1,5 @@
-from network_simulation.network import Network
-from network_simulation.network_node import RoutingMode
+﻿from network.core.network import Network
+from network.core.network_node import RoutingMode
 
 
 class HSHNetworkSimulator(Network):
@@ -36,3 +36,4 @@ class HSHNetworkSimulator(Network):
         h2.set_ip_routing("10.0.0.0/8", 1)
         s1.set_ip_routing("10.1.1.1/32", 1)
         s1.set_ip_routing("10.1.1.2/32", 2)
+
