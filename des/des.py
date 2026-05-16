@@ -1,0 +1,57 @@
+import itertools
+import logging
+from dataclasses import field, dataclass
+from typing import Callable
+
+# Use package-relative import so tests and imports from `infra` work correctly
+from des.min_value_priority_queue import MinValuePriorityQueue
+from des.packet_statistics import PacketStatistics
+
+_logger = logging.getLogger(__name__)
+
+
+@dataclass(order=True, slots=True)
+class DESEvent:
+    time: float
+    seq: int
+    action: Callable[[], None] = field(compare=False)
+
+
+class DiscreteEventSimulator:
+
+    def __init__(self, store_packets: bool = False):
+        self.current_time = 0.0
+        self.event_queue: MinValuePriorityQueue = MinValuePriorityQueue()
+        self.scheduling_counter = itertools.count()
+        self.packet_stats = PacketStatistics()
+        # Optional: store packets for debugging (disabled by default to save memory)
+        self._store_packets = store_packets
+        self.packets = [] if store_packets else None
+        self.end_time: float | None = None
+
+    @property
+    def messages(self):
+        """Backward-compatible alias for `packets`."""
+        return self.packets
+
+    def schedule_event(self, delay: float, action: Callable[[], None]) -> None:
+        """Schedule an event to occur after a certain delay."""
+        assert delay >= 0
+        event_time = self.current_time + delay
+        event = DESEvent(event_time, next(self.scheduling_counter), action)
+        self.event_queue.enqueue(event)
+
+    def run(self) -> None:
+        """Run the simulation until there are no more events."""
+        counter = 0
+        while self.event_queue:
+            counter += 1
+            event = self.event_queue.dequeue()
+            self.current_time = event.time
+            event.action()
+        if _logger.isEnabledFor(logging.DEBUG):
+            _logger.debug("DES ended after %d events", counter)
+        self.end_time = self.current_time
+
+    def get_current_time(self) -> float:
+        return self.current_time
