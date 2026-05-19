@@ -1,0 +1,15 @@
+extends:
+  - bases/presets-experiments-base.yaml
+  - bases/topology-clos-large-scale-unit.yaml
+  - mixed_workloads/workload-mixed-light.yaml
+meta:
+  name: ai-su-mixed-light
+  description: Lightweight mixed-workload preset on the AI scale-unit clos profile
+topology:
+  params:
+    mtu: 40960
+    fabric:
+      bandwidth_profile: 400g
+
+
+

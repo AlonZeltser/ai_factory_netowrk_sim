@@ -10,7 +10,7 @@ from network.core.network_node import RoutingMode
 
 @dataclass(frozen=True)
 class AIFactorySUTopologyConfig:
-    """Topology sizing parameters for the AI-Factory SU simulator."""
+    """Topology sizing parameters for the AI-Factory scale unit (SU) simulator."""
 
     leaves: int
     spines: int
@@ -49,11 +49,11 @@ class AIFactorySUTopologyConfig:
 
 
 class AIFactorySUNetworkSimulator(Network):
-    """A topology inspired by NVIDIA's AI-Factory Scalable Unit (SU).
+    """A topology inspired by an AI-Factory scale unit (SU).
 
     We simulate everything over Ethernet.
 
-    Topology (single SU / POD):
+    Topology (single scale unit / pod):
       - 8 leaf switches (ToRs).
       - 4 spine switches.
       - 4 servers per leaf.
@@ -79,6 +79,9 @@ class AIFactorySUNetworkSimulator(Network):
         self,
         max_path: int,
         link_failure_percent: float,
+        packet_stall_percent: float,
+        packet_stall_delay_ms: float,
+        packet_stall_max_switch_hop: int,
         routing_mode: RoutingMode,
         verbose: bool,
         verbose_route: bool,
@@ -95,6 +98,9 @@ class AIFactorySUNetworkSimulator(Network):
             name="ai-factory-su",
             max_path=max_path,
             link_failure_percent=link_failure_percent,
+            packet_stall_percent=packet_stall_percent,
+            packet_stall_delay_ms=packet_stall_delay_ms,
+            packet_stall_max_switch_hop=packet_stall_max_switch_hop,
             routing_mode=routing_mode,
             verbose=verbose,
             verbose_route=verbose_route,
@@ -128,6 +134,9 @@ class AIFactorySUNetworkSimulator(Network):
             "server_parallel_links": self.topology.server_parallel_links,
             "leaf_to_spine_parallel_links": self.topology.leaf_to_spine_parallel_links,
             "link failure percent": link_failure_percent,
+            "packet stall percent": packet_stall_percent,
+            "packet stall delay ms": packet_stall_delay_ms,
+            "packet stall max switch hop": packet_stall_max_switch_hop,
             "server_to_leaf_bandwidth_bps": self.server_to_leaf_bandwidth_bps,
             "leaf_to_spine_bandwidth_bps": self.leaf_to_spine_bandwidth_bps,
         }
@@ -244,7 +253,7 @@ class AIFactorySUNetworkSimulator(Network):
                 raise
 
         logging.info(
-            f"AI-Factory SU topology created: leaves={leaves_n}, spines={spines_n}, "
+            f"AI-Factory scale-unit topology created: leaves={leaves_n}, spines={spines_n}, "
             f"servers={leaves_n * servers_per_leaf}, links={len(self.links)}"
         )
 

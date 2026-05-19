@@ -13,7 +13,7 @@ This document focus on  instructions for running simulations, analyzing results,
   - DP (Data Parallel) heavy workloads with AllReduce collectives
   - Mixed workloads combining TP (Tensor Parallel) and PP+DP (Pipeline + Data Parallel)
   - Mice flow injection for latency sensitivity analysis
-- **Fabric Topologies**: Clos/Leaf-Spine architectures with configurable scale
+- **Fabric Topologies**: Clos/Leaf-Spine architectures with configurable counts and fabric parameters
 - **Failure Scenarios**: Link failure injection to test resilience
 - **Performance Metrics**: Step completion time, FCT (Flow Completion Time), queue occupancy, congestion analysis
 
@@ -28,18 +28,14 @@ Detailed analysis and results are available in **`project.pdf`**.
 ```
 network_sim/
 ├── project.pdf                        # Main paper that describes the research and results
-├── ai_factory_network_simulation.py   # Main entry point for AI factory scenarios (YAML-driven)
-├── testing_scenarios.py                # Entry point for simple test scenarios (CLI-driven)
+├── apps/
+│   └── sim.py                         # Main unified CLI entry point
+├── sim/                               # Unified config, registries, presets, runners
 ├── requirements.txt                    # Python dependencies
-├── run_all_not_light.ps1              # Batch runner for heavy experiments (Windows PowerShell)
 │
 ├── ai_factory_simulation/              # AI workload modeling
 │   ├── core/                           # Core entities (jobs, workers, collectives)
-│   ├── scenarios/                      # Scenario definitions and configurations
-│   │   └── config/                     # YAML configuration files
-│   │       ├── testing/                # Lightweight configs for quick tests
-│   │       ├── ai_factory_su_dp_heavy_scenario_*.yaml
-│   │       └── ai_factory_su_mixed_scenario_*.yaml
+│   ├── scenarios/                      # Scenario definitions
 │   ├── traffic/                        # Traffic generators
 │   └── workloads/                      # Workload definitions
 │
@@ -52,23 +48,18 @@ network_sim/
 │   └── network_node.py                 # Routing mode implementations
 │
 ├── network_simulators/                 # Topology builders
-│   ├── ai_factory_su_network_simulator.py  # AI Factory Scale-Up topology
-│   ├── hsh_network_simulator.py            # HSH topology (testing)
-│   └── simple_star_network_simulator.py    # Star topology (testing)
+│   └── ai_factory_su_network_simulator.py  # AI Factory scale-unit topology
 │
 ├── des/                                # Discrete Event Simulation framework
 │   └── des.py                          # Event scheduler
 │
-├── log_analyze_utilities/              # Post-processing and analysis
-│   └── workload_comparison_plotter.py  # Graph generation from batch logs
+├── log_analyze_utilities/              # Post-processing and analysis (TBD)
 │
 ├── visualization/                      # Visualization tools
 │   ├── experiment_visualizer.py        # Result visualizers
 │   └── visualizer.py                   # Topology visualizers
 │
-├── scenarios/                          # Simple test scenarios
-│   ├── hsh_pingpong.py
-│   ├── simple_star_all_to_all.py
+├── scenarios/                          # Generic scenarios
 │   └── none_scenario.py
 │
 ├── tests/                              # Unit tests (pytest)
@@ -76,7 +67,6 @@ network_sim/
 │   ├── network/
 │   └── ai_factory/
 │
-├── batch_logs/                         # Output logs from batch runs
 └── results/                            # Output graphs and visualizations
 ```
 
@@ -129,217 +119,197 @@ network_sim/
 
 ## Running Simulations
 
-### 1. Simple Test Scenarios (Quick Validation)
+### 1. Unified CLI
 
-Use `testing_scenarios.py` for lightweight tests with simple topologies:
-
-```bash
-python testing_scenarios.py <topology> <scenario> [options]
-```
-
-**Available Topologies:**
-- `hsh` - HSH basic Host-Switch-Host topology
-- `simple-star` - Simple Star topology for testing routing logic
-
-**Available Scenarios:**
-- `none` - Empty scenario (topology creation only, no traffic events)
-- `hsh-pingpong` - Ping-pong traffic pattern
-- `simple-star-all-to-all` - All-to-all traffic
-
-**Options:**
-- `--link-failure <percent>` - Percentage of links to fail (0-100)
-- `--message-verbose` - Enable detailed packet logging
-- `--verbose-route` - Enable routing decision logging
-
-**Example:**
-```bash
-python testing_scenarios.py hsh hsh-pingpong
-python testing_scenarios.py simple-star simple-star-all-to-all --link-failure 5.0
-```
-
-**Output:**
-- Console logs
-- Per-run log files in project root
-- Topology visualizations in `results/`
-
----
-
-### 2. AI Factory Scenarios (Main Experiments)
-
-Use `ai_factory_network_simulation.py` with YAML configuration files for comprehensive AI workload simulations.
-YAML files are located in `ai_factory/scenarios/config/` and define all parameters for topology, routing, workload, and run settings.
-
-#### Command Syntax
+Use `apps/sim.py` as the main interface for both simple network runs and AI workload experiments.
 
 ```bash
-python ai_factory_network_simulation.py <path-to-config.yaml>
+python -m apps.sim <command> [options]
 ```
 
-#### Quick Test (Lightweight Configs)
-
-For fast validation (completes in seconds):
+#### Discover what is available
 
 ```bash
-# DP-heavy workload with ECMP routing
-python ai_factory_network_simulation.py ai_factory/scenarios/config/testing/ai_factory_su_dp_light_scenario_ecmp.yaml
-
-# DP-heavy workload with Adaptive routing
-python ai_factory_network_simulation.py ai_factory/scenarios/config/testing/ai_factory_su_dp_light_scenario_adaptive.yaml
-
-# Mixed workload with ECMP routing
-python ai_factory_network_simulation.py ai_factory/scenarios/config/testing/ai_factory_su_mixed_scenario_ecmp_light.yaml
-
-# Mixed workload with Adaptive routing
-python ai_factory_network_simulation.py ai_factory/scenarios/config/testing/ai_factory_su_mixed_scenario_adaptive_light.yaml
+python -m apps.sim list presets
+python -m apps.sim list workloads
+python -m apps.sim list routing
 ```
 
-#### Full Experiments (Heavy Workloads)
+#### Quick runs from presets
 
-**Warning:** These configurations run full-scale experiments and can take **hours to complete**. They are designed for batch execution.
-
-Located in `ai_factory/scenarios/config/`:
-
-**DP-Heavy Workload Scenarios:**
-- `ai_factory_su_dp_heavy_scenario_ecmp_low.yaml` - Low load (X1)
-- `ai_factory_su_dp_heavy_scenario_ecmp_mid.yaml` - Medium load (X2)
-- `ai_factory_su_dp_heavy_scenario_ecmp_high.yaml` - High load (X8)
-- `ai_factory_su_dp_heavy_scenario_ecmp_high_failures.yaml` - High load + 5% link failures
-- Similar variants for `flowlet` and `adaptive` routing
-
-**Mixed Workload Scenarios:**
-- `ai_factory_su_mixed_scenario_ecmp_low.yaml` - Low load (X1)
-- `ai_factory_su_mixed_scenario_ecmp_mid.yaml` - Medium load (X2)
-- `ai_factory_su_mixed_scenario_ecmp_high.yaml` - High load (X4)
-- `ai_factory_su_mixed_scenario_ecmp_high_failures.yaml` - High load + 5% link failures
-- Similar variants for `flowlet` and `adaptive` routing
-
-**Example (Heavy Run):**
 ```bash
-python ai_factory_network_simulation.py ai_factory/scenarios/config/ai_factory_su_dp_heavy_scenario_ecmp_high.yaml
+python -m apps.sim run --preset ai/su-dp-light
+python -m apps.sim run --preset ai/su-mixed-low
 ```
 
----
+#### Override a few parameters without copying YAML files
 
-### 3. Batch Execution (All Experiments)
-
-For running multiple experiments sequentially, use the PowerShell script (Windows):
-
-```powershell
-# Run all configured scenarios
-powershell -NoProfile -ExecutionPolicy Bypass -File .\run_all_not_light.ps1
-
-# List scenarios without running
-powershell -NoProfile -ExecutionPolicy Bypass -File .\run_all_not_light.ps1 -ListOnly
-
-# Stop on first error
-powershell -NoProfile -ExecutionPolicy Bypass -File .\run_all_not_light.ps1 -StopOnError
+```bash
+python -m apps.sim run --preset ai/su-dp-low --set routing.mode=adaptive
+python -m apps.sim run --preset ai/su-mixed-mid --set topology.params.leaf_count=12
+python -m apps.sim run --preset ai/su-mixed-high --set topology.params.fabric.link_failure_percent=5
 ```
 
-**Note:** Edit the `$Scenarios` array in `run_all_not_light.ps1` to select which configurations to run.
+#### Validate and inspect the resolved experiment
 
-**Output:**
-- Per-scenario logs in `batch_logs/` (directory created automatically if missing)
-- Summary file generated at completion
+```bash
+python -m apps.sim validate --preset ai/su-mixed-mid
+python -m apps.sim validate --config experiments/custom.yaml
+```
 
----
+To save communication-distribution plots and open them in a window after a run:
 
-## YAML Configuration Structure
-
-YAML files define all simulation parameters. Key sections:
-
-### `run` Section
 ```yaml
 run:
-  file_debug: false          # Enable DEBUG-level file logging
-  message_verbose: false     # Log individual packet events
-  verbose_route: false       # Log routing decisions
-  visualize: false           # Generate topology visualizations
+  visualize: true
+  show_visualization_window: true
 ```
 
-### `topology` Section
+#### Generate a starter config from a preset
+
+```bash
+python -m apps.sim init --preset ai/su-mixed-low --out experiments/mixed_low.yaml
+python -m apps.sim init --preset ai/su-dp-light --out experiments/dp-light.yaml
+```
+
+### 2. Batch Execution
+
+For running multiple experiments sequentially, use the built-in Python batch command instead of a PowerShell script.
+
+#### Batch from presets or config files
+
+```bash
+python -m apps.sim batch --preset ai/su-dp-light --preset ai/su-mixed-light
+python -m apps.sim batch --config experiments/run1.yaml --config experiments/run2.yaml
+python -m apps.sim batch --directory experiments/
+```
+
+#### Batch output summary
+
+```bash
+python -m apps.sim batch --preset ai/su-dp-low --preset ai/su-mixed-low --summary-out results/batch-summary.yaml
+```
+
+#### Stop on first failure
+
+```bash
+python -m apps.sim batch --directory experiments/ --stop-on-error
+```
+
+---
+
+### 3. Sweep Execution
+
+For cartesian parameter sweeps, use the built-in sweep command.
+
+```bash
+python -m apps.sim sweep --preset ai/su-dp-low --vary routing.mode=ecmp,adaptive --vary topology.params.leaf_count=8,16
+python -m apps.sim sweep --preset ai/su-mixed-low --vary topology.params.fabric.link_failure_percent=0,5 --summary-out results/sweep.yaml
+```
+
+This replaces the old shell-driven workflow for selecting many scenario combinations manually.
+
+---
+
+## Unified Configuration Structure
+
+The new config model is centered on one concept: an **experiment**.
+
+```yaml
+kind: experiment
+
+meta:
+  name: ai-su-mixed-mid
+  description: Medium-load mixed workload on the AI scale-unit clos preset
+
+run:
+  file_debug: false
+  message_verbose: false
+  verbose_route: false
+  visualize: false
+
+topology:
+  params:
+    leaf_count: 8
+    spine_count: 4
+    fabric:
+      bandwidth_profile: 4g
+      link_failure_percent: 0.0
+
+routing:
+  mode: ecmp
+  ecmp_flowlet_n_packets: 0
+
+workload:
+  kind: mixed
+  params: {}
+```
+
+### Topology model
+
+Topology defaults now live in YAML preset fragments under `sim/presets/ai/`, and concrete presets usually override only `topology.params`.
+
+- the default AI scale-unit clos shape is described in `sim/presets/ai/topology-clos-scale-unit.yaml`
+- `topology.params` lets you override only the knobs you care about in the concrete preset
+
+AI presets inherit their topology shape from that YAML fragment, so most configs only need to edit `topology.params`. Topology shape is now primarily exposed through the YAML preset chain rather than a dedicated listing command.
+
+There are no longer in-code topology defaults for `clos`: if you create a standalone config, inherit the topology fragment (or provide the full required `topology.params` block yourself).
+
+Example overrides:
+
 ```yaml
 topology:
-  type: ai-factory-su        # Topology type
-
-  ai_factory_su:
-    leaves: 8                        # Number of leaf switches
-    spines: 4                        # Number of spine switches
-    servers_per_leaf: 4              # Servers per leaf
-    server_parallel_links: 8         # Links from each server to leaf
-    leaf_to_spine_parallel_links: 8  # Links between each leaf-spine pair
-
-  routing:
-    mode: ecmp               # Routing: ecmp | adaptive | flowlet
-    ecmp_flowlet_n_packets: 0  # Flowlet threshold (0 = disabled)
-
-  links:
-    failure_percent: 0.0     # Percentage of links to fail
-    bandwidth_bps:
-      server_to_leaf: 4e9    # 4 Gbps
-      leaf_to_spine: 4e9
-
-  max_path: 64               # Max ECMP paths
-  mtu: 4096                  # Maximum Transmission Unit (bytes)
-  ttl: 64                    # Time-to-live
+  params:
+    leaf_count: 12
+    spine_count: 6
+    mtu: 32768
+    fabric:
+      bandwidth_profile: 400g
+      link_failure_percent: 5.0
 ```
 
-### `scenario` Section (DP-Heavy Example)
+### Workload model
+
+Workload defaults now live in YAML preset fragments under `sim/presets/ai/`, and concrete presets usually override only `workload.params`.
+
+- `kind: dp-heavy` selects the DP-heavy training-step model
+- `kind: mixed` selects the concurrent TP-heavy + PP+DP model
+- built-in presets like `su-dp-light.yaml` and `su-mixed-high.yaml` inherit documented workload fragments for their common defaults
+
+Example:
+
 ```yaml
-scenario:
-  name: ai-factory-su-workload1-dp-heavy
+workload:
+  kind: dp-heavy
   params:
-    steps: 50                # Number of training steps
-    seed: 1972               # Random seed
-    num_buckets: 8           # Gradient buckets for AllReduce
-    bucket_bytes_per_participant: 4194304  # 4 MiB per bucket
-    gap_us: 0.0              # Inter-message gap
-    t_fwd_bwd_ms: 10.0       # Forward-backward compute time
-    optimizer_ms: 5.0        # Optimizer compute time
-
-    mice:                    # Background mice flows (optional)
-      enabled: true
-      seed: 2026
-      start_delay_s: 0.0
-      end_time_s: 10.0
-      interarrival_s: 0.001
-      min_packets: 1
-      max_packets: 4
-      force_cross_rack: true
-```
-
-### `scenario` Section (Mixed Workload Example)
-```yaml
-scenario:
-  name: ai-factory-su-mixed_scenario
-  params:
-    steps: 50                # Overall simulation steps
-    seed: 2026
-    traffic_scale: 1.0       # Traffic multiplier
-
-    allocation_mode: rack_balanced      # Worker placement
-    stage_placement_mode: topology_aware
-
-    jobs:
-      tp_heavy:
-        steps: 100           # Steps for TP-heavy job
-      pp_dp:
-        steps: 200           # Steps for PP+DP job
-
-    # TP-heavy job parameters
-    tp_heavy_fwd_compute_ms: 5.0
-    tp_heavy_micro_collectives: 16
-    tp_heavy_micro_collective_bytes_per_participant: 524288
-    # ... (see example YAML for full parameters)
-
-    # PP+DP job parameters
-    pp_dp_microbatch_count: 4
-    pp_dp_activation_bytes_per_microbatch: 1048576
-    # ... (see example YAML for full parameters)
-
+    bucket_bytes_per_participant: 4194304
+    chunk_redundancy_percent: 12.5
     mice:
-      enabled: true
-      # ... (same as DP-heavy)
+      enabled: false
 ```
+
+`chunk_redundancy_percent` inflates transmitted communication bytes above the useful payload and considers a chunk complete once the first 100% of useful bytes arrive. This models chunk-level redundancy / coded slack at the cost of extra load on the network.
+
+### Preset inheritance
+
+Preset YAML files can extend a base preset, and chained inheritance like `a -> b -> c` is supported.
+
+```yaml
+extends:
+  - presets-experiments-base.yaml
+  - workload-dp-heavy-low.yaml
+meta:
+  name: ai-su-dp-low
+```
+
+The AI preset stack now works roughly like:
+
+- `su-dp-low.yaml` inherits from `base-ai-su.yaml` and `workload-dp-heavy-low.yaml`
+- `base-ai-su.yaml` inherits from `topology-clos-scale-unit.yaml`
+- `workload-dp-heavy-low.yaml` inherits from `workload-dp-heavy-base.yaml`
+
+This keeps the preset library compact and avoids duplicating nearly identical experiment files while keeping topology, routing, and workload defaults visible in YAML.
 
 ---
 
@@ -356,46 +326,17 @@ Each run generates a detailed log file containing:
   - Queue occupancy metrics
   - Total simulation time
 
+When `run.visualize: true`, the simulator also saves visualization files under `results/`, including an AI-factory communication distribution figure showing:
+- bucket completion-time distributions
+- lower-level chunk / flow completion-time distributions
+
+In this project, **buckets are not the same as chunks**:
+- a **bucket** is a workload-level communication group (for example, one DP gradient bucket)
+- a **chunk / flow** is a lower-level send emitted inside that bucket (for example, a ring neighbor send)
+
 **Locations:**
-- Simple scenarios: `{topology}.{scenario}_YYYYMMDD_HHMMSS.log`
-- AI Factory scenarios: `batch_logs/run_ai_factory_simulation_..._.log`
+- Unified runs: `results/logs/<run-name>_YYYYMMDD_HHMMSS_*.log`
 
-### Generating Comparison Graphs
-
-After running multiple experiments, generate comparison plots:
-
-```bash
-python log_analyze_utilities/workload_comparison_plotter.py
-```
-
-**Generated Graphs** (saved to `results/`):
-
-1. **Step Time Comparisons**
-   - `heavy_workload_step_time_comparison.png`
-   - `mixed_workload_step_time_comparison.png`
-   - Shows mean and p95 step times across load points and routing methods
-
-2. **Job Total Time**
-   - `heavy_workload_job_time_comparison.png`
-   - `mixed_workload_job_time_comparison.png`
-   - Total simulation time per configuration
-
-3. **Step Completion CDFs**
-   - `heavy_workload_step_cdf.png`
-   - `mixed_workload_step_cdf.png`
-   - Progress of step completion over time
-
-4. **Mice FCT Analysis**
-   - `heavy_workload_mice_fct_vs_load.png`
-   - `mixed_workload_mice_fct_vs_load.png`
-   - Small flow latency under different loads
-
-5. **Queue Occupancy**
-   - `queue_global_peak_vs_load.png`
-   - `avg_switch_peak_queue_vs_load.png`
-   - Congestion metrics across experiments
-
-**Prerequisites:** Must have batch logs from completed runs in `batch_logs/` directory.
 
 ---
 
@@ -506,16 +447,16 @@ run:
 
 ### Adding New Scenarios
 
-1. Create scenario class in `network/scenarios/` or `ai_factory/scenarios/`
-2. Implement required methods: `setup()`, `run_step()`
-3. Register scenario name in entry point (`ai_factory_network_simulation.py`)
-4. Create YAML configuration in `ai_factory/scenarios/config/`
+1. Create the scenario/workload implementation in `network/scenarios/` or `ai_factory/scenarios/`
+2. Register it in `sim/registry/workloads.py`
+3. Add or update presets under `sim/presets/`
+4. Validate it with `python -m apps.sim validate ...`
 
 ### Adding New Routing Algorithms
 
-1. Add new `RoutingMode` enum value in `network_simulation/network_node.py`
-2. Implement routing logic in `Switch.route_packet()`
-3. Update YAML parser in `ai_factory_network_simulation.py`
+1. Add a new `RoutingMode` enum value in `network/core/network_node.py`
+2. Implement the routing logic in the relevant node forwarding path
+3. Expose the new mode through the unified config / CLI interface in `sim/registry/topologies.py`
 
 ---
 

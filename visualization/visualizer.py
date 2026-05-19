@@ -119,7 +119,7 @@ def visualize_topology(topop_name: str, entities: Dict[Any, Any], spacing: float
         edges = sorted([n for n in G.nodes() if str(n).startswith('edge_switch')])
         hosts = sorted([n for n in G.nodes() if str(n).startswith('host')])
 
-        # Also support the AI-Factory SU naming scheme:
+        # Also support the AI-Factory scale-unit (SU) naming scheme:
         #   spines: su<id>_spine<k>
         #   leaves: su<id>_leaf<k>
         #   servers: su<id>_leaf<k>_srv<k>
@@ -127,7 +127,7 @@ def visualize_topology(topop_name: str, entities: Dict[Any, Any], spacing: float
         su_leaves = sorted([n for n in G.nodes() if '_leaf' in str(n) and str(n).startswith('su') and '_srv' not in str(n)])
         su_hosts = sorted([n for n in G.nodes() if '_srv' in str(n) and str(n).startswith('su')])
 
-        # If this looks like an SU topology, prefer its 3-layer layout.
+        # If this looks like a scale-unit topology, prefer its 3-layer layout.
         if su_spines and su_leaves and su_hosts:
             layers = [su_spines, su_leaves, su_hosts]
         else:

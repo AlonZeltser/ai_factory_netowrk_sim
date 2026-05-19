@@ -1,5 +1,5 @@
-﻿from ai_factory.workloads.workload1_dp_heavy import Workload1Config, build_workload1_dp_heavy_job
+﻿from ai_factory.workloads.dp_heavy_workload import DPHeavyWorkloadConfig, build_dp_heavy_workload_job
 
-__all__ = ["Workload1Config", "build_workload1_dp_heavy_job"]
+__all__ = ["DPHeavyWorkloadConfig", "build_dp_heavy_workload_job"]
 
 

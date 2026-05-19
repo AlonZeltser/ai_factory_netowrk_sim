@@ -4,7 +4,7 @@ from __future__ import annotations
 def default_rack_key(host_id: str) -> int:
     """Best-effort rack key extraction.
 
-    For AI-factory SU host IDs that look like: su1_leaf<leaf_i>_srv<srv_i>,
+    For AI-factory scale-unit host IDs that look like: su1_leaf<leaf_i>_srv<srv_i>,
     we treat leaf_i as rack id.
 
     Falls back to digit grouping when the expected pattern isn't found.

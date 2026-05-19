@@ -1,0 +1,23 @@
+extends: topology-clos-small-scale-unit.yaml
+# Unified experiment config kind. Allowed values: `experiment` only.
+kind: experiment
+meta:
+  # Human-readable description inherited by presets that do not override it.
+  description: Base preset for AI workloads on the two-layer clos AI scale-unit fabric
+run:
+  # Whether to log DEBUG-level details to the run log file. Allowed values: true | false.
+  file_debug: false
+  # Whether to emit verbose packet/logging messages during the run. Allowed values: true | false.
+  message_verbose: false
+  # Whether to track and log verbose per-packet routes. Allowed values: true | false.
+  verbose_route: false
+  # Whether to launch visualization after the run completes. Allowed values: true | false.
+  visualize: true
+  # Whether to open matplotlib windows interactively in addition to saving files. Allowed values: true | false.
+  show_visualization_window: false
+routing:
+  # Routing strategy. Allowed values: `ecmp` | `adaptive` | `flowlet`.
+  mode: adaptive
+  # Flowlet rehash period in packets. Range: integer >= 0. Used only by `flowlet` / flowlet-style ECMP.
+  ecmp_flowlet_n_packets: 0
+

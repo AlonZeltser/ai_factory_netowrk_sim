@@ -5,12 +5,12 @@ from network.scenarios.base import Scenario
 from ai_factory.core.runner import JobRunner
 from ai_factory.scenarios.network_flow_injector import NetworkFlowInjector
 from ai_factory.traffic.collective import CollectiveAlgorithm
-from ai_factory.workloads.workload1_dp_heavy import Workload1Config, build_workload1_dp_heavy_job
+from ai_factory.workloads.dp_heavy_workload import DPHeavyWorkloadConfig, build_dp_heavy_workload_job
 from ai_factory.scenarios.mice_flow_injector import MiceConfig, MiceFlowInjector
 
 
 class AIFactorySUDpHeavyScenario(Scenario):
-    """Workload1 DP-heavy on the AI-Factory SU topology."""
+    """Workload1 DP-heavy on the AI-Factory scale-unit topology."""
 
     def __init__(
         self,
@@ -21,6 +21,7 @@ class AIFactorySUDpHeavyScenario(Scenario):
         gap_us: float,
         t_fwd_bwd_ms: float,
         optimizer_ms: float,
+        chunk_redundancy_percent: float = 0.0,
         *,
         mice: MiceConfig | None = None,
     ):
@@ -31,11 +32,12 @@ class AIFactorySUDpHeavyScenario(Scenario):
         self.gap_us = gap_us
         self.t_fwd_bwd_ms = t_fwd_bwd_ms
         self.optimizer_ms = optimizer_ms
+        self.chunk_redundancy_percent = chunk_redundancy_percent
         self.mice = mice
 
     def install(self, network) -> None:
         participants = sorted(network.hosts.keys())
-        cfg = Workload1Config(
+        cfg = DPHeavyWorkloadConfig(
             steps=int(self.steps),
             num_buckets=int(self.num_buckets),
             bucket_bytes_per_participant=int(self.bucket_bytes_per_participant),
@@ -44,14 +46,22 @@ class AIFactorySUDpHeavyScenario(Scenario):
             seed=int(self.seed),
             t_fwd_bwd_ms=float(self.t_fwd_bwd_ms),
             optimizer_ms=float(self.optimizer_ms),
+            chunk_redundancy_percent=float(self.chunk_redundancy_percent),
         )
-        job = build_workload1_dp_heavy_job(participants=participants, config=cfg)
+        job = build_dp_heavy_workload_job(participants=participants, config=cfg)
 
         injector = NetworkFlowInjector(network)
 
         # Optional background mice traffic.
+        mice_injector = None
         if self.mice is not None and self.mice.enabled:
-            MiceFlowInjector(network=network, injector=injector, cfg=self.mice).install()
+            mice_injector = MiceFlowInjector(
+                network=network,
+                injector=injector,
+                cfg=self.mice,
+                should_stop=lambda: bool(metrics.end_time is not None),
+            )
+            mice_injector.install()
 
         runner = JobRunner(sim=network.simulator, injector=injector, job=job)
         metrics = runner.run()
@@ -70,12 +80,12 @@ class AIFactorySUDpHeavyScenario(Scenario):
                 "gap_us": self.gap_us,
                 "t_fwd_bwd_ms": self.t_fwd_bwd_ms,
                 "optimizer_ms": self.optimizer_ms,
+                "chunk_redundancy_percent": self.chunk_redundancy_percent,
             }
         )
         if self.mice is not None and self.mice.enabled:
             out["mice_enabled"] = True
             out["mice_interarrival_s"] = self.mice.interarrival_s
-            out["mice_end_time_s"] = self.mice.end_time_s
             out["mice_packets_range"] = f"{self.mice.min_packets}-{self.mice.max_packets}"
             out["mice_force_cross_rack"] = self.mice.force_cross_rack
         return out

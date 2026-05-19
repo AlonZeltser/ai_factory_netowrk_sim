@@ -1,0 +1,11 @@
+extends:
+  - bases/presets-experiments-base.yaml
+  - bases/topology-clos-large-scale-unit.yaml
+  - mixed_workloads/workload-mixed-low.yaml
+meta:
+  name: ai-su-mixed-low
+  description: Low-load mixed-workload preset on the AI scale-unit clos profile
+
+topology:
+  params:
+    mtu: 40960

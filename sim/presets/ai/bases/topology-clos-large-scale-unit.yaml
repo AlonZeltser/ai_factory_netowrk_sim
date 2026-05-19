@@ -1,0 +1,36 @@
+topology:
+  params:
+    # Number of switching layers. Allowed values: 2 only in the current implementation.
+    layers: 2
+    # Number of leaf / ToR switches. Range: integer >= 1.
+    leaf_count: 8
+    # Number of spine switches. Range: integer >= 1.
+    spine_count: 4
+    # Maximum allowed hop count recorded in the network model. Range: integer >= 1.
+    max_path: 64
+    # Packet MTU in bytes used when hosts packetize bulk flows. Range: integer >= 64.
+    mtu: 4096
+    # Packet time-to-live in hops before a packet is dropped as expired. Range: integer >= 1.
+    ttl: 64
+    fabric:
+      # Number of servers attached to each leaf switch. Range: integer >= 1.
+      servers_per_leaf: 4
+      # Number of parallel NIC / link connections from each server to its leaf. Range: integer >= 1.
+      host_links_per_server: 4 #8
+      # Number of parallel links from each leaf to each spine. Range: integer >= 1.
+      parallel_leaf_to_spine_links: 8
+      # Percentage of links to mark failed when constructing the topology. Range: 0.0 to 100.0.
+      link_failure_percent: 0.0
+      # Percentage of packets to tag for one retransmit-like switch stall. Range: 0.0 to 100.0.
+      packet_stall_percent: 0.0
+      # Delay in milliseconds while a tagged packet is held at its selected switch hop. Range: float >= 0.
+      packet_stall_delay_ms: 100.0
+      # Maximum zero-based switch hop index eligible for the stall. Default 2 covers leaf->spine->leaf paths.
+      packet_stall_max_switch_hop: 2
+      # Optional string enum: set `bandwidth_profile` to `4g` or `400g` to override both bandwidth values below together.
+      # bandwidth_profile: 400g
+      # Bandwidth in bits/sec for each server-to-leaf link, unless overridden by bandwidth_profile. Range: float > 0.
+      server_to_leaf_bandwidth_bps: 4000000000
+      # Bandwidth in bits/sec for each leaf-to-spine link, unless overridden by bandwidth_profile. Range: float > 0.
+      leaf_to_spine_bandwidth_bps: 4000000000
+

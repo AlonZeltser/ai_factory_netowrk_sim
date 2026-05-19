@@ -10,7 +10,7 @@ from ai_factory.core.runner import JobRunner
 from ai_factory.scenarios.network_flow_injector import NetworkFlowInjector
 from ai_factory.scenarios.mice_flow_injector import MiceConfig, MiceFlowInjector
 from ai_factory.traffic.collective import CollectiveAlgorithm
-from ai_factory.workloads.mixed_scenario import (
+from ai_factory.workloads.mixed_workload import (
     MixedScenarioTpHeavyConfig,
     MixedScenarioPpDpConfig,
     build_mixed_scenario_tp_heavy,
@@ -37,7 +37,7 @@ def _sha1_tuples(rows: list[tuple]) -> str:
 
 @dataclass(frozen=True)
 class MixedScenario(Scenario):
-    """Mixed scenario: two concurrent jobs (tp_heavy=TP-heavy, pp_dp=PP+DP) on the AI-factory SU topology."""
+    """Mixed scenario: two concurrent jobs (tp_heavy=TP-heavy, pp_dp=PP+DP) on the AI-factory scale-unit topology."""
 
     name: str = "ai-factory-su-mixed_scenario"
 
@@ -49,6 +49,7 @@ class MixedScenario(Scenario):
 
     seed: int = 1234
     traffic_scale: float = 1.0
+    chunk_redundancy_percent: float = 0.0
 
     allocation_mode: AllocationMode = "rack_balanced"
     stage_placement_mode: StagePlacementMode = "topology_aware"
@@ -147,6 +148,7 @@ class MixedScenario(Scenario):
             tail_compute_ms=float(self.tp_heavy_tail_compute_ms),
             gap_us=float(self.tp_heavy_gap_us),
             algorithm=CollectiveAlgorithm.RING,
+            chunk_redundancy_percent=float(self.chunk_redundancy_percent),
         )
 
         pp_dp_cfg = MixedScenarioPpDpConfig(
@@ -159,6 +161,7 @@ class MixedScenario(Scenario):
             grad_bytes_per_microbatch=int(self.pp_dp_grad_bytes_per_microbatch),
             dp_sync_bytes_per_participant=int(self.pp_dp_dp_sync_bytes_per_participant),
             tail_compute_ms=float(self.pp_dp_tail_compute_ms),
+            chunk_redundancy_percent=float(self.chunk_redundancy_percent),
         )
 
         tp_heavy = build_mixed_scenario_tp_heavy(participants=tp_heavy_nodes, config=tp_heavy_cfg, job_name="mixed-scenario-tp_heavy")
@@ -167,8 +170,15 @@ class MixedScenario(Scenario):
         injector = NetworkFlowInjector(network)
 
         # Optional background mice traffic.
+        mice_injector = None
         if self.mice is not None and self.mice.enabled:
-            MiceFlowInjector(network=network, injector=injector, cfg=self.mice).install()
+            mice_injector = MiceFlowInjector(
+                network=network,
+                injector=injector,
+                cfg=self.mice,
+                should_stop=lambda: bool(metrics_tp.end_time is not None and metrics_pp.end_time is not None),
+            )
+            mice_injector.install()
 
         runner_tp = JobRunner(sim=network.simulator, injector=injector, job=tp_heavy)
         runner_pp = JobRunner(sim=network.simulator, injector=injector, job=pp_dp)
@@ -194,6 +204,7 @@ class MixedScenario(Scenario):
                 "pp_dp_steps": (self.pp_dp_steps if self.pp_dp_steps is not None else self.steps),
                 "seed": self.seed,
                 "traffic_scale": self.traffic_scale,
+                "chunk_redundancy_percent": self.chunk_redundancy_percent,
                 "allocation_mode": self.allocation_mode,
                 "stage_placement_mode": self.stage_placement_mode,
                 "tp_heavy_micro_collectives": self.tp_heavy_micro_collectives,
@@ -203,7 +214,6 @@ class MixedScenario(Scenario):
         if self.mice is not None and self.mice.enabled:
             out["mice_enabled"] = True
             out["mice_interarrival_s"] = self.mice.interarrival_s
-            out["mice_end_time_s"] = self.mice.end_time_s
             out["mice_packets_range"] = f"{self.mice.min_packets}-{self.mice.max_packets}"
             out["mice_force_cross_rack"] = self.mice.force_cross_rack
         return out

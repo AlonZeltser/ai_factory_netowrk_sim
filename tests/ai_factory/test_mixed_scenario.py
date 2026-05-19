@@ -6,7 +6,7 @@ from ai_factory.simulators.ai_factory_su_network_simulator import AIFactorySUNet
 
 
 def _mk_network(*, routing_mode: RoutingMode) -> AIFactorySUNetworkSimulator:
-    # Use the SU topology defaults (32 hosts). Keep it fast by using high bandwidths.
+    # Use the scale-unit topology defaults (32 hosts). Keep it fast by using high bandwidths.
     return AIFactorySUNetworkSimulator(
         max_path=64,
         link_failure_percent=0.0,
@@ -48,6 +48,10 @@ def test_mixed_scenario_completes_and_metrics_lengths() -> None:
     metrics = network.entities.get("ai_factory_job_metrics")
     assert isinstance(metrics, dict)
     assert "tp_heavy" in metrics and "pp_dp" in metrics
+
+    results = network.get_results()
+    assert results["ai_factory_bucket_metrics"]
+    assert results["ai_factory_flow_metrics"]
 
     tp_heavy = metrics["tp_heavy"]
     pp_dp = metrics["pp_dp"]

@@ -3,6 +3,7 @@
 import logging
 import random
 from dataclasses import dataclass
+from typing import Callable
 
 from ai_factory.core.runner import _compute_percentile
 from ai_factory.scenarios.rack_utils import default_rack_key
@@ -14,7 +15,6 @@ class MiceConfig:
     enabled: bool
     seed: int
     start_delay_s: float
-    end_time_s: float
     interarrival_s: float
     min_packets: int
     max_packets: int
@@ -25,10 +25,11 @@ class MiceConfig:
 class MiceFlowInjector:
     """Inject small background 'mice' flows and track their flow completion time (FCT)."""
 
-    def __init__(self, *, network, injector, cfg: MiceConfig):
+    def __init__(self, *, network, injector, cfg: MiceConfig, should_stop: Callable[[], bool] | None = None):
         self._network = network
         self._injector = injector
         self._cfg = cfg
+        self._should_stop = should_stop
 
         self._rnd = random.Random(int(cfg.seed))
         self._hosts: list[str] = sorted(network.hosts.keys())
@@ -41,8 +42,6 @@ class MiceFlowInjector:
             return
         if self._cfg.interarrival_s <= 0.0:
             raise ValueError("mice.interarrival_s must be > 0")
-        if self._cfg.end_time_s <= self._cfg.start_delay_s:
-            raise ValueError("mice.end_time_s must be > mice.start_delay_s")
         if len(self._hosts) < 2:
             raise ValueError("mice requires at least 2 hosts")
 
@@ -52,10 +51,6 @@ class MiceFlowInjector:
         }
 
         self._network.simulator.schedule_event(float(self._cfg.start_delay_s), self._inject_next)
-
-        # Ensure we always publish summary at the end of the sim even if end_time_s is infinity.
-        if self._cfg.end_time_s == float("inf"):
-            self._network.simulator.schedule_event(float("inf"), self._finalize)
 
     def _pick_pair(self) -> tuple[str, str]:
         src = self._rnd.choice(self._hosts)
@@ -84,7 +79,8 @@ class MiceFlowInjector:
         sim = self._network.simulator
         now = float(sim.get_current_time())
 
-        if now >= float(self._cfg.end_time_s):
+        # Stop mice once the scenario workload reports completion.
+        if self._should_stop is not None and self._should_stop():
             self._finalize()
             return
 

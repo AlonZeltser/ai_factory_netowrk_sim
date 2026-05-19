@@ -1,5 +1,6 @@
 ﻿import itertools
 import logging
+import random
 from dataclasses import dataclass
 
 from des.des import DiscreteEventSimulator
@@ -108,6 +109,11 @@ class Host(NetworkNode):
                 verbose_route=None)
             if self.verbose_route:
                 tracking_info.verbose_route = [self.name]
+            packet_stall_percent = float(getattr(self.scheduler, "packet_stall_percent", 0.0) or 0.0)
+            packet_stall_max_switch_hop = int(getattr(self.scheduler, "packet_stall_max_switch_hop", 0) or 0)
+            if packet_stall_percent > 0.0 and random.random() < (packet_stall_percent / 100.0):
+                tracking_info.packet_stall_target_switch_hop = random.randint(0, max(0, packet_stall_max_switch_hop))
+                self.scheduler.packet_stats.record_packet_stall_marked()
             packet = Packet(routing_header=header,
                             transport_header=app_header,
                             tracking_info=tracking_info)

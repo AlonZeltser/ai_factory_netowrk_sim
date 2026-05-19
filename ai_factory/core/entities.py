@@ -53,6 +53,36 @@ class PhaseMetrics:
 
 
 @dataclass
+class BucketMetrics:
+    job_id: int
+    step_id: int
+    phase_id: int
+    phase_name: str
+    bucket_id: int
+    start_time: float
+    end_time: float
+    flow_count: int
+    transmitted_bytes: int
+    useful_bytes: int
+
+
+@dataclass
+class FlowMetrics:
+    flow_id: int
+    job_id: int
+    step_id: int
+    phase_id: int
+    bucket_id: int | None
+    tag: str
+    src_node_id: str
+    dst_node_id: str
+    start_time: float
+    end_time: float
+    transmitted_bytes: int
+    useful_bytes: int
+
+
+@dataclass
 class StepMetrics:
     step_id: int
     start_time: float
@@ -66,6 +96,7 @@ class JobMetrics:
     start_time: float
     end_time: Optional[float] = None
     steps: list[StepMetrics] = field(default_factory=list)
+    bucket_metrics: list[BucketMetrics] = field(default_factory=list)
 
 
 FlowCompleteCallback = Callable[[int], None]

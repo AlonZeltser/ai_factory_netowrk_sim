@@ -69,6 +69,9 @@ class PacketTrackingInfo:
     verbose_route: list[str] | None = None  # only when verbose_route tracking is enabled
     delivered: bool = False
     arrival_time: Optional[float] = None
+    switch_hops_seen: int = 0
+    packet_stall_target_switch_hop: Optional[int] = None
+    packet_stall_triggered: bool = False
 
 
 @dataclass(slots=True)

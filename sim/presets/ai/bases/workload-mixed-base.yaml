@@ -1,0 +1,69 @@
+workload:
+  # Allowed values: `dp-heavy`, `mixed`, `none`. This fragment is for the concurrent mixed workload.
+  kind: mixed
+  params:
+    # Number of top-level steps to simulate. Range: integer >= 1.
+    steps: 50
+    # Deterministic seed used for host splitting, stage placement, and job generation. Range: integer >= 0.
+    seed: 2026
+    # Global multiplier applied to communication byte volumes in both jobs. Range: float > 0.0.
+    traffic_scale: 0.25
+    # Extra communication overhead sent per chunk, expressed as a percent of useful bytes. Range: float >= 0.0.
+    chunk_redundancy_percent: 0.0
+    # How hosts are split between the two jobs. Allowed values: `rack_balanced` | `contiguous`.
+    allocation_mode: rack_balanced
+    # How the PP+DP job maps its hosts onto 4 pipeline stages. Allowed values: `topology_aware` | `topology_unaware`.
+    stage_placement_mode: topology_aware
+    # Optional per-job step counts. Set this mapping to `null` to let both jobs reuse `steps`.
+    jobs:
+      tp_heavy:
+        # Number of TP-heavy steps. Range: integer >= 1.
+        steps: 100
+      pp_dp:
+        # Number of PP+DP steps. Range: integer >= 1.
+        steps: 200
+    # Front-end compute before TP communication bursts, in milliseconds. Range: float >= 0.0.
+    tp_heavy_fwd_compute_ms: 5.0
+    # Number of TP micro-collectives per step. Range: integer >= 1.
+    tp_heavy_micro_collectives: 16
+    # Useful bytes per participant for each TP micro-collective before traffic_scale and redundancy. Range: integer >= 1.
+    tp_heavy_micro_collective_bytes_per_participant: 524288
+    # Small compute gap inserted between TP micro-collectives, in milliseconds. Range: float >= 0.0.
+    tp_heavy_micro_compute_gap_ms: 0.5
+    # Useful bytes per participant for the heavier final TP-heavy sync before traffic_scale and redundancy. Range: integer >= 1.
+    tp_heavy_final_sync_bytes_per_participant: 8388608
+    # Tail compute after TP-heavy communication, in milliseconds. Range: float >= 0.0.
+    tp_heavy_tail_compute_ms: 2.0
+    # Gap between ring steps for TP-heavy collectives, in microseconds. Range: float >= 0.0.
+    tp_heavy_gap_us: 100.0
+    # Number of pipeline microbatches in the PP+DP job. Range: integer >= 1.
+    pp_dp_microbatch_count: 4
+    # Gap between pipeline microbatch bursts, in microseconds. Range: float >= 0.0.
+    pp_dp_microbatch_gap_us: 75.0
+    # Useful activation bytes sent per microbatch hop before traffic_scale and redundancy. Range: integer >= 1.
+    pp_dp_activation_bytes_per_microbatch: 1048576
+    # Useful gradient bytes sent per microbatch hop before traffic_scale and redundancy. Range: integer >= 1.
+    pp_dp_grad_bytes_per_microbatch: 1048576
+    # Useful bytes per participant for the PP+DP data-parallel sync before traffic_scale and redundancy. Range: integer >= 1.
+    pp_dp_dp_sync_bytes_per_participant: 16777216
+    # Tail compute after PP+DP communication, in milliseconds. Range: float >= 0.0.
+    pp_dp_tail_compute_ms: 3.0
+    # Whether to record a hash of the first-step communication pattern for determinism checks. Allowed values: true | false.
+    record_first_step_flow_signatures: true
+    # Optional background mice traffic. Set this entire mapping to `null` to disable inherited mice traffic.
+    mice:
+      # Whether to inject mice traffic while the mixed workload runs. Allowed values: true | false.
+      enabled: true
+      # Seed for mice-flow generation. Range: integer >= 0.
+      seed: 2026
+      # Delay before the first mice flow is injected, in seconds. Range: float >= 0.0.
+      start_delay_s: 0.0
+      # Mean inter-arrival spacing used by the current deterministic injector, in seconds. Range: float > 0.0.
+      interarrival_s: 0.001
+      # Minimum packets per mice flow. Range: integer >= 1.
+      min_packets: 1
+      # Maximum packets per mice flow. Range: integer >= min_packets.
+      max_packets: 4
+      # Whether mice traffic must cross racks. Allowed values: true | false.
+      force_cross_rack: true
+

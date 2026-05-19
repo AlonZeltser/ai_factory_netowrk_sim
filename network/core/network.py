@@ -17,6 +17,9 @@ _logger = logging.getLogger(__name__)
 class Network(ABC):
     def __init__(self, name: str, max_path: int,
                  link_failure_percent: float,
+                 packet_stall_percent: float,
+                 packet_stall_delay_ms: float,
+                 packet_stall_max_switch_hop: int,
                  routing_mode: RoutingMode,
                  verbose: bool, verbose_route: bool,
                  ecmp_flowlet_n_packets: int,
@@ -39,6 +42,16 @@ class Network(ABC):
         self.switches: List[Switch] = []
         self.max_path = int(max_path)
         self.link_failure_percent = float(link_failure_percent)
+        self.packet_stall_percent = float(packet_stall_percent)
+        self.packet_stall_delay_ms = float(packet_stall_delay_ms)
+        self.packet_stall_delay_s = self.packet_stall_delay_ms / 1000.0
+        self.packet_stall_max_switch_hop = int(packet_stall_max_switch_hop)
+        if not 0.0 <= self.packet_stall_percent <= 100.0:
+            raise ValueError("packet_stall_percent must be between 0 and 100")
+        if self.packet_stall_delay_ms < 0.0:
+            raise ValueError("packet_stall_delay_ms must be >= 0")
+        if self.packet_stall_max_switch_hop < 0:
+            raise ValueError("packet_stall_max_switch_hop must be >= 0")
         self.routing_mode = routing_mode
         self.ecmp_flowlet_n_packets = int(ecmp_flowlet_n_packets)
         self.verbose = verbose
@@ -46,6 +59,9 @@ class Network(ABC):
         self._scenario: Scenario | None = None
         self.mtu = int(mtu)
         self.ttl = int(ttl)
+        self.simulator.packet_stall_percent = self.packet_stall_percent
+        self.simulator.packet_stall_delay_s = self.packet_stall_delay_s
+        self.simulator.packet_stall_max_switch_hop = self.packet_stall_max_switch_hop
 
 
     def create(self, visualize:bool) -> None:
@@ -195,6 +211,8 @@ class Network(ABC):
             'hosts received counts': [host.received_count for host in self.hosts.values()],
             'global_max_port_peak_queue_len (packets)': global_max_port_peak_queue_len,
             'avg_node_peak_egress_queue_len (packets)': avg_node_peak_egress_queue_len,
+            'packet_stall_marked_count': stats.packet_stall_marked_count,
+            'packet_stall_triggered_count': stats.packet_stall_triggered_count,
         }
 
         # --- AI-factory app metrics (if present) ---
@@ -214,14 +232,27 @@ class Network(ABC):
 
                 for name, jm in items:
                     steps = getattr(jm, "steps", None)
+                    start_time = getattr(jm, "start_time", None)
+                    end_time = getattr(jm, "end_time", None)
                     if not steps:
+                        if start_time is None or end_time is None:
+                            continue
+                        per_job[name] = {
+                            "job_duration_ms": (float(end_time) - float(start_time)) * 1000.0,
+                        }
                         continue
                     stats = _compute_step_stats(list(steps))
                     per_job[name] = {
                         "step_time_avg_ms": float(stats["avg"]) * 1000.0,
                         "step_time_p95_ms": float(stats["p95"]) * 1000.0,
                         "step_time_p99_ms": float(stats["p99"]) * 1000.0,
+                        "step_time_std_ms": float(stats.get("std", 0.0)) * 1000.0,
+                        "step_time_min_ms": float(stats.get("min", 0.0)) * 1000.0,
+                        "step_time_max_ms": float(stats.get("max", 0.0)) * 1000.0,
+                        "step_count": int(stats.get("count", 0)),
                     }
+                    if start_time is not None and end_time is not None:
+                        per_job[name]["job_duration_ms"] = (float(end_time) - float(start_time)) * 1000.0
 
                 if per_job:
                     run_statistics["ai_factory_step_time_ms_per_job"] = per_job
@@ -246,16 +277,34 @@ class Network(ABC):
                 for p in self.simulator.packets
             ]
 
+        ai_factory_bucket_metrics = self.entities.get("ai_factory_bucket_metrics", [])
+        job_metrics = self.entities.get("ai_factory_job_metrics")
+        if not ai_factory_bucket_metrics and job_metrics is not None:
+            if isinstance(job_metrics, dict):
+                merged_bucket_metrics = []
+                for metrics in job_metrics.values():
+                    merged_bucket_metrics.extend(getattr(metrics, "bucket_metrics", []))
+                ai_factory_bucket_metrics = merged_bucket_metrics
+            else:
+                ai_factory_bucket_metrics = list(getattr(job_metrics, "bucket_metrics", []))
+
+        ai_factory_flow_metrics = self.entities.get("ai_factory_flow_metrics", [])
+
         return {
             'topology summary': topology_summary,
             'parameters summary': parameters_summary,
             'run statistics': run_statistics,
             'packet_timeline': packet_timeline,
+            'ai_factory_bucket_metrics': ai_factory_bucket_metrics,
+            'ai_factory_flow_metrics': ai_factory_flow_metrics,
         }
 
     def get_parameters_summary(self):
         params = {
             'link_failure_percent': self.link_failure_percent,
+            'packet_stall_percent': self.packet_stall_percent,
+            'packet_stall_delay_ms': self.packet_stall_delay_ms,
+            'packet_stall_max_switch_hop': self.packet_stall_max_switch_hop,
             'routing_mode': self.routing_mode.name.lower(),
             'ecmp_flowlet_n_packets': self.ecmp_flowlet_n_packets,
             'max_path': self.max_path,

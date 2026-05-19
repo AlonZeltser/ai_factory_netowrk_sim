@@ -1,0 +1,6 @@
+extends: ../bases/workload-dp-heavy-base.yaml
+workload:
+  params:
+  # Number of training steps to simulate. Range: integer >= 1.
+    steps: 8
+

@@ -14,6 +14,8 @@ class PacketStatistics:
     total_count: int = 0
     delivered_count: int = 0
     dropped_count: int = 0
+    packet_stall_marked_count: int = 0
+    packet_stall_triggered_count: int = 0
 
     # Route length statistics
     route_length_sum: int = 0
@@ -36,6 +38,14 @@ class PacketStatistics:
     def record_dropped(self) -> None:
         """Called when a packet is dropped."""
         self.dropped_count += 1
+
+    def record_packet_stall_marked(self) -> None:
+        """Called when a packet is tagged for a future switch stall."""
+        self.packet_stall_marked_count += 1
+
+    def record_packet_stall_triggered(self) -> None:
+        """Called when a tagged packet actually hits its configured switch stall hop."""
+        self.packet_stall_triggered_count += 1
 
     @property
     def avg_route_length(self) -> float:

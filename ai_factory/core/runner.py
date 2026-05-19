@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from typing import Callable, List
 
@@ -11,6 +12,7 @@ from ai_factory.core.entities import (
     JobMetrics,
     StepMetrics,
     PhaseMetrics,
+    BucketMetrics,
     ComputePhase,
     CommPhase,
     Bucket,
@@ -45,21 +47,39 @@ def _compute_percentile(sorted_values: List[float], percentile: float) -> float:
 
 
 def _compute_step_stats(steps: List[StepMetrics]) -> dict:
-    """Compute step duration statistics: average, p95, p99.
+    """Compute step duration statistics in seconds.
 
     Returns:
-        Dictionary with 'avg', 'p95', 'p99' keys (durations in seconds).
+        Dictionary with average, percentiles, and spread keys.
     """
     durations = [s.end_time - s.start_time for s in steps if s.end_time >= 0]
     if not durations:
-        return {'avg': 0.0, 'p95': 0.0, 'p99': 0.0}
+        return {
+            'avg': 0.0,
+            'p95': 0.0,
+            'p99': 0.0,
+            'std': 0.0,
+            'min': 0.0,
+            'max': 0.0,
+            'count': 0,
+        }
 
     avg = sum(durations) / len(durations)
     sorted_durations = sorted(durations)
     p95 = _compute_percentile(sorted_durations, 95.0)
     p99 = _compute_percentile(sorted_durations, 99.0)
+    var = sum((d - avg) ** 2 for d in durations) / len(durations)
+    std = math.sqrt(var)
 
-    return {'avg': avg, 'p95': p95, 'p99': p99}
+    return {
+        'avg': avg,
+        'p95': p95,
+        'p99': p99,
+        'std': std,
+        'min': sorted_durations[0],
+        'max': sorted_durations[-1],
+        'count': len(sorted_durations),
+    }
 
 
 class FlowInjector:
@@ -154,13 +174,14 @@ class JobRunner:
             return
 
         if isinstance(phase, CommPhase):
-            self._run_comm_phase(phase, done_phase)
+            self._run_comm_phase(step.step_id, phase, done_phase)
             return
 
         raise TypeError(f"Unknown phase type: {type(phase)}")
 
-    def _run_comm_phase(self, phase: CommPhase, done_phase: Callable[[], None]) -> None:
+    def _run_comm_phase(self, step_id: int, phase: CommPhase, done_phase: Callable[[], None]) -> None:
         book = BarrierBookkeeper()
+        assert self.metrics is not None
 
         def run_bucket(bucket_index: int) -> None:
             if bucket_index >= len(phase.buckets):
@@ -173,12 +194,40 @@ class JobRunner:
             if not bucket.flows:
                 if _logger.isEnabledFor(logging.DEBUG):
                     _logger.debug(f"{_sim_time_prefix(self.sim)} Bucket finished    phase={phase.name} bucket={bucket_index} (empty)")
+                self.metrics.bucket_metrics.append(
+                    BucketMetrics(
+                        job_id=int(self.job.job_id),
+                        step_id=int(step_id),
+                        phase_id=int(phase.phase_id),
+                        phase_name=phase.name,
+                        bucket_id=int(bucket.bucket_id),
+                        start_time=float(self.sim.get_current_time()),
+                        end_time=float(self.sim.get_current_time()),
+                        flow_count=0,
+                        transmitted_bytes=0,
+                        useful_bytes=0,
+                    )
+                )
                 run_bucket(bucket_index + 1)
                 return
 
             join_name = f"phase{phase.phase_id}/bucket{bucket.bucket_id}"
+            bucket_metrics = BucketMetrics(
+                job_id=int(self.job.job_id),
+                step_id=int(step_id),
+                phase_id=int(phase.phase_id),
+                phase_name=phase.name,
+                bucket_id=int(bucket.bucket_id),
+                start_time=float(self.sim.get_current_time()),
+                end_time=-1.0,
+                flow_count=len(bucket.flows),
+                transmitted_bytes=sum(int(f.size_bytes) for f in bucket.flows),
+                useful_bytes=sum(int(f.useful_size_bytes) for f in bucket.flows),
+            )
+            self.metrics.bucket_metrics.append(bucket_metrics)
 
             def done_bucket() -> None:
+                bucket_metrics.end_time = float(self.sim.get_current_time())
                 if _logger.isEnabledFor(logging.DEBUG):
                     _logger.debug(f"{_sim_time_prefix(self.sim)} Bucket finished    phase={phase.name} bucket={bucket_index}")
                 run_bucket(bucket_index + 1)

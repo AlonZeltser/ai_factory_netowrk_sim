@@ -1,0 +1,9 @@
+extends:
+  - experiment-base.yaml
+  - topology-clos-small-scale-unit.yaml
+  - workload-dp.yaml
+meta:
+  name: simple-config
+  description: Lightweight DP-heavy preset on the AI scale-unit clos profile
+
+

@@ -1,0 +1,5 @@
+extends: ../bases/workload-dp-heavy-base.yaml
+workload:
+  params:
+    bucket_bytes_per_participant: 33554432
+

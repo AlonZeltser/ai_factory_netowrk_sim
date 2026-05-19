@@ -1,0 +1,37 @@
+workload:
+  # Allowed values: `dp-heavy`, `mixed`, `none`. This fragment is for the DP-heavy workload.
+  kind: dp-heavy
+  params:
+    # Number of training steps to simulate. Range: integer >= 1.
+    steps: 5
+    # Deterministic seed for job / collective generation. Range: integer >= 0.
+    seed: 1972
+    # Number of gradient buckets synchronized per step. Range: integer >= 1.
+    num_buckets: 8
+    # Useful bytes contributed by each participant to each bucket before optional redundancy. Range: integer >= 1.
+    bucket_bytes_per_participant: 2097152 # 2 MiB
+    # Gap between ring steps inside the collective in microseconds. Range: float >= 0.0.
+    gap_us: 0.001
+    # Forward+backward compute time before communication starts, in milliseconds. Range: float >= 0.0.
+    t_fwd_bwd_ms: 10.0
+    # Optimizer/update compute time after gradient synchronization, in milliseconds. Range: float >= 0.0.
+    optimizer_ms: 5.0
+    # Extra communication overhead sent per chunk, expressed as a percent of useful bytes. Range: float >= 0.0.
+    chunk_redundancy_percent: 0.0
+    # Optional background mice traffic. Set this entire mapping to `null` to disable inherited mice traffic.
+    mice:
+      # Whether to inject mice traffic while the workload runs. Allowed values: true | false.
+      enabled: false
+      # Seed for mice-flow generation. Range: integer >= 0.
+      seed: 2026
+      # Delay before the first mice flow is injected, in seconds. Range: float >= 0.0.
+      start_delay_s: 0.0
+      # Mean inter-arrival spacing used by the current deterministic injector, in seconds. Range: float > 0.0.
+      interarrival_s: 0.001
+      # Minimum packets per mice flow. Range: integer >= 1.
+      min_packets: 1
+      # Maximum packets per mice flow. Range: integer >= min_packets.
+      max_packets: 4
+      # Whether mice traffic must cross racks. Allowed values: true | false.
+      force_cross_rack: true
+
