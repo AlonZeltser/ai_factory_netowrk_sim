@@ -18,43 +18,48 @@ class PresetRegistryItem:
 
 
 _REGISTRY: dict[str, PresetRegistryItem] = {
-    "ai/su-dp-light": PresetRegistryItem(
-        name="ai/su-dp-light",
+    "ai/dp-light": PresetRegistryItem(
+        name="ai/dp-light",
         description="AI scale-unit (SU) DP-heavy lightweight preset on the unified clos family",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_light.yaml",
     ),
-    "ai/su-dp-low": PresetRegistryItem(
-        name="ai/su-dp-low",
+    "ai/dp-low": PresetRegistryItem(
+        name="ai/dp-low",
         description="AI scale-unit (SU) DP-heavy low-load preset on the unified clos family",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_low.yaml",
     ),
-    "ai/su-dp-mid": PresetRegistryItem(
-        name="ai/su-dp-mid",
+    "ai/dp-low-small": PresetRegistryItem(
+        name="ai/dp-low-small",
+        description="AI scale-unit (SU) DP-heavy smaller topology, low-load preset on the unified clos family",
+        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_low_small.yaml",
+    ),
+    "ai/dp-mid": PresetRegistryItem(
+        name="ai/dp-mid",
         description="AI scale-unit (SU) DP-heavy medium-load preset on the unified clos family",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_mid.yaml",
     ),
-    "ai/su-dp-high": PresetRegistryItem(
-        name="ai/su-dp-high",
+    "ai/dp-high": PresetRegistryItem(
+        name="ai/dp-high",
         description="AI scale-unit (SU) DP-heavy high-load preset on the unified clos family",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_high.yaml",
     ),
-    "ai/su-mixed-light": PresetRegistryItem(
-        name="ai/su-mixed-light",
+    "ai/mixed-light": PresetRegistryItem(
+        name="ai/mixed-light",
         description="AI scale-unit (SU) mixed lightweight preset on the unified clos family",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "mixed_light.yaml",
     ),
-    "ai/su-mixed-low": PresetRegistryItem(
-        name="ai/su-mixed-low",
+    "ai/mixed-low": PresetRegistryItem(
+        name="ai/mixed-low",
         description="AI scale-unit (SU) mixed low-load preset on the unified clos family",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "mixed_low.yaml",
     ),
-    "ai/su-mixed-mid": PresetRegistryItem(
-        name="ai/su-mixed-mid",
+    "ai/mixed-mid": PresetRegistryItem(
+        name="ai/mixed-mid",
         description="AI scale-unit (SU) mixed medium-load preset on the unified clos family",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "mixed_mid.yaml",
     ),
-    "ai/su-mixed-high": PresetRegistryItem(
-        name="ai/su-mixed-high",
+    "ai/mixed-high": PresetRegistryItem(
+        name="ai/mixed-high",
         description="AI scale-unit (SU) mixed high-load preset on the unified clos family",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "mixed_high.yaml",
     ),

@@ -49,8 +49,7 @@ class DiscreteEventSimulator:
             event = self.event_queue.dequeue()
             self.current_time = event.time
             event.action()
-        if _logger.isEnabledFor(logging.DEBUG):
-            _logger.debug("DES ended after %d events", counter)
+        logging.info("DES ended after %d events", counter)
         self.end_time = self.current_time
 
     def get_current_time(self) -> float:

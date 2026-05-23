@@ -29,7 +29,10 @@ from sim.registry.workloads import iter_workload_items
 from sim.runners.batch_runner import collect_batch_inputs, run_batch, write_batch_summary
 from sim.runners.experiment_runner import run_experiment, validate_experiment
 from sim.runners.sweep_runner import run_sweep
-from visualization.experiment_visualizer import visualize_sweep_time_comparison
+from visualization.experiment_visualizer import (
+    visualize_sweep_time_comparison,
+    visualize_sweep_time_comparison_from_yaml,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -70,6 +73,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
     list_p = sub.add_parser("list", help="List supported presets/workloads/routing")
     list_p.add_argument("target", choices=["presets", "workloads", "routing"])
+
+    plot_summary_p = sub.add_parser("plot-summary", help="Generate aggregate comparison plots from an existing sweep/batch summary YAML")
+    plot_summary_p.add_argument("--summary", required=True, help="Path to a sweep/batch summary YAML file")
+    plot_summary_p.add_argument("--out-dir", help="Directory for generated plot files (defaults to summary parent or ./results)")
+    plot_summary_p.add_argument("--show-visualization-window", action="store_true", default=False, help="Open aggregate comparison plots in an interactive window")
     return parser
 
 
@@ -171,6 +179,26 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
     return 0 if all(item.get("ok") for item in summary) else 1
 
 
+def _cmd_plot_summary(args: argparse.Namespace) -> int:
+    summary_path = Path(args.summary)
+    if not summary_path.is_absolute():
+        summary_path = (_REPO_ROOT / summary_path).resolve()
+    out_dir = args.out_dir
+    if not out_dir:
+        out_dir = str(summary_path.parent if summary_path.exists() else (_REPO_ROOT / "results").resolve())
+    paths = visualize_sweep_time_comparison_from_yaml(
+        str(summary_path),
+        out_dir=out_dir,
+        show=args.show_visualization_window,
+    )
+    if not paths:
+        print("No comparison plots were generated from the provided summary.")
+        return 1
+    for path in paths:
+        print(f"Wrote comparison plot to {path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     try:
@@ -186,6 +214,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_batch(args)
         if args.command == "sweep":
             return _cmd_sweep(args)
+        if args.command == "plot-summary":
+            return _cmd_plot_summary(args)
         raise ConfigError(f"Unsupported command: {args.command}")
     except (ConfigError, FileNotFoundError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

@@ -51,7 +51,10 @@ def build_dp_heavy_workload_job(
         comm_buckets: list[Bucket] = []
         for b in range(int(config.num_buckets)):
             bucket_id = b
-            start_time = 0.0
+            # Bucket start times are relative to the comm-phase start.
+            # Bucket 0 is the prolog; later buckets tick at the same interval as
+            # the forward/backward delay used by the compute phase.
+            start_time = (float(b) * float(config.t_fwd_bwd_ms)) / 1000.0
 
             rs = expand_collective(
                 kind=CollectiveKind.REDUCE_SCATTER,

@@ -3,9 +3,12 @@
 from dataclasses import dataclass
 from typing import List
 import random
+import logging
 
 from ai_factory.core.ids import IdGenerator
 from ai_factory.traffic.flow import Flow
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -71,9 +74,13 @@ def expand_ring_neighbor_sends(
     steps = p - 1
     chunk_per_step = _chunk_sizes(bytes_per_participant, p)
 
+    # Log the ring order for this collective
+    logger.info(f"[{op_tag}] Ring order (job_id={job_id}, step_id={step_id}, bucket_id={bucket_id}): {' → '.join(ring.participants)} → {ring.participants[0]}")
+
     flows: list[Flow] = []
     for s in range(steps):
         t = start_time + (s * (gap_us * 1e-6))
+        step_sends = []
         for sender in ring.participants:
             receiver = ring.next_of(sender)
             size = chunk_per_step[s]
@@ -93,6 +100,9 @@ def expand_ring_neighbor_sends(
                     metadata={"ring_step": s, "participants": p},
                 )
             )
+            step_sends.append(f"{sender}→{receiver}")
+        # Log each step's send pattern
+        #logger.info(f"[{op_tag}] Step {s}: {', '.join(step_sends)}")
 
     return flows
 

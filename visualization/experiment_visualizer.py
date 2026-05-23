@@ -1,7 +1,10 @@
 import datetime
 import logging
 import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+import yaml
 
 
 def visualize_send_timeline(
@@ -495,6 +498,28 @@ def visualize_sweep_time_comparison(
     return saved_paths
 
 
+def visualize_sweep_time_comparison_from_yaml(
+    summary_yaml_path: str,
+    *,
+    out_dir: str = "results",
+    show: bool = False,
+) -> list[str]:
+    """Load a sweep summary YAML file and create aggregate sweep comparison plots."""
+    path = Path(summary_yaml_path)
+    if not path.is_absolute():
+        path = path.resolve()
+    if not path.exists() or not path.is_file():
+        raise FileNotFoundError(f"Sweep summary YAML not found: {path}")
+
+    summary = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(summary, list):
+        raise ValueError(f"Sweep summary YAML must contain a top-level list, got: {type(summary).__name__}")
+    if not all(isinstance(row, dict) for row in summary):
+        raise ValueError("Sweep summary YAML list must contain mapping entries")
+
+    return visualize_sweep_time_comparison(summary, out_dir=out_dir, show=show)
+
+
 def visualize_experiment_results(results: List[Dict[str, Dict[str, Any]]],
                                  out_dir: str = "results",
                                  show: bool = False) -> None:
@@ -541,4 +566,5 @@ __all__ = [
     "visualize_send_timeline",
     "visualize_ai_factory_comm_distributions",
     "visualize_sweep_time_comparison",
+    "visualize_sweep_time_comparison_from_yaml",
 ]

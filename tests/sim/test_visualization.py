@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+import yaml
 
 from ai_factory.core.entities import BucketMetrics, FlowMetrics
-from visualization.experiment_visualizer import visualize_ai_factory_comm_distributions, visualize_sweep_time_comparison
+from visualization.experiment_visualizer import (
+    visualize_ai_factory_comm_distributions,
+    visualize_sweep_time_comparison,
+    visualize_sweep_time_comparison_from_yaml,
+)
 
 
 def test_visualize_ai_factory_comm_distributions_saves_file(tmp_path: Path) -> None:
@@ -77,17 +82,33 @@ def test_visualize_ai_factory_comm_distributions_saves_file(tmp_path: Path) -> N
     assert Path(output).exists()
 
 
-def test_visualize_sweep_time_comparison_saves_three_files(tmp_path: Path) -> None:
+def test_visualize_sweep_time_comparison_saves_four_files(tmp_path: Path) -> None:
     summary = [
-        {"ok": True, "chunk_redundancy_percent": 0.0, "link_failure_percent": 0.0, "packet_stall_percent": 0.0, "chunk_time_avg_ms": 1.0, "bucket_time_avg_ms": 5.0, "job_time_avg_ms": 50.0},
-        {"ok": True, "chunk_redundancy_percent": 0.0, "link_failure_percent": 0.0, "packet_stall_percent": 3.0, "chunk_time_avg_ms": 1.5, "bucket_time_avg_ms": 5.5, "job_time_avg_ms": 55.0},
-        {"ok": True, "chunk_redundancy_percent": 12.5, "link_failure_percent": 0.0, "packet_stall_percent": 0.0, "chunk_time_avg_ms": 0.9, "bucket_time_avg_ms": 4.8, "job_time_avg_ms": 49.0},
-        {"ok": True, "chunk_redundancy_percent": 12.5, "link_failure_percent": 0.0, "packet_stall_percent": 3.0, "chunk_time_avg_ms": 1.3, "bucket_time_avg_ms": 5.2, "job_time_avg_ms": 52.0},
+        {"ok": True, "chunk_redundancy_percent": 0.0, "link_failure_percent": 0.0, "packet_stall_percent": 0.0, "flow_time_avg_ms": 1.0, "bucket_time_avg_ms": 5.0, "step_time_avg_ms": 20.0, "job_time_avg_ms": 50.0},
+        {"ok": True, "chunk_redundancy_percent": 0.0, "link_failure_percent": 0.0, "packet_stall_percent": 3.0, "flow_time_avg_ms": 1.5, "bucket_time_avg_ms": 5.5, "step_time_avg_ms": 22.0, "job_time_avg_ms": 55.0},
+        {"ok": True, "chunk_redundancy_percent": 12.5, "link_failure_percent": 0.0, "packet_stall_percent": 0.0, "flow_time_avg_ms": 0.9, "bucket_time_avg_ms": 4.8, "step_time_avg_ms": 18.5, "job_time_avg_ms": 49.0},
+        {"ok": True, "chunk_redundancy_percent": 12.5, "link_failure_percent": 0.0, "packet_stall_percent": 3.0, "flow_time_avg_ms": 1.3, "bucket_time_avg_ms": 5.2, "step_time_avg_ms": 21.0, "job_time_avg_ms": 52.0},
     ]
 
     outputs = visualize_sweep_time_comparison(summary, out_dir=str(tmp_path), show=False)
 
-    assert len(outputs) == 3
+    assert len(outputs) == 4
+    assert all(Path(output).exists() for output in outputs)
+
+
+def test_visualize_sweep_time_comparison_from_yaml_saves_four_files(tmp_path: Path) -> None:
+    summary = [
+        {"ok": True, "chunk_redundancy_percent": 0.0, "packet_stall_percent": 0.0, "flow_time_avg_ms": 1.0, "bucket_time_avg_ms": 5.0, "step_time_avg_ms": 20.0, "job_time_avg_ms": 50.0},
+        {"ok": True, "chunk_redundancy_percent": 0.0, "packet_stall_percent": 3.0, "flow_time_avg_ms": 1.5, "bucket_time_avg_ms": 5.5, "step_time_avg_ms": 22.0, "job_time_avg_ms": 55.0},
+        {"ok": True, "chunk_redundancy_percent": 12.5, "packet_stall_percent": 0.0, "flow_time_avg_ms": 0.9, "bucket_time_avg_ms": 4.8, "step_time_avg_ms": 18.5, "job_time_avg_ms": 49.0},
+        {"ok": True, "chunk_redundancy_percent": 12.5, "packet_stall_percent": 3.0, "flow_time_avg_ms": 1.3, "bucket_time_avg_ms": 5.2, "step_time_avg_ms": 21.0, "job_time_avg_ms": 52.0},
+    ]
+    summary_path = tmp_path / "sweep_summary.yaml"
+    summary_path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
+
+    outputs = visualize_sweep_time_comparison_from_yaml(str(summary_path), out_dir=str(tmp_path), show=False)
+
+    assert len(outputs) == 4
     assert all(Path(output).exists() for output in outputs)
 
 
