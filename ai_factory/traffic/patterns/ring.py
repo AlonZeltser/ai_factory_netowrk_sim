@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import List
 import random
 import logging
+import re
 
 from ai_factory.core.ids import IdGenerator
 from ai_factory.traffic.flow import Flow
@@ -27,12 +28,37 @@ def build_ring_order(participants: list[str], *, seed: int) -> RingPlan:
 
     If seed is the same, the order is stable.
     """
-    out = list(participants)
+    by_leaf: dict[int, list[str]] = {}
+    for host_id in participants:
+        leaf = _leaf_key(host_id)
+        by_leaf.setdefault(leaf, []).append(host_id)
+
+    for hosts in by_leaf.values():
+        hosts.sort()
+
+    leaf_order = sorted(by_leaf.keys())
     rnd = random.Random(seed)
-    for i in range(len(out) - 1, 0, -1):
-        j = rnd.randint(0, i)
-        out[i], out[j] = out[j], out[i]
+    rnd.shuffle(leaf_order)
+
+    out: list[str] = []
+    for leaf in leaf_order:
+        # Keep hosts in-leaf deterministic, but vary inter-leaf wiring per step.
+        out.extend(by_leaf[leaf])
+
     return RingPlan(participants=out)
+
+
+def _leaf_key(host_id: str) -> int:
+    m = re.search(r"leaf(\d+)", host_id)
+    if m:
+        return int(m.group(1))
+
+    digits = "".join(ch for ch in host_id if ch.isdigit())
+    if digits:
+        n = int(digits)
+        return (n - 1) // 4
+
+    return 0
 
 
 def _chunk_sizes(bytes_per_participant: int, p: int) -> list[int]:
@@ -54,6 +80,8 @@ def expand_ring_neighbor_sends(
     step_id: int,
     phase_id: int,
     bucket_id: int | None,
+    ring_seed: int | None = None,
+    write_to_log:bool = False
 ) -> list[Flow]:
     """Minimum viable ring model.
 
@@ -70,12 +98,14 @@ def expand_ring_neighbor_sends(
     if p < 2:
         return []
 
-    ring = build_ring_order(participants, seed=ids.seed)
+    seed = ids.seed if ring_seed is None else int(ring_seed)
+    ring = build_ring_order(participants, seed=seed)
     steps = p - 1
     chunk_per_step = _chunk_sizes(bytes_per_participant, p)
 
     # Log the ring order for this collective
-    logger.info(f"[{op_tag}] Ring order (job_id={job_id}, step_id={step_id}, bucket_id={bucket_id}): {' → '.join(ring.participants)} → {ring.participants[0]}")
+    if write_to_log:
+        logger.info(f"[{op_tag}] Ring order (job_id={job_id}, step_id={step_id}, bucket_id={bucket_id}): {' → '.join(ring.participants)} → {ring.participants[0]}")
 
     flows: list[Flow] = []
     for s in range(steps):

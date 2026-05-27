@@ -14,7 +14,7 @@ topology:
     ttl: 64
     fabric:
       # Number of servers attached to each leaf switch. Range: integer >= 1.
-      servers_per_leaf: 2
+      servers_per_leaf: 4
       # Number of parallel NIC / link connections from each server to its leaf. Range: integer >= 1.
       host_links_per_server: 2
       # Number of parallel links from each leaf to each spine. Range: integer >= 1.
@@ -24,7 +24,7 @@ topology:
       # Percentage of packets to tag for one retransmit-like switch stall. Range: 0.0 to 100.0.
       packet_stall_percent: 0.01
       # Delay in milliseconds while a tagged packet is held at its selected switch hop. Range: float >= 0.
-      packet_stall_delay_ms: 50.0
+      packet_stall_delay_ms: 100.0
       # Maximum zero-based switch hop index eligible for the stall. Default 2 covers leaf->spine->leaf paths.
       packet_stall_max_switch_hop: 2
       # Optional string enum: set `bandwidth_profile` to `4g` or `400g` to override both bandwidth values below together.

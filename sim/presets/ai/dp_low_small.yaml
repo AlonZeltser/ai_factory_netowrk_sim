@@ -5,5 +5,7 @@ extends:
 meta:
   name: dp-low
   description: Low-load DP-heavy preset on the AI scale-unit clos profile
+params:
+  bucket_bytes_per_participant: 1048576
 
 

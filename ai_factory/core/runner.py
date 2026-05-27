@@ -150,7 +150,10 @@ class JobRunner:
 
         if phase_index >= len(step.phases):
             step_metrics.end_time = self.sim.get_current_time()
-            _logger.info(f"{_sim_time_prefix(self.sim)} Step finished      step={step_index}")
+            step_duration_ms = (step_metrics.end_time - step_metrics.start_time) * 1000.0
+            _logger.info(
+                f"{_sim_time_prefix(self.sim)} Step finished      step={step_index} duration={step_duration_ms:.3f}ms"
+            )
             self._run_step(step_index=step_index + 1)
             return
 

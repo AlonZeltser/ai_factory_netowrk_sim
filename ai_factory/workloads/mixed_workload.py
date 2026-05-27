@@ -55,6 +55,7 @@ def build_mixed_scenario_tp_heavy(
     steps: list[JobStep] = []
     for step_idx in range(int(config.steps)):
         phases = []
+        step_ring_seed = ids.child(f"step{step_idx}/ring_order").seed
 
         phases.append(
             ComputePhase(
@@ -79,6 +80,7 @@ def build_mixed_scenario_tp_heavy(
                 step_id=step_idx,
                 phase_id=1 + (m * 2),
                 bucket_id=0,
+                ring_seed=step_ring_seed,
             )
             phases.append(
                 CommPhase(
@@ -117,6 +119,7 @@ def build_mixed_scenario_tp_heavy(
             step_id=step_idx,
             phase_id=9991,
             bucket_id=0,
+            ring_seed=step_ring_seed,
         )
         ag = expand_collective(
             kind=CollectiveKind.ALL_GATHER,
@@ -130,6 +133,7 @@ def build_mixed_scenario_tp_heavy(
             step_id=step_idx,
             phase_id=9992,
             bucket_id=0,
+            ring_seed=step_ring_seed,
         )
         phases.append(
             CommPhase(
@@ -184,6 +188,7 @@ def build_mixed_scenario_pp_dp(
     steps: list[JobStep] = []
     for step_idx in range(int(config.steps)):
         phases = []
+        step_ring_seed = ids.child(f"step{step_idx}/ring_order").seed
 
         # Forward microbatches: 0->1, 1->2, 2->3 sequential per microbatch.
         fwd_bytes = int(int(config.activation_bytes_per_microbatch) * float(config.traffic_scale))
@@ -255,6 +260,7 @@ def build_mixed_scenario_pp_dp(
             step_id=step_idx,
             phase_id=300,
             bucket_id=0,
+            ring_seed=step_ring_seed,
         )
         ag = expand_collective(
             kind=CollectiveKind.ALL_GATHER,
@@ -268,6 +274,7 @@ def build_mixed_scenario_pp_dp(
             step_id=step_idx,
             phase_id=301,
             bucket_id=0,
+            ring_seed=step_ring_seed,
         )
         phases.append(
             CommPhase(

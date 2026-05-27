@@ -39,6 +39,7 @@ def build_dp_heavy_workload_job(
     steps: list[JobStep] = []
     for step_idx in range(int(config.steps)):
         phases: list = []
+        step_ring_seed = ids.child(f"step{step_idx}/ring_order").seed
 
         phases.append(
             ComputePhase(
@@ -68,6 +69,8 @@ def build_dp_heavy_workload_job(
                 step_id=step_idx,
                 phase_id=1,
                 bucket_id=bucket_id,
+                ring_seed=step_ring_seed,
+                write_to_log=b==0
             )
             ag = expand_collective(
                 kind=CollectiveKind.ALL_GATHER,
@@ -81,6 +84,8 @@ def build_dp_heavy_workload_job(
                 step_id=step_idx,
                 phase_id=1,
                 bucket_id=bucket_id,
+                ring_seed=step_ring_seed,
+                write_to_log=b == 0
             )
 
             comm_buckets.append(
