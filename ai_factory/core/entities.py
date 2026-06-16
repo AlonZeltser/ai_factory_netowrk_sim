@@ -44,7 +44,7 @@ class Job:
     participants: list[str]
 
 
-@dataclass
+@dataclass(slots=True)
 class PhaseMetrics:
     phase_id: int
     name: str
@@ -52,7 +52,7 @@ class PhaseMetrics:
     end_time: float
 
 
-@dataclass
+@dataclass(slots=True)
 class BucketMetrics:
     job_id: int
     step_id: int
@@ -66,7 +66,7 @@ class BucketMetrics:
     useful_bytes: int
 
 
-@dataclass
+@dataclass(slots=True)
 class FlowMetrics:
     flow_id: int
     job_id: int
@@ -82,7 +82,7 @@ class FlowMetrics:
     useful_bytes: int
 
 
-@dataclass
+@dataclass(slots=True)
 class StepMetrics:
     step_id: int
     start_time: float
@@ -90,7 +90,7 @@ class StepMetrics:
     phases: list[PhaseMetrics] = field(default_factory=list)
 
 
-@dataclass
+@dataclass(slots=True)
 class JobMetrics:
     job_id: int
     start_time: float

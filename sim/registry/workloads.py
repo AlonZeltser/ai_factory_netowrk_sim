@@ -63,6 +63,7 @@ def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
         t_fwd_bwd_ms=float(_require_param(params, "t_fwd_bwd_ms")),
         optimizer_ms=float(_require_param(params, "optimizer_ms")),
         chunk_redundancy_percent=float(_require_param(params, "chunk_redundancy_percent")),
+        single_ring_only=bool(params.get("single_ring_only", False)),
         mice=mice,
     )
 

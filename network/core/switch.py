@@ -25,6 +25,20 @@ class Switch(NetworkNode):
             verbose_route=verbose_route,
         )
 
+    def _is_last_switch_before_destination(self, packet) -> bool:
+        best_port_id = self.select_port_for_packet(packet)
+        if best_port_id is None:
+            return False
+        port = self.ports[best_port_id]
+        link = getattr(port, "link", None)
+        if link is None or getattr(link, "failed", False):
+            return False
+        if link.port1 is None or link.port2 is None:
+            return False
+        dst_port = link.port2 if port == link.port1 else link.port1
+        dst_owner = getattr(dst_port, "owner", None)
+        return getattr(dst_owner, "__class__", type(None)).__name__ == "Host"
+
     def _should_delay_packet(self, packet) -> bool:
         tracking = packet.tracking_info
         tracking.switch_hops_seen += 1
@@ -33,7 +47,10 @@ class Switch(NetworkNode):
         target_switch_hop = tracking.packet_stall_target_switch_hop
         if target_switch_hop is None:
             return False
-        return (tracking.switch_hops_seen - 1) == int(target_switch_hop)
+        current_switch_hop = tracking.switch_hops_seen - 1
+        if current_switch_hop >= int(target_switch_hop):
+            return True
+        return self._is_last_switch_before_destination(packet)
 
     def on_message(self, packet):
         if packet.is_expired():
@@ -42,13 +59,13 @@ class Switch(NetworkNode):
                 logging.warning(
                     f"[sim_t={now:012.6f}s] Packet expired     switch={self.name} packet_id={packet.tracking_info.global_id} dst={packet.routing_header.five_tuple.dst_ip}")
             packet.routing_header.dropped = True
-            self.scheduler.packet_stats.record_dropped()
+            self.scheduler.packet_stats.record_dropped(packet)
         else:
             if self._should_delay_packet(packet):
                 now = self.scheduler.get_current_time()
                 packet_stall_delay_s = float(getattr(self.scheduler, "packet_stall_delay_s", 0.0) or 0.0)
                 packet.tracking_info.packet_stall_triggered = True
-                self.scheduler.packet_stats.record_packet_stall_triggered()
+                self.scheduler.packet_stats.record_packet_stall_triggered(packet)
                 if self.message_verbose and _logger.isEnabledFor(logging.DEBUG):
                     _logger.debug(
                         f"[sim_t={now:012.6f}s] Packet stalled     switch={self.name} packet_id={packet.tracking_info.global_id} switch_hop={packet.tracking_info.switch_hops_seen - 1} delay_s={packet_stall_delay_s:.6f}"

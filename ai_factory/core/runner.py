@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+from collections import defaultdict
 import logging
 import math
 from dataclasses import dataclass
@@ -97,6 +98,87 @@ def _sim_time_prefix(sim: DiscreteEventSimulator) -> str:
     return f"[sim_t={sim.get_current_time():012.6f}s]"
 
 
+def _collect_step_flow_ids(step) -> set[int]:
+    flow_ids: set[int] = set()
+    for phase in step.phases:
+        if not isinstance(phase, CommPhase):
+            continue
+        for bucket in phase.buckets:
+            for flow in bucket.flows:
+                flow_ids.add(int(flow.flow_id))
+    return flow_ids
+
+
+def _ring_op_prefix(tag: str) -> str | None:
+    if "/ring_step_" not in tag:
+        return None
+    return tag.split("/ring_step_", 1)[0]
+
+
+def _build_bucket_dependency_graph(
+    flows: list[Flow],
+) -> tuple[dict[int, list[int]], dict[int, int], dict[int, Flow]]:
+    """Return dependents, pending counts, and an id->flow lookup for a bucket.
+
+    Ring flows use a causal chain: step s depends on the matching sender's
+    predecessor at step s-1 within the same collective operation.
+
+    DP-heavy double-ring semantics are also enforced: all-gather step 0 for
+    sender X depends on reduce-scatter's final arrival into X.
+    Non-ring flows are treated as dependency-free.
+    """
+
+    flow_by_id = {int(flow.flow_id): flow for flow in flows}
+    dependents: dict[int, list[int]] = defaultdict(list)
+    pending: dict[int, int] = {flow_id: 0 for flow_id in flow_by_id}
+
+    predecessor_by_key: dict[tuple[str, int, str], int] = {}
+    max_step_by_op: dict[str, int] = {}
+    for flow in flows:
+        op_prefix = _ring_op_prefix(flow.tag)
+        ring_step = flow.metadata.get("ring_step")
+        if op_prefix is None or ring_step is None:
+            continue
+        step_idx = int(ring_step)
+        predecessor_by_key[(op_prefix, step_idx, flow.dst_node_id)] = int(flow.flow_id)
+        max_step_by_op[op_prefix] = max(step_idx, max_step_by_op.get(op_prefix, -1))
+
+    for flow in flows:
+        op_prefix = _ring_op_prefix(flow.tag)
+        ring_step = flow.metadata.get("ring_step")
+        if op_prefix is None or ring_step is None:
+            continue
+
+        step_idx = int(ring_step)
+        if step_idx <= 0:
+            continue
+
+        pred_id = predecessor_by_key.get((op_prefix, step_idx - 1, flow.src_node_id))
+        if pred_id is None:
+            # Fail open so malformed metadata does not deadlock the run.
+            continue
+
+        pending[int(flow.flow_id)] = pending.get(int(flow.flow_id), 0) + 1
+        dependents[pred_id].append(int(flow.flow_id))
+
+    rs_last_step = max_step_by_op.get("reduce_scatter")
+    if rs_last_step is not None:
+        for flow in flows:
+            op_prefix = _ring_op_prefix(flow.tag)
+            ring_step = flow.metadata.get("ring_step")
+            if op_prefix != "all_gather" or ring_step is None or int(ring_step) != 0:
+                continue
+
+            rs_pred_id = predecessor_by_key.get(("reduce_scatter", rs_last_step, flow.src_node_id))
+            if rs_pred_id is None:
+                continue
+
+            pending[int(flow.flow_id)] = pending.get(int(flow.flow_id), 0) + 1
+            dependents[rs_pred_id].append(int(flow.flow_id))
+
+    return dependents, pending, flow_by_id
+
+
 @dataclass
 class JobRunner:
     """Event-driven state machine that advances Job -> Step -> Phase.
@@ -110,6 +192,17 @@ class JobRunner:
     job: Job
 
     metrics: JobMetrics | None = None
+
+    def _max_per_flow_drops_for_step(self, step_flow_ids: set[int]) -> int:
+        packet_stats = getattr(self.sim, "packet_stats", None)
+        if packet_stats is None or not step_flow_ids:
+            return 0
+        max_fn = getattr(packet_stats, "max_dropped_for_flow_ids", None)
+        if callable(max_fn):
+            value = max_fn(step_flow_ids)
+            if isinstance(value, (int, float)):
+                return int(value)
+        return 0
 
     def run(self) -> JobMetrics:
         self.metrics = JobMetrics(job_id=self.job.job_id, start_time=self.sim.get_current_time())
@@ -139,11 +232,12 @@ class JobRunner:
 
         _logger.info(f"{_sim_time_prefix(self.sim)} Step starting      step={step_index}")
         step = self.job.steps[step_index]
+        step_flow_ids = _collect_step_flow_ids(step)
         step_metrics = StepMetrics(step_id=step.step_id, start_time=self.sim.get_current_time(), end_time=-1.0)
         self.metrics.steps.append(step_metrics)
-        self._run_phase(step_index=step_index, phase_index=0)
+        self._run_phase(step_index=step_index, phase_index=0, step_flow_ids=step_flow_ids)
 
-    def _run_phase(self, *, step_index: int, phase_index: int) -> None:
+    def _run_phase(self, *, step_index: int, phase_index: int, step_flow_ids: set[int]) -> None:
         assert self.metrics is not None
         step = self.job.steps[step_index]
         step_metrics = self.metrics.steps[-1]
@@ -151,8 +245,9 @@ class JobRunner:
         if phase_index >= len(step.phases):
             step_metrics.end_time = self.sim.get_current_time()
             step_duration_ms = (step_metrics.end_time - step_metrics.start_time) * 1000.0
+            max_per_flow_drops = self._max_per_flow_drops_for_step(step_flow_ids)
             _logger.info(
-                f"{_sim_time_prefix(self.sim)} Step finished      step={step_index} duration={step_duration_ms:.3f}ms"
+                f"{_sim_time_prefix(self.sim)} Step finished      step={step_index} duration={step_duration_ms:.3f}ms max_per_flow_drops={max_per_flow_drops}"
             )
             self._run_step(step_index=step_index + 1)
             return
@@ -170,7 +265,7 @@ class JobRunner:
         def done_phase() -> None:
             phase_metrics.end_time = self.sim.get_current_time()
             _logger.info(f"{_sim_time_prefix(self.sim)} Phase finished     step={step_index} phase={phase_index} name={phase.name}")
-            self._run_phase(step_index=step_index, phase_index=phase_index + 1)
+            self._run_phase(step_index=step_index, phase_index=phase_index + 1, step_flow_ids=step_flow_ids)
 
         if isinstance(phase, ComputePhase):
             schedule_timer(self.sim, delay_s=phase.duration_s, cb=done_phase)
@@ -204,8 +299,11 @@ class JobRunner:
         def launch_bucket(bucket_index: int) -> None:
             bucket: Bucket = phase.buckets[bucket_index]
             now = self.sim.get_current_time()
+            bucket_launch_origin = float(now)
             bucket_start_offset = min((float(f.start_time) for f in bucket.flows), default=0.0)
             bucket_start_time = float(now + bucket_start_offset)
+            dependency_graph, pending_prereqs, flow_by_id = _build_bucket_dependency_graph(bucket.flows)
+            injected_flow_ids: set[int] = set()
 
             if _logger.isEnabledFor(logging.DEBUG):
                 _logger.debug(
@@ -259,13 +357,33 @@ class JobRunner:
             join = Join(pending={f.flow_id for f in bucket.flows}, on_done=done_bucket)
             book.add_join(join_name, join)
 
-            for f in bucket.flows:
-                delay = max(0.0, float(f.start_time))
+            def schedule_injection(flow: Flow) -> None:
+                flow_id = int(flow.flow_id)
+                if flow_id in injected_flow_ids:
+                    return
+                injected_flow_ids.add(flow_id)
 
-                def _inject(ff: Flow = f) -> None:
-                    self.injector.inject(ff, on_complete=book.on_flow_complete)
+                launch_time = bucket_launch_origin + max(0.0, float(flow.start_time))
+                delay = max(0.0, launch_time - self.sim.get_current_time())
+
+                def _inject(ff: Flow = flow) -> None:
+                    self.injector.inject(ff, on_complete=on_flow_complete)
 
                 self.sim.schedule_event(delay, _inject)
+
+            def on_flow_complete(flow_id: int) -> None:
+                book.on_flow_complete(flow_id)
+
+                for dependent_id in dependency_graph.get(flow_id, []):
+                    pending_prereqs[dependent_id] = max(0, pending_prereqs.get(dependent_id, 0) - 1)
+                    if pending_prereqs[dependent_id] == 0:
+                        dependent_flow = flow_by_id.get(dependent_id)
+                        if dependent_flow is not None:
+                            schedule_injection(dependent_flow)
+
+            for f in bucket.flows:
+                if pending_prereqs.get(int(f.flow_id), 0) == 0:
+                    schedule_injection(f)
 
         for bucket_index in range(len(phase.buckets)):
             launch_bucket(bucket_index)

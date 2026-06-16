@@ -22,6 +22,7 @@ class AIFactorySUDpHeavyScenario(Scenario):
         t_fwd_bwd_ms: float,
         optimizer_ms: float,
         chunk_redundancy_percent: float = 0.0,
+        single_ring_only: bool = False,
         *,
         mice: MiceConfig | None = None,
     ):
@@ -33,6 +34,7 @@ class AIFactorySUDpHeavyScenario(Scenario):
         self.t_fwd_bwd_ms = t_fwd_bwd_ms
         self.optimizer_ms = optimizer_ms
         self.chunk_redundancy_percent = chunk_redundancy_percent
+        self.single_ring_only = single_ring_only
         self.mice = mice
 
     def install(self, network) -> None:
@@ -47,6 +49,7 @@ class AIFactorySUDpHeavyScenario(Scenario):
             t_fwd_bwd_ms=float(self.t_fwd_bwd_ms),
             optimizer_ms=float(self.optimizer_ms),
             chunk_redundancy_percent=float(self.chunk_redundancy_percent),
+            single_ring_only=bool(self.single_ring_only),
         )
         job = build_dp_heavy_workload_job(participants=participants, config=cfg)
 
@@ -81,6 +84,7 @@ class AIFactorySUDpHeavyScenario(Scenario):
                 "t_fwd_bwd_ms": self.t_fwd_bwd_ms,
                 "optimizer_ms": self.optimizer_ms,
                 "chunk_redundancy_percent": self.chunk_redundancy_percent,
+                "single_ring_only": self.single_ring_only,
             }
         )
         if self.mice is not None and self.mice.enabled:

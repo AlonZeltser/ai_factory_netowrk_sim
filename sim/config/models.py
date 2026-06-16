@@ -46,6 +46,8 @@ class RunSpec:
     verbose_route: bool = False
     visualize: bool = False
     show_visualization_window: bool = False
+    store_packets: bool = False
+    collect_packet_timeline: bool = False
     log_dir: str = "results/logs"
     results_dir: str = "results"
 
@@ -55,6 +57,11 @@ class RunSpec:
             return RunSpec()
         data = _require_mapping(value, "run")
         seed = data.get("seed")
+        store_packets = bool(data.get("store_packets", False))
+        collect_packet_timeline = bool(data.get("collect_packet_timeline", False))
+        if collect_packet_timeline:
+            # Timeline extraction requires packet storage to be enabled.
+            store_packets = True
         return RunSpec(
             seed=(int(seed) if seed is not None else None),
             file_debug=bool(data.get("file_debug", data.get("debug", False))),
@@ -62,6 +69,8 @@ class RunSpec:
             verbose_route=bool(data.get("verbose_route", False)),
             visualize=bool(data.get("visualize", False)),
             show_visualization_window=bool(data.get("show_visualization_window", False)),
+            store_packets=store_packets,
+            collect_packet_timeline=collect_packet_timeline,
             log_dir=str(data.get("log_dir", "results/logs")),
             results_dir=str(data.get("results_dir", "results")),
         )
@@ -73,6 +82,8 @@ class RunSpec:
             "verbose_route": self.verbose_route,
             "visualize": self.visualize,
             "show_visualization_window": self.show_visualization_window,
+            "store_packets": self.store_packets,
+            "collect_packet_timeline": self.collect_packet_timeline,
         }
         if self.seed is not None:
             out["seed"] = self.seed

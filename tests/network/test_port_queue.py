@@ -1,4 +1,5 @@
 ﻿import unittest
+from unittest.mock import patch
 
 from des.des import DiscreteEventSimulator
 from network.core.host import Host
@@ -151,6 +152,78 @@ class TestPortQueue(unittest.TestCase):
         self.assertEqual(h2.received_count, 1)
         self.assertEqual(sim.packet_stats.packet_stall_marked_count, 1)
         self.assertEqual(sim.packet_stats.packet_stall_triggered_count, 1)
+        self.assertGreaterEqual(sim.end_time, 0.05)
+        self.assertLess(sim.end_time, 0.051)
+
+    def test_packet_stall_falls_back_to_last_switch_when_target_hop_is_beyond_path(self):
+        sim = DiscreteEventSimulator()
+        sim.packet_stall_percent = 100.0
+        sim.packet_stall_delay_s = 0.05
+        sim.packet_stall_max_switch_hop = 2
+
+        h1 = Host(
+            name="h1",
+            scheduler=sim,
+            ip_address="10.0.0.1",
+            message_verbose=False,
+            verbose_route=False,
+            max_path=10,
+            ports_count=1,
+            routing_mode=RoutingMode.ECMP,
+            ecmp_flowlet_n_packets=0,
+            mtu=4096,
+            ttl=64,
+        )
+        sw = Switch(
+            "s1",
+            ports_count=2,
+            scheduler=sim,
+            routing_mode=RoutingMode.ECMP,
+            message_verbose=False,
+            verbose_route=False,
+        )
+        h2 = Host(
+            name="h2",
+            scheduler=sim,
+            ip_address="10.0.0.2",
+            message_verbose=False,
+            verbose_route=False,
+            max_path=10,
+            ports_count=1,
+            routing_mode=RoutingMode.ECMP,
+            ecmp_flowlet_n_packets=0,
+            mtu=4096,
+            ttl=64,
+        )
+
+        l1 = Link("l1", sim, bandwidth_bps=1e12, propagation_time=0.0)
+        l2 = Link("l2", sim, bandwidth_bps=1e12, propagation_time=0.0)
+        h1.connect(1, l1)
+        sw.connect(1, l1)
+        sw.connect(2, l2)
+        h2.connect(1, l2)
+
+        h1.set_ip_routing("10.0.0.2/32", 1)
+        sw.set_ip_routing("10.0.0.2/32", 2)
+
+        with patch("network.core.host.random.randint", return_value=2):
+            h1.send_message(
+                app_id=1,
+                session_id=1,
+                dst_ip_address="10.0.0.2",
+                source_port=12345,
+                dest_port=80,
+                size_bytes=100,
+                protocol=Protocol.UDP,
+                message="stall",
+            )
+
+        sim.run()
+
+        self.assertEqual(h2.received_count, 1)
+        self.assertEqual(sim.packet_stats.packet_stall_marked_count, 1)
+        self.assertEqual(sim.packet_stats.packet_stall_triggered_count, 1)
+        self.assertEqual(sim.packet_stats.packet_stall_triggered_count_by_flow_id.get(1), 1)
         self.assertGreaterEqual(sim.end_time, 0.05)
         self.assertLess(sim.end_time, 0.051)
 

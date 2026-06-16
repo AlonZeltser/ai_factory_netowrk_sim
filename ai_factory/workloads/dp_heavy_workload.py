@@ -20,6 +20,7 @@ class DPHeavyWorkloadConfig:
     optimizer_ms: float
     seed: int
     chunk_redundancy_percent: float = 0.0
+    single_ring_only: bool = False
 
 
 def build_dp_heavy_workload_job(
@@ -72,27 +73,30 @@ def build_dp_heavy_workload_job(
                 ring_seed=step_ring_seed,
                 write_to_log=b==0
             )
-            ag = expand_collective(
-                kind=CollectiveKind.ALL_GATHER,
-                algorithm=config.algorithm,
-                participants=participants,
-                bytes_per_participant=int(config.bucket_bytes_per_participant),
-                start_time=start_time,
-                gap_us=float(config.gap_us),
-                ids=ids.child((step_idx, 1, bucket_id, "ag")),
-                job_id=job_id,
-                step_id=step_idx,
-                phase_id=1,
-                bucket_id=bucket_id,
-                ring_seed=step_ring_seed,
-                write_to_log=b == 0
-            )
+            ag_flows = []
+            if not bool(config.single_ring_only):
+                ag = expand_collective(
+                    kind=CollectiveKind.ALL_GATHER,
+                    algorithm=config.algorithm,
+                    participants=participants,
+                    bytes_per_participant=int(config.bucket_bytes_per_participant),
+                    start_time=start_time,
+                    gap_us=float(config.gap_us),
+                    ids=ids.child((step_idx, 1, bucket_id, "ag")),
+                    job_id=job_id,
+                    step_id=step_idx,
+                    phase_id=1,
+                    bucket_id=bucket_id,
+                    ring_seed=step_ring_seed,
+                    write_to_log=b == 0
+                )
+                ag_flows = ag.flows
 
             comm_buckets.append(
                 Bucket(
                     bucket_id=bucket_id,
                     flows=apply_chunk_redundancy(
-                        rs.flows + ag.flows,
+                        rs.flows + ag_flows,
                         extra_percent=float(config.chunk_redundancy_percent),
                     ),
                 )

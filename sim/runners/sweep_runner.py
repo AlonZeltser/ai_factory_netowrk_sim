@@ -61,6 +61,7 @@ def run_sweep(
     base_overrides: list[str] | None = None,
     vary_specs: list[str] | None = None,
     stop_on_error: bool = False,
+    max_processes: int | None = None,
 ) -> list[dict[str, Any]]:
     return run_batch(
         build_sweep_inputs(
@@ -70,6 +71,8 @@ def run_sweep(
             vary_specs=vary_specs,
         ),
         stop_on_error=stop_on_error,
+        use_processes=True,
+        max_processes=max_processes,
     )
 
 

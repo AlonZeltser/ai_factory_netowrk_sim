@@ -24,7 +24,9 @@ class Network(ABC):
                  verbose: bool, verbose_route: bool,
                  ecmp_flowlet_n_packets: int,
                  mtu: int,
-                 ttl: int):
+                 ttl: int,
+                 store_packets: bool = False,
+                 collect_packet_timeline: bool = False):
         """Base class for topology/scenario network_simulators.
 
         Parameters:
@@ -34,7 +36,7 @@ class Network(ABC):
         mtu: maximum transmission unit in bytes
         ttl: time to live (max hops for packets)
         """
-        self.simulator = DiscreteEventSimulator()
+        self.simulator = DiscreteEventSimulator(store_packets=bool(store_packets))
         self.entities: Dict[str, Any] = {}
         self.hosts: Dict[str, Host] = {}
         self.name = name
@@ -59,6 +61,7 @@ class Network(ABC):
         self._scenario: Scenario | None = None
         self.mtu = int(mtu)
         self.ttl = int(ttl)
+        self.collect_packet_timeline = bool(collect_packet_timeline and store_packets)
         self.simulator.packet_stall_percent = self.packet_stall_percent
         self.simulator.packet_stall_delay_s = self.packet_stall_delay_s
         self.simulator.packet_stall_max_switch_hop = self.packet_stall_max_switch_hop
@@ -161,6 +164,11 @@ class Network(ABC):
         packets_count = stats.total_count
         delivered_packets_count = stats.delivered_count
         dropped_packets_count = stats.dropped_count
+        max_per_flow_drops = 0
+        try:
+            max_per_flow_drops = int(stats.max_dropped_for_flow_ids(set(stats.dropped_count_by_flow_id.keys())))
+        except Exception:
+            max_per_flow_drops = 0
 
         trans_times = [link.accumulated_transmitting_time for link in self.links]
         links_average_delivery_time = float(sum(trans_times)) / float(len(trans_times)) if len(trans_times) > 0 else 0.0
@@ -199,6 +207,7 @@ class Network(ABC):
             'dropped packets count': dropped_packets_count,
             'dropped packets percentage': (
                         dropped_packets_count / packets_count * 100.0) if packets_count > 0 else 0.0,
+            'max per flow drops': max_per_flow_drops,
             'avg route length': stats.avg_route_length,
             'max route length': stats.max_route_length,
             'min route length': stats.min_route_length,
@@ -213,6 +222,7 @@ class Network(ABC):
             'avg_node_peak_egress_queue_len (packets)': avg_node_peak_egress_queue_len,
             'packet_stall_marked_count': stats.packet_stall_marked_count,
             'packet_stall_triggered_count': stats.packet_stall_triggered_count,
+            'packet_stall_triggered_count_by_flow_id': dict(stats.packet_stall_triggered_count_by_flow_id),
         }
 
         # --- AI-factory app metrics (if present) ---
@@ -271,7 +281,7 @@ class Network(ABC):
         # Collect packet timeline data for visualization (birth_time, size_bytes)
         # Only available when store_packets=True on the simulator
         packet_timeline = []
-        if self.simulator.packets is not None:
+        if self.collect_packet_timeline and self.simulator.packets is not None:
             packet_timeline = [
                 (p.tracking_info.birth_time, p.routing_header.size_bytes)
                 for p in self.simulator.packets

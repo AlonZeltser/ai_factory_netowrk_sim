@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sim.runners.batch_runner import collect_batch_inputs, run_batch, write_batch_summary
+from ai_factory.core.entities import FlowMetrics
+from sim.runners.batch_runner import _build_flow_stall_stats, collect_batch_inputs, run_batch, write_batch_summary
 from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 
 
@@ -43,6 +44,99 @@ workload:
     out = write_batch_summary(summary, str(tmp_path / "summary.yaml"))
     assert out.exists()
     assert "batch-case" not in out.read_text(encoding="utf-8") or out.read_text(encoding="utf-8")
+
+
+def test_build_flow_stall_stats_aggregates_training_flows_and_bucket_bottleneck() -> None:
+    flow_metrics = [
+        FlowMetrics(
+            flow_id=1,
+            job_id=101,
+            step_id=0,
+            phase_id=1,
+            bucket_id=0,
+            tag="rs",
+            src_node_id="h1",
+            dst_node_id="h2",
+            start_time=0.0,
+            end_time=0.001,
+            transmitted_bytes=4096,
+            useful_bytes=4096,
+        ),
+        FlowMetrics(
+            flow_id=2,
+            job_id=101,
+            step_id=0,
+            phase_id=1,
+            bucket_id=0,
+            tag="ag",
+            src_node_id="h2",
+            dst_node_id="h3",
+            start_time=0.0,
+            end_time=0.001,
+            transmitted_bytes=4096,
+            useful_bytes=4096,
+        ),
+        FlowMetrics(
+            flow_id=3,
+            job_id=101,
+            step_id=1,
+            phase_id=1,
+            bucket_id=1,
+            tag="rs",
+            src_node_id="h1",
+            dst_node_id="h3",
+            start_time=0.0,
+            end_time=0.001,
+            transmitted_bytes=4096,
+            useful_bytes=4096,
+        ),
+        FlowMetrics(
+            flow_id=4,
+            job_id=-1,
+            step_id=-1,
+            phase_id=-1,
+            bucket_id=None,
+            tag="mice",
+            src_node_id="h3",
+            dst_node_id="h4",
+            start_time=0.0,
+            end_time=0.001,
+            transmitted_bytes=4096,
+            useful_bytes=4096,
+        ),
+        FlowMetrics(
+            flow_id=5,
+            job_id=202,
+            step_id=0,
+            phase_id=1,
+            bucket_id=0,
+            tag="tp",
+            src_node_id="h4",
+            dst_node_id="h5",
+            start_time=0.0,
+            end_time=0.001,
+            transmitted_bytes=4096,
+            useful_bytes=4096,
+        ),
+    ]
+
+    stats = _build_flow_stall_stats(
+        flow_metrics,
+        {
+            1: 2,
+            2: 1,
+            4: 9,
+            5: 4,
+        },
+    )
+
+    assert stats == {
+        "avg_stalls_per_flow": 1.75,
+        "max_stalls_per_flow": 4,
+        "bucket_bottleneck_stalls": 4,
+        "training_flow_count": 4,
+        "stalls_per_flow_histogram": {1: 1, 2: 1, 4: 1, 0: 1},
+    }
 
 
 def test_build_and_run_sweep() -> None:

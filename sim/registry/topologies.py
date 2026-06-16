@@ -111,6 +111,8 @@ def _build_clos(topology: TopologySpec, routing: RoutingSpec, run: RunSpec) -> N
         leaf_to_spine_bandwidth_bps=float(leaf_to_spine_bandwidth_bps),
         mtu=_require_int_param(params, "mtu"),
         ttl=_require_int_param(params, "ttl"),
+        store_packets=run.store_packets,
+        collect_packet_timeline=run.collect_packet_timeline,
         topology_config=topo_cfg,
     )
 

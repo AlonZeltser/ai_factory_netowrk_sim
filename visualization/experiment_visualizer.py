@@ -1,7 +1,9 @@
+import csv
 import datetime
 import logging
 import os
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
@@ -304,14 +306,14 @@ def _summary_spread(
     row: Dict[str, Any],
     *,
     avg_key: str,
-    std_key: str,
+    std_key: str | None,
     min_key: str,
     max_key: str,
 ) -> tuple[float, float, str | None]:
     avg = _summary_float(row, avg_key)
     if avg is None:
         return 0.0, 0.0, None
-    std = _summary_float(row, std_key)
+    std = _summary_float(row, std_key) if std_key else None
     if std is not None and std > 0.0:
         return std, std, "std"
     min_v = _summary_float(row, min_key)
@@ -347,13 +349,384 @@ def _choose_sweep_x_axis(rows: List[Dict[str, Any]]) -> tuple[str, str, str, str
     return candidates[-1]
 
 
+def _natural_sort_key(value: str) -> tuple[Any, ...]:
+    parts = re.split(r"(\d+)", str(value))
+    return tuple(int(part) if part.isdigit() else part.lower() for part in parts)
+
+
+def _normalize_summary_step_matrix(row: Dict[str, Any]) -> list[dict[str, Any]]:
+    matrices = row.get("step_traffic_matrices")
+    if not isinstance(matrices, list):
+        return []
+
+    normalized: list[dict[str, Any]] = []
+    for item in matrices:
+        if not isinstance(item, dict):
+            continue
+        nodes = item.get("nodes")
+        matrix = item.get("matrix_bytes")
+        step_id = item.get("step_id")
+        if not isinstance(nodes, list) or not isinstance(matrix, list):
+            continue
+        try:
+            step_id_int = int(step_id)
+        except (TypeError, ValueError):
+            continue
+        node_labels = [str(node) for node in nodes]
+        if not node_labels:
+            continue
+        if len(matrix) != len(node_labels):
+            continue
+
+        normalized_matrix: list[list[int]] = []
+        valid = True
+        for row_values in matrix:
+            if not isinstance(row_values, list) or len(row_values) != len(node_labels):
+                valid = False
+                break
+            try:
+                normalized_matrix.append([max(0, int(value)) for value in row_values])
+            except (TypeError, ValueError):
+                valid = False
+                break
+        if not valid:
+            continue
+
+        normalized.append(
+            {
+                "step_id": step_id_int,
+                "nodes": node_labels,
+                "matrix_bytes": normalized_matrix,
+            }
+        )
+
+    return sorted(normalized, key=lambda item: item["step_id"])
+
+
+def visualize_summary_step_traffic_matrices(
+    summary: List[Dict[str, Any]],
+    *,
+    out_dir: str = "results",
+    show: bool = False,
+) -> list[str]:
+    """Create per-step traffic-matrix heatmaps for each successful summary row that carries step flow data."""
+    rows = [row for row in summary if row.get("ok")]
+    if not rows:
+        return []
+
+    try:
+        import matplotlib
+        if not show:
+            matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except ImportError:
+        logging.warning("matplotlib not available, skipping summary traffic matrix visualization")
+        return []
+
+    os.makedirs(out_dir, exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    saved_paths: list[str] = []
+
+    for row_idx, row in enumerate(rows):
+        matrices = _normalize_summary_step_matrix(row)
+        if not matrices:
+            continue
+
+        label = str(row.get("label") or f"summary_{row_idx}")
+        safe_label = re.sub(r"[^A-Za-z0-9._-]+", "_", label).strip("_") or f"summary_{row_idx}"
+        routing_mode = row.get("routing_mode")
+        redundancy = _summary_float(row, "chunk_redundancy_percent")
+        x_key, x_label, _, _ = _choose_sweep_x_axis([row])
+        x_value = _summary_float(row, x_key)
+
+        for matrix_info in matrices:
+            nodes = sorted(matrix_info["nodes"], key=_natural_sort_key)
+            source_nodes = matrix_info["nodes"]
+            source_index = {node: idx for idx, node in enumerate(source_nodes)}
+            display_matrix = [
+                [matrix_info["matrix_bytes"][source_index[src]][source_index[dst]] for dst in nodes]
+                for src in nodes
+            ]
+            data = np.array(display_matrix, dtype=float)
+            fig_width = max(8.0, min(18.0, 2.0 + 0.6 * len(nodes)))
+            fig_height = max(7.0, min(18.0, 2.5 + 0.6 * len(nodes)))
+            fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+
+            vmax = float(data.max()) if data.size else 0.0
+            im = ax.imshow(data, cmap="YlOrRd", vmin=0.0, vmax=vmax if vmax > 0 else 1.0)
+            cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            cbar.set_label("Transmitted bytes", rotation=90)
+
+            ax.set_xticks(range(len(nodes)))
+            ax.set_yticks(range(len(nodes)))
+            ax.set_xticklabels(nodes, rotation=45, ha="right")
+            ax.set_yticklabels(nodes)
+            ax.set_xlabel("Destination host")
+            ax.set_ylabel("Source host")
+
+            title_parts = [f"Step {matrix_info['step_id']} traffic matrix"]
+            if routing_mode:
+                title_parts.append(f"routing={routing_mode}")
+            if redundancy is not None:
+                title_parts.append(f"redundancy={redundancy:.3f}%")
+            if x_value is not None:
+                title_parts.append(f"{x_label}={x_value:.3f}")
+            ax.set_title(" | ".join(title_parts), fontsize=13, fontweight="bold")
+
+            max_value = int(data.max()) if data.size else 0
+            text_threshold = max_value * 0.55 if max_value > 0 else 0
+            for i in range(len(nodes)):
+                for j in range(len(nodes)):
+                    cell_value = int(data[i, j])
+                    text_color = "white" if cell_value > text_threshold else "black"
+                    ax.text(j, i, f"{cell_value:,}", ha="center", va="center", color=text_color, fontsize=8)
+
+            fig.text(0.5, 0.01, f"run={label}", ha="center", fontsize=9, style="italic")
+            plt.tight_layout(rect=(0, 0.03, 1, 0.97))
+
+            filepath = os.path.join(
+                out_dir,
+                f"step_traffic_matrix_{safe_label}_step_{matrix_info['step_id']:03d}_{timestamp}.png",
+            )
+            _save_or_show(fig, filepath, show=show)
+            logging.info("Summary traffic matrix graph saved to: %s", filepath)
+            saved_paths.append(filepath)
+
+    return saved_paths
+
+
+def _plot_sweep_metric_series(
+    ax,
+    series: list[tuple[float, list[dict[str, float]]]],
+    *,
+    include_legend: bool,
+) -> str:
+    markers = ['o', 's', '^', 'v', 'D', 'p', '*', 'h', '+', 'x', '<', '>', '|', '_']
+    line_styles = ['-', '--', '-.', ':']
+    colors_accessible = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+
+    all_modes = set()
+    for _, points in series:
+        all_modes.update(p["spread_mode"] for p in points if p["spread_mode"] != "none")
+
+    spread_suffix = ""
+    if "std" in all_modes:
+        spread_suffix = " (avg±std)"
+    elif "min-max" in all_modes:
+        spread_suffix = " (avg with min-max)"
+
+    for idx, (redundancy, points) in enumerate(series):
+        x_vals = [p["x"] for p in points]
+        y_vals = [p["y"] for p in points]
+        yerr_low = [p["yerr_low"] for p in points]
+        yerr_high = [p["yerr_high"] for p in points]
+
+        ax.errorbar(
+            x_vals,
+            y_vals,
+            yerr=[yerr_low, yerr_high],
+            marker=markers[idx % len(markers)],
+            markersize=10,
+            linewidth=2.5,
+            linestyle=line_styles[idx % len(line_styles)],
+            capsize=5,
+            capthick=2,
+            color=colors_accessible[idx % len(colors_accessible)],
+            elinewidth=1.5,
+            label=f"redundancy={redundancy:.3f}%",
+        )
+
+    if include_legend:
+        ax.legend(loc='best', fontsize=11, framealpha=0.95, edgecolor='black', fancybox=True)
+
+    return spread_suffix
+
+
+def _summary_stall_triggered_percent(row: Dict[str, Any]) -> float | None:
+    # Preferred metric for packet-stall sweeps.
+    stall_percent = _summary_float(row, "packet_stall_triggered_percent")
+    if stall_percent is not None:
+        return stall_percent
+    stalls_triggered = _summary_float(row, "packet_stall_triggered_count")
+    total_packets = _summary_float(row, "total_packets")
+    if stalls_triggered is not None and total_packets is not None and total_packets > 0:
+        return (stalls_triggered / total_packets) * 100.0
+
+    # Backward-compatible fallback for older summaries that only contain drop fields.
+    dropped_percent = _summary_float(row, "dropped_packets_percent")
+    if dropped_percent is not None:
+        return dropped_percent
+    dropped_packets = _summary_float(row, "dropped_packets")
+    if dropped_packets is None or total_packets is None or total_packets <= 0:
+        return None
+    return (dropped_packets / total_packets) * 100.0
+
+
+def _normalize_histogram(raw_hist: Any) -> dict[int, int]:
+    if not isinstance(raw_hist, dict):
+        return {}
+    out: dict[int, int] = {}
+    for stall_count_raw, flow_count_raw in raw_hist.items():
+        try:
+            stall_count = int(stall_count_raw)
+            flow_count = int(flow_count_raw)
+        except (TypeError, ValueError):
+            continue
+        if stall_count < 0 or flow_count < 0:
+            continue
+        out[stall_count] = out.get(stall_count, 0) + flow_count
+    return out
+
+
+def _write_stall_distribution_csv(
+    rows: List[Dict[str, Any]],
+    *,
+    out_dir: str,
+    file_suffix: str,
+    timestamp: str,
+    x_key: str,
+) -> str | None:
+    flat_rows: list[dict[str, Any]] = []
+    for row in rows:
+        redundancy = _summary_float(row, "chunk_redundancy_percent")
+        x_value = _summary_float(row, x_key)
+        if redundancy is None or x_value is None:
+            continue
+        histogram = _normalize_histogram(row.get("stalls_per_flow_histogram"))
+        if not histogram:
+            continue
+        total_flows = int(sum(histogram.values()))
+        if total_flows <= 0:
+            continue
+        for stall_count, flow_count in sorted(histogram.items()):
+            flat_rows.append(
+                {
+                    "label": str(row.get("label", "")),
+                    "routing_mode": str(row.get("routing_mode", "")),
+                    "chunk_redundancy_percent": redundancy,
+                    "x_value": x_value,
+                    "stall_count": stall_count,
+                    "flow_count": flow_count,
+                    "training_flow_count": total_flows,
+                    "flow_fraction_percent": (float(flow_count) / float(total_flows)) * 100.0,
+                }
+            )
+
+    if not flat_rows:
+        return None
+
+    csv_path = os.path.join(out_dir, f"stalls_distribution_vs_{file_suffix}_{timestamp}.csv")
+    fieldnames = [
+        "label",
+        "routing_mode",
+        "chunk_redundancy_percent",
+        "x_value",
+        "stall_count",
+        "flow_count",
+        "training_flow_count",
+        "flow_fraction_percent",
+    ]
+    with open(csv_path, "w", encoding="utf-8", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(flat_rows)
+    return csv_path
+
+
+def _write_step_time_points_csv(
+    grouped_rows: dict[float, list[dict[str, Any]]],
+    *,
+    out_dir: str,
+    file_suffix: str,
+    timestamp: str,
+) -> str | None:
+    flat_rows: list[dict[str, Any]] = []
+    for redundancy, points in sorted(grouped_rows.items()):
+        for point in sorted(points, key=lambda item: item["x"]):
+            flat_rows.append(
+                {
+                    "label": str(point.get("label", "")),
+                    "routing_mode": str(point.get("routing_mode", "")),
+                    "chunk_redundancy_percent": redundancy,
+                    "x_value": point["x"],
+                    "step_time_avg_ms": point["y"],
+                    "step_time_min_ms": point.get("step_time_min_ms"),
+                    "step_time_max_ms": point.get("step_time_max_ms"),
+                    "flow_time_avg_ms": point.get("flow_time_avg_ms"),
+                    "flow_time_min_ms": point.get("flow_time_min_ms"),
+                    "flow_time_max_ms": point.get("flow_time_max_ms"),
+                    "bucket_time_avg_ms": point.get("bucket_time_avg_ms"),
+                    "bucket_time_min_ms": point.get("bucket_time_min_ms"),
+                    "bucket_time_max_ms": point.get("bucket_time_max_ms"),
+                    "total_packets": point.get("total_packets"),
+                    "packet_stall_marked_count": point.get("packet_stall_marked_count"),
+                    "packet_stall_triggered_count": point.get("packet_stall_triggered_count"),
+                    "packet_stall_triggered_percent": point.get("packet_stall_triggered_percent"),
+                    "avg_stalls_per_flow": point.get("avg_stalls_per_flow"),
+                    "max_stalls_per_flow": point.get("max_stalls_per_flow"),
+                    "bucket_bottleneck_stalls": point.get("bucket_bottleneck_stalls"),
+                    "total_redundant_packets": point.get("total_redundant_packets"),
+                    "total_redundant_bytes": point.get("total_redundant_bytes"),
+                    "avg_redundant_packets_per_flow": point.get("avg_redundant_packets_per_flow"),
+                    "avg_packets_per_ring_flow": point.get("avg_packets_per_ring_flow"),
+                    "avg_data_per_host_per_ring_bytes": point.get("avg_data_per_host_per_ring_bytes"),
+                    "avg_data_per_step_per_ring_bytes": point.get("avg_data_per_step_per_ring_bytes"),
+                    "avg_packets_in_ring_before_redundancy": point.get("avg_packets_in_ring_before_redundancy"),
+                    "avg_packets_in_ring_after_redundancy": point.get("avg_packets_in_ring_after_redundancy"),
+                    "packets_in_ring_flow_with_redundancy": point.get("packets_in_ring_flow_with_redundancy"),
+                }
+            )
+
+    if not flat_rows:
+        return None
+
+    csv_path = os.path.join(out_dir, f"step_time_vs_{file_suffix}_{timestamp}.csv")
+    fieldnames = [
+        "label",
+        "routing_mode",
+        "chunk_redundancy_percent",
+        "x_value",
+        "step_time_avg_ms",
+        "step_time_min_ms",
+        "step_time_max_ms",
+        "flow_time_avg_ms",
+        "flow_time_min_ms",
+        "flow_time_max_ms",
+        "bucket_time_avg_ms",
+        "bucket_time_min_ms",
+        "bucket_time_max_ms",
+        "total_packets",
+        "packet_stall_marked_count",
+        "packet_stall_triggered_count",
+        "packet_stall_triggered_percent",
+        "avg_stalls_per_flow",
+        "max_stalls_per_flow",
+        "bucket_bottleneck_stalls",
+        "total_redundant_packets",
+        "total_redundant_bytes",
+        "avg_redundant_packets_per_flow",
+        "avg_packets_per_ring_flow",
+        "avg_data_per_host_per_ring_bytes",
+        "avg_data_per_step_per_ring_bytes",
+        "avg_packets_in_ring_before_redundancy",
+        "avg_packets_in_ring_after_redundancy",
+        "packets_in_ring_flow_with_redundancy",
+    ]
+    with open(csv_path, "w", encoding="utf-8", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(flat_rows)
+    return csv_path
+
+
 def visualize_sweep_time_comparison(
     summary: List[Dict[str, Any]],
     *,
     out_dir: str = "results",
     show: bool = False,
 ) -> list[str]:
-    """Create comparison plots across the varying impairment percentage with one line per redundancy level."""
+    """Create aggregate and per-redundancy comparison plots across the varying impairment percentage."""
     rows = [row for row in summary if row.get("ok")]
     if not rows:
         logging.warning("No successful sweep rows available for comparison visualization")
@@ -371,7 +744,7 @@ def visualize_sweep_time_comparison(
     metrics = [
         {
             "avg": "flow_time_avg_ms",
-            "std": "flow_time_std_ms",
+            "std": None,
             "min": "flow_time_min_ms",
             "max": "flow_time_max_ms",
             "title": "Flow time vs impairment",
@@ -380,7 +753,7 @@ def visualize_sweep_time_comparison(
         },
         {
             "avg": "bucket_time_avg_ms",
-            "std": "bucket_time_std_ms",
+            "std": None,
             "min": "bucket_time_min_ms",
             "max": "bucket_time_max_ms",
             "title": "Bucket time vs impairment",
@@ -414,6 +787,7 @@ def visualize_sweep_time_comparison(
 
     for metric in metrics:
         grouped: dict[float, list[dict[str, float]]] = {}
+        grouped_rows: dict[float, list[dict[str, Any]]] = {}
         for row in rows:
             redundancy = _summary_float(row, "chunk_redundancy_percent")
             x_value = _summary_float(row, x_key)
@@ -436,64 +810,127 @@ def visualize_sweep_time_comparison(
                     "spread_mode": spread_mode or "none",
                 }
             )
+            total_packets = _summary_float(row, "total_packets")
+            packet_stall_marked_count = _summary_float(row, "packet_stall_marked_count")
+            packet_stall_triggered_count = _summary_float(row, "packet_stall_triggered_count")
+            packet_stall_triggered_percent = _summary_stall_triggered_percent(row)
+            avg_stalls_per_flow = _summary_float(row, "avg_stalls_per_flow")
+            max_stalls_per_flow = _summary_float(row, "max_stalls_per_flow")
+            bucket_bottleneck_stalls = _summary_float(row, "bucket_bottleneck_stalls")
+            flow_time_avg_ms = _summary_float(row, "flow_time_avg_ms")
+            flow_time_min_ms = _summary_float(row, "flow_time_min_ms")
+            flow_time_max_ms = _summary_float(row, "flow_time_max_ms")
+            bucket_time_avg_ms = _summary_float(row, "bucket_time_avg_ms")
+            bucket_time_min_ms = _summary_float(row, "bucket_time_min_ms")
+            bucket_time_max_ms = _summary_float(row, "bucket_time_max_ms")
+            total_redundant_packets = _summary_float(row, "total_redundant_packets")
+            total_redundant_bytes = _summary_float(row, "total_redundant_bytes")
+            avg_redundant_packets_per_flow = _summary_float(row, "avg_redundant_packets_per_flow")
+            avg_packets_per_ring_flow = _summary_float(row, "avg_packets_per_ring_flow")
+            avg_data_per_host_per_ring_bytes = _summary_float(row, "avg_data_per_host_per_ring_bytes")
+            avg_data_per_step_per_ring_bytes = _summary_float(row, "avg_data_per_step_per_ring_bytes")
+            avg_packets_in_ring_before_redundancy = _summary_float(row, "avg_packets_in_ring_before_redundancy")
+            avg_packets_in_ring_after_redundancy = _summary_float(row, "avg_packets_in_ring_after_redundancy")
+            packets_in_ring_flow_with_redundancy = _summary_float(row, "packets_in_ring_flow_with_redundancy")
+            grouped_rows.setdefault(redundancy, []).append(
+                {
+                    "x": x_value,
+                    "y": metric_value,
+                    "label": row.get("label"),
+                    "routing_mode": row.get("routing_mode"),
+                    "step_time_min_ms": _summary_float(row, "step_time_min_ms"),
+                    "step_time_max_ms": _summary_float(row, "step_time_max_ms"),
+                    "flow_time_avg_ms": flow_time_avg_ms if flow_time_avg_ms is not None else 0.0,
+                    "flow_time_min_ms": flow_time_min_ms if flow_time_min_ms is not None else 0.0,
+                    "flow_time_max_ms": flow_time_max_ms if flow_time_max_ms is not None else 0.0,
+                    "bucket_time_avg_ms": bucket_time_avg_ms if bucket_time_avg_ms is not None else 0.0,
+                    "bucket_time_min_ms": bucket_time_min_ms if bucket_time_min_ms is not None else 0.0,
+                    "bucket_time_max_ms": bucket_time_max_ms if bucket_time_max_ms is not None else 0.0,
+                    "total_packets": total_packets if total_packets is not None else 0,
+                    "packet_stall_marked_count": packet_stall_marked_count if packet_stall_marked_count is not None else 0,
+                    "packet_stall_triggered_count": packet_stall_triggered_count if packet_stall_triggered_count is not None else 0,
+                    "packet_stall_triggered_percent": packet_stall_triggered_percent if packet_stall_triggered_percent is not None else 0.0,
+                    "avg_stalls_per_flow": avg_stalls_per_flow if avg_stalls_per_flow is not None else 0.0,
+                    "max_stalls_per_flow": max_stalls_per_flow if max_stalls_per_flow is not None else 0,
+                    "bucket_bottleneck_stalls": bucket_bottleneck_stalls if bucket_bottleneck_stalls is not None else 0,
+                    "total_redundant_packets": total_redundant_packets if total_redundant_packets is not None else 0,
+                    "total_redundant_bytes": total_redundant_bytes if total_redundant_bytes is not None else 0,
+                    "avg_redundant_packets_per_flow": avg_redundant_packets_per_flow if avg_redundant_packets_per_flow is not None else 0.0,
+                    "avg_packets_per_ring_flow": avg_packets_per_ring_flow if avg_packets_per_ring_flow is not None else 0.0,
+                    "avg_data_per_host_per_ring_bytes": avg_data_per_host_per_ring_bytes if avg_data_per_host_per_ring_bytes is not None else 0.0,
+                    "avg_data_per_step_per_ring_bytes": avg_data_per_step_per_ring_bytes if avg_data_per_step_per_ring_bytes is not None else 0.0,
+                    "avg_packets_in_ring_before_redundancy": avg_packets_in_ring_before_redundancy if avg_packets_in_ring_before_redundancy is not None else 0.0,
+                    "avg_packets_in_ring_after_redundancy": avg_packets_in_ring_after_redundancy if avg_packets_in_ring_after_redundancy is not None else 0.0,
+                    "packets_in_ring_flow_with_redundancy": packets_in_ring_flow_with_redundancy if packets_in_ring_flow_with_redundancy is not None else 0.0,
+                }
+            )
 
         if not grouped:
             continue
 
+        sorted_series = [
+            (redundancy, sorted(points, key=lambda item: item["x"]))
+            for redundancy, points in sorted(grouped.items())
+        ]
+
         fig, ax = plt.subplots(figsize=(11, 7))
-        
-        # Distinct marker styles for color-blind accessibility
-        markers = ['o', 's', '^', 'v', 'D', 'p', '*', 'h', '+', 'x', '<', '>', '|', '_']
-        line_styles = ['-', '--', '-.', ':']
-        colors_accessible = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-        
-        spread_suffix_global = ""
-        all_modes = set()
-        for redundancy in sorted(grouped):
-            points = sorted(grouped[redundancy], key=lambda item: item["x"])
-            all_modes.update(p["spread_mode"] for p in points if p["spread_mode"] != "none")
-        
-        if "std" in all_modes:
-            spread_suffix_global = " (avg±std)"
-        elif "min-max" in all_modes:
-            spread_suffix_global = " (avg with min-max)"
-        
-        for idx, redundancy in enumerate(sorted(grouped)):
-            points = sorted(grouped[redundancy], key=lambda item: item["x"])
-            x_vals = [p["x"] for p in points]
-            y_vals = [p["y"] for p in points]
-            yerr_low = [p["yerr_low"] for p in points]
-            yerr_high = [p["yerr_high"] for p in points]
-            
-            marker = markers[idx % len(markers)]
-            linestyle = line_styles[idx % len(line_styles)]
-            color = colors_accessible[idx % len(colors_accessible)]
-            
-            ax.errorbar(
-                x_vals,
-                y_vals,
-                yerr=[yerr_low, yerr_high],
-                marker=marker,
-                markersize=10,
-                linewidth=2.5,
-                linestyle=linestyle,
-                capsize=5,
-                capthick=2,
-                color=color,
-                elinewidth=1.5,
-                label=f"redundancy={redundancy:.3f}%",
-            )
+        spread_suffix_global = _plot_sweep_metric_series(ax, sorted_series, include_legend=True)
 
         ax.set_title(f"{metric['title'].replace('impairment', title_suffix)}{spread_suffix_global}", fontsize=14, fontweight='bold')
         ax.set_xlabel(x_label, fontsize=12)
         ax.set_ylabel(metric["ylabel"], fontsize=12)
         ax.grid(alpha=0.3, linestyle='--', linewidth=0.7)
-        ax.legend(loc='best', fontsize=11, framealpha=0.95, edgecolor='black', fancybox=True)
 
         filepath = os.path.join(out_dir, f"{metric['stem']}_vs_{file_suffix}_{timestamp}.png")
         _save_or_show(fig, filepath, show=show)
         logging.info("Sweep comparison graph saved to: %s", filepath)
         saved_paths.append(filepath)
+
+        for redundancy, points in sorted_series:
+            fig_single, ax_single = plt.subplots(figsize=(11, 7))
+            spread_suffix_single = _plot_sweep_metric_series(
+                ax_single,
+                [(redundancy, points)],
+                include_legend=False,
+            )
+            ax_single.set_title(
+                f"{metric['title'].replace('impairment', title_suffix)} | redundancy={redundancy:.3f}%{spread_suffix_single}",
+                fontsize=14,
+                fontweight='bold',
+            )
+            ax_single.set_xlabel(x_label, fontsize=12)
+            ax_single.set_ylabel(metric["ylabel"], fontsize=12)
+            ax_single.grid(alpha=0.3, linestyle='--', linewidth=0.7)
+
+            filepath_single = os.path.join(
+                out_dir,
+                f"{metric['stem']}_vs_{file_suffix}_redundancy_{redundancy:.3f}_{timestamp}.png",
+            )
+            _save_or_show(fig_single, filepath_single, show=show)
+            logging.info("Sweep comparison graph saved to: %s", filepath_single)
+            saved_paths.append(filepath_single)
+
+        if metric["stem"] == "step_time":
+            csv_path = _write_step_time_points_csv(
+                grouped_rows,
+                out_dir=out_dir,
+                file_suffix=file_suffix,
+                timestamp=timestamp,
+            )
+            if csv_path:
+                logging.info("Sweep step-time values saved to: %s", csv_path)
+                saved_paths.append(csv_path)
+
+    dist_csv_path = _write_stall_distribution_csv(
+        rows,
+        out_dir=out_dir,
+        file_suffix=file_suffix,
+        timestamp=timestamp,
+        x_key=x_key,
+    )
+    if dist_csv_path:
+        logging.info("Sweep stall-distribution values saved to: %s", dist_csv_path)
+        saved_paths.append(dist_csv_path)
 
     return saved_paths
 
@@ -504,7 +941,7 @@ def visualize_sweep_time_comparison_from_yaml(
     out_dir: str = "results",
     show: bool = False,
 ) -> list[str]:
-    """Load a sweep summary YAML file and create aggregate sweep comparison plots."""
+    """Load a sweep summary YAML file and create aggregate comparison plots and step traffic matrices."""
     path = Path(summary_yaml_path)
     if not path.is_absolute():
         path = path.resolve()
@@ -517,7 +954,7 @@ def visualize_sweep_time_comparison_from_yaml(
     if not all(isinstance(row, dict) for row in summary):
         raise ValueError("Sweep summary YAML list must contain mapping entries")
 
-    return visualize_sweep_time_comparison(summary, out_dir=out_dir, show=show)
+    return visualize_sweep_time_comparison(summary, out_dir=out_dir, show=show) + visualize_summary_step_traffic_matrices(summary, out_dir=out_dir, show=show)
 
 
 def visualize_experiment_results(results: List[Dict[str, Dict[str, Any]]],
@@ -566,5 +1003,6 @@ __all__ = [
     "visualize_send_timeline",
     "visualize_ai_factory_comm_distributions",
     "visualize_sweep_time_comparison",
+    "visualize_summary_step_traffic_matrices",
     "visualize_sweep_time_comparison_from_yaml",
 ]

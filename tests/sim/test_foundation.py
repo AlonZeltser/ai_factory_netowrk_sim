@@ -161,6 +161,16 @@ def test_validate_clos_override() -> None:
     assert summary["source_preset"] == "ai/su-dp-low"
 
 
+def test_run_collect_packet_timeline_implies_store_packets() -> None:
+    spec = load_experiment_spec(
+        preset_name="ai/dp-low",
+        overrides=["run.collect_packet_timeline=true"],
+    )
+
+    assert spec.run.collect_packet_timeline is True
+    assert spec.run.store_packets is True
+
+
 
 
 

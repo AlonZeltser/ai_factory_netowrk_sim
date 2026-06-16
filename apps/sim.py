@@ -25,11 +25,13 @@ if _loaded_sim is not None and not hasattr(_loaded_sim, "__path__"):
 from sim.config.loader import dump_experiment_yaml, load_experiment_spec
 from sim.config.models import ConfigError
 from sim.registry.presets import iter_preset_items
+from sim.registry.topologies import build_network
 from sim.registry.workloads import iter_workload_items
 from sim.runners.batch_runner import collect_batch_inputs, run_batch, write_batch_summary
 from sim.runners.experiment_runner import run_experiment, validate_experiment
-from sim.runners.sweep_runner import run_sweep
+from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 from visualization.experiment_visualizer import (
+    visualize_summary_step_traffic_matrices,
     visualize_sweep_time_comparison,
     visualize_sweep_time_comparison_from_yaml,
 )
@@ -43,6 +45,8 @@ def _build_parser() -> argparse.ArgumentParser:
         p.add_argument("--preset", help="Built-in preset name")
         p.add_argument("--config", help="Path to a unified config file or legacy AI-factory YAML")
         p.add_argument("--set", dest="overrides", action="append", default=[], help="Override config values, e.g. routing.mode=adaptive")
+        p.add_argument("--store-packets", action="store_true", default=False, help="Store packet objects for diagnostics (higher memory usage)")
+        p.add_argument("--collect-packet-timeline", action="store_true", default=False, help="Collect packet timeline in results (implies --store-packets)")
 
     run_p = sub.add_parser("run", help="Run one experiment")
     add_config_options(run_p)
@@ -63,12 +67,15 @@ def _build_parser() -> argparse.ArgumentParser:
     batch_p.add_argument("--visualize-summary", action="store_true", default=False, help="Generate aggregate comparison plots from the batch summary")
     batch_p.add_argument("--show-visualization-window", action="store_true", default=False, help="Open aggregate comparison plots in an interactive window")
 
-    sweep_p = sub.add_parser("sweep", help="Run a cartesian sweep from one preset/config plus override dimensions")
+    sweep_p = sub.add_parser("sweep", help="Run a cartesian sweep from one preset/config plus override dimensions in parallel")
     add_config_options(sweep_p)
     sweep_p.add_argument("--vary", dest="vary_specs", action="append", default=[], help="Sweep dimension in the form key=v1,v2,...")
     sweep_p.add_argument("--summary-out", help="Optional YAML path for the sweep summary")
     sweep_p.add_argument("--stop-on-error", action="store_true", default=False, help="Stop immediately if any run fails")
+    sweep_p.add_argument("--processes", type=int, help="Worker process count for sweep runs (default: auto-balanced)")
     sweep_p.add_argument("--visualize-summary", action="store_true", default=False, help="Generate aggregate comparison plots from the sweep summary")
+    sweep_p.add_argument("--plot-topology-once", action="store_true", default=False, help="Render topology to file once using the first sweep combination")
+    sweep_p.add_argument("--plot-ring-heatmaps", action="store_true", default=False, help="Generate per-step ring traffic heatmaps from the sweep summary")
     sweep_p.add_argument("--show-visualization-window", action="store_true", default=False, help="Open aggregate comparison plots in an interactive window")
 
     list_p = sub.add_parser("list", help="List supported presets/workloads/routing")
@@ -88,7 +95,17 @@ def _require_input(args: argparse.Namespace) -> None:
 
 def _load_from_args(args: argparse.Namespace):
     _require_input(args)
-    return load_experiment_spec(preset_name=args.preset, config_path=args.config, overrides=args.overrides)
+    return load_experiment_spec(preset_name=args.preset, config_path=args.config, overrides=_effective_overrides(args))
+
+
+def _effective_overrides(args: argparse.Namespace) -> list[str]:
+    overrides = list(getattr(args, "overrides", []) or [])
+    if getattr(args, "store_packets", False):
+        overrides.append("run.store_packets=true")
+    if getattr(args, "collect_packet_timeline", False):
+        overrides.append("run.store_packets=true")
+        overrides.append("run.collect_packet_timeline=true")
+    return overrides
 
 
 def _cmd_list(target: str) -> int:
@@ -152,6 +169,7 @@ def _cmd_batch(args: argparse.Namespace) -> int:
     if args.visualize_summary:
         out_dir = str(output_path.parent if output_path is not None else (_REPO_ROOT / "results").resolve())
         paths = visualize_sweep_time_comparison(summary, out_dir=out_dir, show=args.show_visualization_window)
+        paths.extend(visualize_summary_step_traffic_matrices(summary, out_dir=out_dir, show=args.show_visualization_window))
         for path in paths:
             print(f"Wrote comparison plot to {path}")
     return 0 if all(item.get("ok") for item in summary) else 1
@@ -159,21 +177,42 @@ def _cmd_batch(args: argparse.Namespace) -> int:
 
 def _cmd_sweep(args: argparse.Namespace) -> int:
     _require_input(args)
+    effective_overrides = _effective_overrides(args)
+    if args.plot_topology_once:
+        first_input = build_sweep_inputs(
+            preset_name=args.preset,
+            config_path=args.config,
+            base_overrides=effective_overrides,
+            vary_specs=args.vary_specs,
+        )[0]
+        topo_spec = load_experiment_spec(
+            preset_name=first_input.preset_name,
+            config_path=first_input.config_path,
+            overrides=list(first_input.overrides),
+        )
+        topo_network = build_network(topo_spec)
+        topo_network.create(True)
+
     summary = run_sweep(
         preset_name=args.preset,
         config_path=args.config,
-        base_overrides=args.overrides,
+        base_overrides=effective_overrides,
         vary_specs=args.vary_specs,
         stop_on_error=args.stop_on_error,
+        max_processes=args.processes,
     )
     print(yaml.safe_dump(summary, sort_keys=False))
     output_path = None
     if args.summary_out:
         output_path = write_batch_summary(summary, args.summary_out)
         print(f"Wrote sweep summary to {output_path}")
-    if args.visualize_summary:
+    if args.visualize_summary or args.plot_ring_heatmaps:
         out_dir = str(output_path.parent if output_path is not None else (_REPO_ROOT / "results").resolve())
-        paths = visualize_sweep_time_comparison(summary, out_dir=out_dir, show=args.show_visualization_window)
+        paths: list[str] = []
+        if args.visualize_summary:
+            paths.extend(visualize_sweep_time_comparison(summary, out_dir=out_dir, show=args.show_visualization_window))
+        if args.plot_ring_heatmaps:
+            paths.extend(visualize_summary_step_traffic_matrices(summary, out_dir=out_dir, show=args.show_visualization_window))
         for path in paths:
             print(f"Wrote comparison plot to {path}")
     return 0 if all(item.get("ok") for item in summary) else 1

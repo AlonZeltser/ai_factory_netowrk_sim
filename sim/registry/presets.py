@@ -33,6 +33,16 @@ _REGISTRY: dict[str, PresetRegistryItem] = {
         description="AI scale-unit (SU) DP-heavy smaller topology, low-load preset on the unified clos family",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_low_small.yaml",
     ),
+    "ai/dp-tiny": PresetRegistryItem(
+        name="ai/dp-tiny",
+        description="AI scale-unit (SU) DP-heavy smaller topology, smallest preset on the unified clos family",
+        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_tiny.yaml",
+    ),
+    "ai/dp-single-ring": PresetRegistryItem(
+        name="ai/dp-single-ring",
+        description="AI scale-unit (SU) DP-heavy small-scale preset with reduce-scatter only (single ring)",
+        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_single_ring.yaml",
+    ),
     "ai/dp-mid": PresetRegistryItem(
         name="ai/dp-mid",
         description="AI scale-unit (SU) DP-heavy medium-load preset on the unified clos family",

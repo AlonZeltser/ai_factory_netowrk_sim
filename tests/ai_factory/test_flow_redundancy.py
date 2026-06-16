@@ -59,6 +59,29 @@ def test_dp_heavy_job_marks_comm_flows_complete_after_useful_bytes() -> None:
     assert all(flow.useful_size_bytes > 0 for flow in comm_phase.buckets[0].flows)
 
 
+def test_dp_heavy_single_ring_only_skips_all_gather_flows() -> None:
+    job = build_dp_heavy_workload_job(
+        participants=["h1", "h2", "h3", "h4"],
+        config=DPHeavyWorkloadConfig(
+            steps=1,
+            t_fwd_bwd_ms=1.0,
+            num_buckets=1,
+            bucket_bytes_per_participant=1024,
+            algorithm=CollectiveAlgorithm.RING,
+            gap_us=0.0,
+            optimizer_ms=1.0,
+            seed=7,
+            single_ring_only=True,
+        ),
+    )
+
+    comm_phase = job.steps[0].phases[1]
+    assert isinstance(comm_phase, CommPhase)
+    tags = [flow.tag for flow in comm_phase.buckets[0].flows]
+    assert tags
+    assert all(tag.startswith("reduce_scatter/") for tag in tags)
+
+
 def test_mixed_jobs_apply_chunk_redundancy_to_tp_and_pp_flows() -> None:
     tp_job = build_mixed_scenario_tp_heavy(
         participants=["h1", "h2", "h3", "h4"],

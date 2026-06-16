@@ -41,7 +41,7 @@ class FiveTupleExt:
         return self._hash
 
 
-@dataclass
+@dataclass(slots=True)
 class PacketL3:
     """packet routing_header containing L3, L4 information."""
     five_tuple: FiveTupleExt
@@ -50,7 +50,7 @@ class PacketL3:
     ttl: int # number of hops the packet can traverse. At 0, the packet is expired.
     dropped: bool = field(default=False)
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PacketTransport:
     flow_id: int
     flow_count: int
@@ -60,7 +60,7 @@ class PacketTransport:
         return (f"AppSessionID: {self.flow_id}, "
                 f"PacketsCount: {self.flow_count}")
 
-@dataclass
+@dataclass(slots=True)
 class PacketTrackingInfo:
     """Debug information for a packet."""
     global_id: int
