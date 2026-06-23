@@ -54,6 +54,7 @@ def run_experiment(spec: ExperimentSpec) -> dict[str, Any]:
     logging.info("Resolved experiment: %s", spec.display_name)
 
     network = build_network(spec)
+    network.entities["deep_flow_chain_log"] = bool(spec.run.deep_flow_chain_log)
     scenario = build_scenario(spec)
 
     network.create(spec.run.visualize)

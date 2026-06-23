@@ -309,18 +309,30 @@ def _summary_spread(
     std_key: str | None,
     min_key: str,
     max_key: str,
-) -> tuple[float, float, str | None]:
+) -> dict[str, Any]:
     avg = _summary_float(row, avg_key)
     if avg is None:
-        return 0.0, 0.0, None
+        return {
+            "std_low": 0.0,
+            "std_high": 0.0,
+            "min_value": None,
+            "max_value": None,
+            "has_std": False,
+            "has_minmax": False,
+        }
     std = _summary_float(row, std_key) if std_key else None
-    if std is not None and std > 0.0:
-        return std, std, "std"
     min_v = _summary_float(row, min_key)
     max_v = _summary_float(row, max_key)
-    if min_v is not None and max_v is not None:
-        return max(0.0, avg - min_v), max(0.0, max_v - avg), "min-max"
-    return 0.0, 0.0, None
+    has_std = std is not None and std > 0.0
+    has_minmax = min_v is not None and max_v is not None
+    return {
+        "std_low": max(0.0, float(std)) if has_std else 0.0,
+        "std_high": max(0.0, float(std)) if has_std else 0.0,
+        "min_value": float(min_v) if has_minmax else None,
+        "max_value": float(max_v) if has_minmax else None,
+        "has_std": has_std,
+        "has_minmax": has_minmax,
+    }
 
 
 def _save_or_show(fig, filepath: str, *, show: bool) -> None:
@@ -506,35 +518,68 @@ def _plot_sweep_metric_series(
     line_styles = ['-', '--', '-.', ':']
     colors_accessible = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
-    all_modes = set()
+    has_std = False
+    has_minmax = False
     for _, points in series:
-        all_modes.update(p["spread_mode"] for p in points if p["spread_mode"] != "none")
+        has_std = has_std or any(bool(p.get("has_std")) for p in points)
+        has_minmax = has_minmax or any(bool(p.get("has_minmax")) for p in points)
 
     spread_suffix = ""
-    if "std" in all_modes:
-        spread_suffix = " (avg±std)"
-    elif "min-max" in all_modes:
+    if has_std and has_minmax:
+        spread_suffix = " (avg with ±std and min-max)"
+    elif has_std:
+        spread_suffix = " (avg with ±std)"
+    elif has_minmax:
         spread_suffix = " (avg with min-max)"
+
+    ax.set_facecolor('#EAEAF2')
+    ax.grid(True, color='white', linewidth=1.1, alpha=0.95)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
 
     for idx, (redundancy, points) in enumerate(series):
         x_vals = [p["x"] for p in points]
         y_vals = [p["y"] for p in points]
-        yerr_low = [p["yerr_low"] for p in points]
-        yerr_high = [p["yerr_high"] for p in points]
+        color = colors_accessible[idx % len(colors_accessible)]
 
-        ax.errorbar(
+        if any(bool(p.get("has_minmax")) for p in points):
+            min_vals = [p["min_value"] if p.get("has_minmax") else p["y"] for p in points]
+            max_vals = [p["max_value"] if p.get("has_minmax") else p["y"] for p in points]
+            ax.fill_between(
+                x_vals,
+                min_vals,
+                max_vals,
+                color=color,
+                alpha=0.12,
+                linewidth=0.0,
+                zorder=1,
+            )
+
+        if any(bool(p.get("has_std")) for p in points):
+            std_low = [p["y"] - p["std_low"] if p.get("has_std") else p["y"] for p in points]
+            std_high = [p["y"] + p["std_high"] if p.get("has_std") else p["y"] for p in points]
+            ax.fill_between(
+                x_vals,
+                std_low,
+                std_high,
+                color=color,
+                alpha=0.24,
+                linewidth=0.0,
+                zorder=2,
+            )
+
+        ax.plot(
             x_vals,
             y_vals,
-            yerr=[yerr_low, yerr_high],
             marker=markers[idx % len(markers)],
             markersize=10,
             linewidth=2.5,
             linestyle=line_styles[idx % len(line_styles)],
-            capsize=5,
-            capthick=2,
-            color=colors_accessible[idx % len(colors_accessible)],
-            elinewidth=1.5,
+            color=color,
+            markerfacecolor='white',
+            markeredgewidth=1.8,
             label=f"redundancy={redundancy:.3f}%",
+            zorder=3,
         )
 
     if include_legend:
@@ -744,7 +789,7 @@ def visualize_sweep_time_comparison(
     metrics = [
         {
             "avg": "flow_time_avg_ms",
-            "std": None,
+            "std": "flow_time_std_ms",
             "min": "flow_time_min_ms",
             "max": "flow_time_max_ms",
             "title": "Flow time vs impairment",
@@ -753,7 +798,7 @@ def visualize_sweep_time_comparison(
         },
         {
             "avg": "bucket_time_avg_ms",
-            "std": None,
+            "std": "bucket_time_std_ms",
             "min": "bucket_time_min_ms",
             "max": "bucket_time_max_ms",
             "title": "Bucket time vs impairment",
@@ -794,7 +839,7 @@ def visualize_sweep_time_comparison(
             metric_value = _summary_float(row, metric["avg"])
             if redundancy is None or x_value is None or metric_value is None:
                 continue
-            yerr_low, yerr_high, spread_mode = _summary_spread(
+            spread = _summary_spread(
                 row,
                 avg_key=metric["avg"],
                 std_key=metric["std"],
@@ -805,9 +850,7 @@ def visualize_sweep_time_comparison(
                 {
                     "x": x_value,
                     "y": metric_value,
-                    "yerr_low": yerr_low,
-                    "yerr_high": yerr_high,
-                    "spread_mode": spread_mode or "none",
+                    **spread,
                 }
             )
             total_packets = _summary_float(row, "total_packets")

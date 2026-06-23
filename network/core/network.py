@@ -299,6 +299,7 @@ class Network(ABC):
                 ai_factory_bucket_metrics = list(getattr(job_metrics, "bucket_metrics", []))
 
         ai_factory_flow_metrics = self.entities.get("ai_factory_flow_metrics", [])
+        ai_factory_flow_chain_diagnostics = self.entities.get("ai_factory_flow_chain_diagnostics", [])
 
         return {
             'topology summary': topology_summary,
@@ -307,6 +308,7 @@ class Network(ABC):
             'packet_timeline': packet_timeline,
             'ai_factory_bucket_metrics': ai_factory_bucket_metrics,
             'ai_factory_flow_metrics': ai_factory_flow_metrics,
+            'ai_factory_flow_chain_diagnostics': ai_factory_flow_chain_diagnostics,
         }
 
     def get_parameters_summary(self):

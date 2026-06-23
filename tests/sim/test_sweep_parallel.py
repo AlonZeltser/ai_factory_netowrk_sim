@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import apps.sim as sim_app
 from sim.runners.batch_runner import BatchInput
 from sim.runners import batch_runner, sweep_runner
@@ -176,5 +178,65 @@ def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch) -> None:
     assert exit_code == 0
     assert calls["comparison"] == 0
     assert calls["heatmaps"] == 1
+
+
+def test_sweep_cli_writes_deep_flow_chain_logs(monkeypatch, tmp_path: Path) -> None:
+    summary_path = tmp_path / "summary.yaml"
+
+    def _fake_run_sweep(**_kwargs):
+        return [
+            {
+                "label": "preset:ai/dp-low-small | routing.mode=adaptive",
+                "ok": True,
+                "deep_flow_chain_log_enabled": True,
+                "deep_flow_chain_diagnostics": [
+                    {
+                        "job_id": 1,
+                        "step_id": 0,
+                        "phase_id": 0,
+                        "bucket_id": 0,
+                        "op_tag": "reduce_scatter",
+                        "ring_step": 0,
+                        "src_node_id": "h1",
+                        "dst_node_id": "h2",
+                        "sim_start_time": 1.0,
+                        "sim_end_time": 1.5,
+                        "sim_duration": 0.5,
+                        "packets_stalled": 1,
+                        "net_packets_in_flow": 2,
+                        "gross_packets_in_flow": 3,
+                        "stall_percentage": 50.0,
+                        "max_place_in_egress": 4,
+                        "avg_place_in_egress": 2.5,
+                        "latest_valuable_packet_start_time": 1.2,
+                        "latest_valuable_packet_end_time": 1.5,
+                        "latest_valuable_packet_egress_values": [1, 3],
+                        "latest_valuable_packet_egress_sum": 4,
+                    }
+                ],
+            }
+        ]
+
+    monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
+
+    exit_code = sim_app.main(
+        [
+            "sweep",
+            "--preset",
+            "ai/dp-low-small",
+            "--vary",
+            "routing.mode=ecmp,adaptive",
+            "--summary-out",
+            str(summary_path),
+        ]
+    )
+
+    assert exit_code == 0
+    deep_root = summary_path.parent / "deep_flow_chain_logs"
+    generated = list(deep_root.rglob("*.txt"))
+    assert generated
+    content = generated[0].read_text(encoding="utf-8")
+    assert "header: net packets in flow, gross packets in flow, stall percentage" in content
+    assert "sending host=h1" in content
 
 

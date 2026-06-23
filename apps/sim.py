@@ -28,6 +28,7 @@ from sim.registry.presets import iter_preset_items
 from sim.registry.topologies import build_network
 from sim.registry.workloads import iter_workload_items
 from sim.runners.batch_runner import collect_batch_inputs, run_batch, write_batch_summary
+from sim.runners.deep_flow_log import write_sweep_deep_flow_logs
 from sim.runners.experiment_runner import run_experiment, validate_experiment
 from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 from visualization.experiment_visualizer import (
@@ -206,8 +207,12 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
     if args.summary_out:
         output_path = write_batch_summary(summary, args.summary_out)
         print(f"Wrote sweep summary to {output_path}")
+    sweep_out_dir = output_path.parent if output_path is not None else (_REPO_ROOT / "results").resolve()
+    deep_log_paths = write_sweep_deep_flow_logs(summary, out_dir=str(sweep_out_dir / "deep_flow_chain_logs"))
+    for path in deep_log_paths:
+        print(f"Wrote deep flow chain log to {path}")
     if args.visualize_summary or args.plot_ring_heatmaps:
-        out_dir = str(output_path.parent if output_path is not None else (_REPO_ROOT / "results").resolve())
+        out_dir = str(sweep_out_dir)
         paths: list[str] = []
         if args.visualize_summary:
             paths.extend(visualize_sweep_time_comparison(summary, out_dir=out_dir, show=args.show_visualization_window))

@@ -20,7 +20,7 @@ class FiveTupleExt:
     src_protocol_port: int
     dst_protocol_port: int
     protocol: Protocol
-    flowlet_field: int
+    flowlet_field: float
 
     # Cached int forms (computed once when the FiveTupleExt is created).
     src_ip_int: int = field(init=False, repr=False)
@@ -65,6 +65,7 @@ class PacketTrackingInfo:
     """Debug information for a packet."""
     global_id: int
     birth_time: float
+    initial_ttl: int = 0
     route_length: int = 0
     verbose_route: list[str] | None = None  # only when verbose_route tracking is enabled
     delivered: bool = False
@@ -72,6 +73,7 @@ class PacketTrackingInfo:
     switch_hops_seen: int = 0
     packet_stall_target_switch_hop: Optional[int] = None
     packet_stall_triggered: bool = False
+    egress_queue_positions: list[int] = field(default_factory=list)
 
 
 @dataclass(slots=True)

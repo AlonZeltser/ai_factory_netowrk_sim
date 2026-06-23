@@ -2,6 +2,7 @@
 import logging
 import random
 from dataclasses import dataclass
+from typing import cast
 
 from des.des import DiscreteEventSimulator
 from network.core.packet import FiveTupleExt, Protocol, PacketL3, PacketTransport, \
@@ -55,6 +56,14 @@ class Host(NetworkNode):
         self.ecmp_flowlet_n_packets = ecmp_flowlet_n_packets
         self.mtu = mtu
         self.ttl = ttl
+        hosts_by_ip = getattr(self.scheduler, "hosts_by_ip", None)
+        if hosts_by_ip is None:
+            hosts_by_ip = {}
+            self.scheduler.hosts_by_ip = hosts_by_ip
+        existing = hosts_by_ip.get(self.ip_address)
+        if existing is not None and existing is not self:
+            raise ValueError(f"Duplicate host IP registration: {self.ip_address}")
+        hosts_by_ip[self.ip_address] = self
 
     @property
     def ip_address(self) -> str:
@@ -82,7 +91,7 @@ class Host(NetworkNode):
         #              f"session_id={session_id} to {dst_ip_address} size={size_bytes}B protocol={protocol.name}")
 
         packet_count = (size_bytes + self.mtu - 1) // self.mtu
-        flowlet_field = self.scheduler.get_current_time()
+        flowlet_field: int = int(self.scheduler.get_current_time() * 1_000_000_000)
         flowlet_enabled = self.ecmp_flowlet_n_packets > 0
         for i in range(packet_count):
             packet_size = self.mtu if i < packet_count - 1 else size_bytes - self.mtu * (packet_count - 1)
@@ -92,7 +101,7 @@ class Host(NetworkNode):
                 if (i + 1) % self.ecmp_flowlet_n_packets == 0:
                     flowlet_field += 1
             header: PacketL3 = PacketL3(
-                five_tuple=FiveTupleExt(self.ip_address, dst_ip_address, source_port, dest_port, protocol, flowlet_field),
+                five_tuple=FiveTupleExt(self.ip_address, dst_ip_address, source_port, dest_port, protocol, cast(int, flowlet_field)),
                 seq_number=i,
                 size_bytes=packet_size,
                 ttl=self.ttl
@@ -105,6 +114,7 @@ class Host(NetworkNode):
             tracking_info = PacketTrackingInfo(
                 global_id=packet_global_id,
                 birth_time=self.scheduler.get_current_time(),
+                initial_ttl=self.ttl,
                 route_length=0,
                 verbose_route=None)
             if self.verbose_route:
@@ -123,6 +133,21 @@ class Host(NetworkNode):
             if self.scheduler._store_packets and self.scheduler.packets is not None:
                 self.scheduler.packets.append(packet)
             self._internal_send_packet(packet)
+
+    def reinject_stalled_packet(self, packet: Packet, *, stalled_switch_name: str | None = None) -> None:
+        now = self.scheduler.get_current_time()
+        initial_ttl = int(packet.tracking_info.initial_ttl or self.ttl)
+        packet.routing_header.ttl = initial_ttl
+        packet.tracking_info.arrival_time = None
+        packet.tracking_info.delivered = False
+        if self.verbose_route and packet.tracking_info.verbose_route is not None:
+            packet.tracking_info.verbose_route.append(self.name)
+        if self.message_verbose and _logger.isEnabledFor(logging.DEBUG):
+            stall_text = f" stalled_at={stalled_switch_name}" if stalled_switch_name else ""
+            _logger.debug(
+                f"[sim_t={now:012.6f}s] Packet reinjected  host={self.name} packet_id={packet.tracking_info.global_id}{stall_text} ttl_reset={initial_ttl}"
+            )
+        self._internal_send_packet(packet)
 
 
     def on_message(self, packet: Packet):

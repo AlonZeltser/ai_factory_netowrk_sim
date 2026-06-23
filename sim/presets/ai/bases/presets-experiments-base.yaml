@@ -14,6 +14,8 @@ run:
   visualize: false
   # Whether to open matplotlib windows interactively in addition to saving files. Allowed values: true | false.
   show_visualization_window: false
+  # Enable per-step deep flow chain textual logs for sweep analysis. Allowed values: true | false.
+  deep_flow_chain_log: false
 routing:
   # Routing strategy. Allowed values: `ecmp` | `adaptive` | `flowlet`.
   mode: adaptive

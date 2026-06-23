@@ -178,6 +178,7 @@ class NetworkNode(ABC):
         best_port_id = self.select_port_for_packet(packet)
         if best_port_id is not None:
             port = self.ports[best_port_id]
+            packet.tracking_info.egress_queue_positions.append(port.queue_size() + 1)
             if self.message_verbose and _logger.isEnabledFor(logging.DEBUG):
                 now = self.scheduler.get_current_time()
                 _logger.debug(

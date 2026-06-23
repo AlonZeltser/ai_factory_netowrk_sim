@@ -171,6 +171,15 @@ def test_run_collect_packet_timeline_implies_store_packets() -> None:
     assert spec.run.store_packets is True
 
 
+def test_run_deep_flow_chain_log_flag_is_parsed() -> None:
+    spec = load_experiment_spec(
+        preset_name="ai/dp-low",
+        overrides=["run.deep_flow_chain_log=true"],
+    )
+
+    assert spec.run.deep_flow_chain_log is True
+
+
 
 
 

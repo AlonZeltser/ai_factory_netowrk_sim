@@ -251,6 +251,7 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
     params = results.get("parameters summary", {})
     bucket_metrics = results.get("ai_factory_bucket_metrics", [])
     flow_metrics = results.get("ai_factory_flow_metrics", [])
+    flow_chain_diagnostics = results.get("ai_factory_flow_chain_diagnostics", [])
 
     bucket_durations_ms = [
         (float(getattr(m, "end_time", 0.0)) - float(getattr(m, "start_time", 0.0))) * 1000.0
@@ -437,6 +438,8 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
         "max_per_flow_drops": stats.get("max per flow drops", 0),
         "sim_time_s": stats.get("total run time (simulator time in seconds)"),
         "step_traffic_matrices": _build_step_traffic_matrices(flow_metrics),
+        "deep_flow_chain_log_enabled": bool(spec.run.deep_flow_chain_log),
+        "deep_flow_chain_diagnostics": flow_chain_diagnostics if spec.run.deep_flow_chain_log else [],
     }
 
 

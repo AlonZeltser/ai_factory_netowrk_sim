@@ -11,7 +11,7 @@ topology:
     # Packet MTU in bytes used when hosts packetize bulk flows. Range: integer >= 64.
     mtu: 4096
     # Packet time-to-live in hops before a packet is dropped as expired. Range: integer >= 1.
-    ttl: 64
+    ttl: 1000
     fabric:
       # Number of servers attached to each leaf switch. Range: integer >= 1.
       servers_per_leaf: 4

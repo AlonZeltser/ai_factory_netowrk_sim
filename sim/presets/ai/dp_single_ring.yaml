@@ -5,11 +5,21 @@ extends:
 meta:
   name: dp-single-ring
   description: low-load DP-heavy preset on the AI scale-unit clos profile with reduce-scatter only
+run:
+  deep_flow_chain_log: false
+topology:
+  params:
+    fabric:
+      packet_stall_delay_ms: 0.5
 workload:
   params:
-    steps: 10
+    steps: 20
+    seed: 2026
+    t_fwd_bwd_ms: 0.0
+    optimizer_ms: 0.0
     #bucket_bytes_per_participant: 2097152
-    bucket_bytes_per_participant: 16777216
+    #bucket_bytes_per_participant: 16777216
+    bucket_bytes_per_participant: 6553600 # N per flow is 100
     num_buckets: 1
     single_ring_only: true
 

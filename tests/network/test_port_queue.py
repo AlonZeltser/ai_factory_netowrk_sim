@@ -150,8 +150,11 @@ class TestPortQueue(unittest.TestCase):
         sim.run()
 
         self.assertEqual(h2.received_count, 1)
+        self.assertEqual(sim.packet_stats.total_count, 1)
         self.assertEqual(sim.packet_stats.packet_stall_marked_count, 1)
         self.assertEqual(sim.packet_stats.packet_stall_triggered_count, 1)
+        self.assertEqual(l1.accumulated_bytes_transmitted, 200)
+        self.assertEqual(l2.accumulated_bytes_transmitted, 100)
         self.assertGreaterEqual(sim.end_time, 0.05)
         self.assertLess(sim.end_time, 0.051)
 
@@ -224,6 +227,8 @@ class TestPortQueue(unittest.TestCase):
         self.assertEqual(sim.packet_stats.packet_stall_marked_count, 1)
         self.assertEqual(sim.packet_stats.packet_stall_triggered_count, 1)
         self.assertEqual(sim.packet_stats.packet_stall_triggered_count_by_flow_id.get(1), 1)
+        self.assertEqual(l1.accumulated_bytes_transmitted, 200)
+        self.assertEqual(l2.accumulated_bytes_transmitted, 100)
         self.assertGreaterEqual(sim.end_time, 0.05)
         self.assertLess(sim.end_time, 0.051)
 

@@ -52,6 +52,23 @@ class Switch(NetworkNode):
             return True
         return self._is_last_switch_before_destination(packet)
 
+    def _reschedule_from_source_host(self, packet, packet_stall_delay_s: float) -> bool:
+        src_ip = packet.routing_header.five_tuple.src_ip
+        hosts_by_ip = getattr(self.scheduler, "hosts_by_ip", None)
+        if not isinstance(hosts_by_ip, dict):
+            return False
+        source_host = hosts_by_ip.get(src_ip)
+        if source_host is None:
+            return False
+        self.scheduler.schedule_event(
+            packet_stall_delay_s,
+            lambda packet=packet, source_host=source_host: source_host.reinject_stalled_packet(
+                packet,
+                stalled_switch_name=self.name,
+            ),
+        )
+        return True
+
     def on_message(self, packet):
         if packet.is_expired():
             if self.message_verbose:
@@ -70,7 +87,8 @@ class Switch(NetworkNode):
                     _logger.debug(
                         f"[sim_t={now:012.6f}s] Packet stalled     switch={self.name} packet_id={packet.tracking_info.global_id} switch_hop={packet.tracking_info.switch_hops_seen - 1} delay_s={packet_stall_delay_s:.6f}"
                     )
-                self.scheduler.schedule_event(packet_stall_delay_s, lambda: self._internal_send_packet(packet))
+                if not self._reschedule_from_source_host(packet, packet_stall_delay_s):
+                    self.scheduler.schedule_event(packet_stall_delay_s, lambda packet=packet: self._internal_send_packet(packet))
                 return
             if self.message_verbose and _logger.isEnabledFor(logging.DEBUG):
                 now = self.scheduler.get_current_time()

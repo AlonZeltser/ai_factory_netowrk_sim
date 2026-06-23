@@ -48,6 +48,7 @@ class RunSpec:
     show_visualization_window: bool = False
     store_packets: bool = False
     collect_packet_timeline: bool = False
+    deep_flow_chain_log: bool = False
     log_dir: str = "results/logs"
     results_dir: str = "results"
 
@@ -71,6 +72,7 @@ class RunSpec:
             show_visualization_window=bool(data.get("show_visualization_window", False)),
             store_packets=store_packets,
             collect_packet_timeline=collect_packet_timeline,
+            deep_flow_chain_log=bool(data.get("deep_flow_chain_log", False)),
             log_dir=str(data.get("log_dir", "results/logs")),
             results_dir=str(data.get("results_dir", "results")),
         )
@@ -84,6 +86,7 @@ class RunSpec:
             "show_visualization_window": self.show_visualization_window,
             "store_packets": self.store_packets,
             "collect_packet_timeline": self.collect_packet_timeline,
+            "deep_flow_chain_log": self.deep_flow_chain_log,
         }
         if self.seed is not None:
             out["seed"] = self.seed
