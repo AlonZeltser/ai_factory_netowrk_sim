@@ -113,7 +113,7 @@ In DP-heavy builder, both RS and AG are created with `start_time = 0.0` for ever
 Define:
 - `P` = number of participants (hosts)
 - `B` = `bucket_bytes_per_participant` (useful bytes per participant per bucket, before redundancy)
-- `R` = `chunk_redundancy_percent`
+- `R_pkt` = `chunk_redundancy_extra_packets`
 - `M` = host MTU in bytes (`topology.params.mtu`, default often 4096)
 
 ### 5.1 Chunk partitioning used by ring code
@@ -147,9 +147,13 @@ Per bucket total useful bytes over all senders:
 
 `apply_chunk_redundancy()` transforms each flow:
 - `useful_bytes` stays as original chunk bytes,
-- `size_bytes` becomes inflated by `R` percent:
+- `size_bytes` adds exactly `R_pkt` full packets:
 
-`T_flow = ceil(U_flow * (1 + R/100))` (and at least `U_flow`).
+`T_flow = U_flow + (R_pkt * M)`
+
+Validation rule:
+- redundancy can be applied only when `U_flow % M == 0`
+- if a useful flow payload is not an exact packet multiple, the simulator raises an error instead of silently rounding
 
 Important completion rule:
 - flow completion is triggered after receiving `useful_bytes`, not necessarily all inflated transmitted bytes.
@@ -215,8 +219,8 @@ From `workload.params` (`sim/registry/workloads.py`, `sim/presets/ai/workload-dp
   - controls per-flow chunk sizes; larger means more bytes and packets.
 - `gap_us`
   - spacing between ring steps inside a collective.
-- `chunk_redundancy_percent`
-  - inflates transmitted bytes per flow.
+- `chunk_redundancy_extra_packets`
+  - adds a fixed number of transmitted packets per flow.
 - `t_fwd_bwd_ms`
   - pre-comm compute duration.
 - `optimizer_ms`

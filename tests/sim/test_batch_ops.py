@@ -8,7 +8,7 @@ from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 
 
 def test_collect_and_run_batch_from_presets() -> None:
-    inputs = collect_batch_inputs(presets=["ai/su-dp-light", "ai/su-mixed-light"])
+    inputs = collect_batch_inputs(presets=["ai/su-dp-low-small", "ai/su-mixed-light"])
     summary = run_batch(inputs)
 
     assert len(summary) == 2
@@ -141,13 +141,13 @@ def test_build_flow_stall_stats_aggregates_training_flows_and_bucket_bottleneck(
 
 def test_build_and_run_sweep() -> None:
     inputs = build_sweep_inputs(
-        preset_name="ai/su-dp-light",
+        preset_name="ai/su-dp-low-small",
         vary_specs=["workload.kind=dp-heavy,none", "topology.params.leaf_count=8,16"],
     )
     assert len(inputs) == 4
 
     summary = run_sweep(
-        preset_name="ai/su-dp-light",
+        preset_name="ai/su-dp-low-small",
         vary_specs=["workload.kind=dp-heavy,none", "topology.params.leaf_count=8,16"],
     )
     assert len(summary) == 4

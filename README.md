@@ -138,22 +138,22 @@ python -m apps.sim list routing
 #### Quick runs from presets
 
 ```bash
-python -m apps.sim run --preset ai/su-dp-light
-python -m apps.sim run --preset ai/su-mixed-low
+python -m apps.sim run --preset ai/su-dp-low-small
+python -m apps.sim run --preset ai/su-mixed-light
 ```
 
 #### Override a few parameters without copying YAML files
 
 ```bash
-python -m apps.sim run --preset ai/su-dp-low --set routing.mode=adaptive
-python -m apps.sim run --preset ai/su-mixed-mid --set topology.params.leaf_count=12
-python -m apps.sim run --preset ai/su-mixed-high --set topology.params.fabric.link_failure_percent=5
+python -m apps.sim run --preset ai/su-dp-low-small --set routing.mode=adaptive
+python -m apps.sim run --preset ai/su-mixed-light --set topology.params.leaf_count=12
+python -m apps.sim run --preset ai/su-mixed-light --set topology.params.fabric.link_failure_percent=5
 ```
 
 #### Validate and inspect the resolved experiment
 
 ```bash
-python -m apps.sim validate --preset ai/su-mixed-mid
+python -m apps.sim validate --preset ai/su-mixed-light
 python -m apps.sim validate --config experiments/custom.yaml
 ```
 
@@ -168,8 +168,8 @@ run:
 #### Generate a starter config from a preset
 
 ```bash
-python -m apps.sim init --preset ai/su-mixed-low --out experiments/mixed_low.yaml
-python -m apps.sim init --preset ai/su-dp-light --out experiments/dp-light.yaml
+python -m apps.sim init --preset ai/su-mixed-light --out experiments/mixed_light.yaml
+python -m apps.sim init --preset ai/su-dp-low-small --out experiments/dp-low-small.yaml
 ```
 
 ### 2. Batch Execution
@@ -179,7 +179,7 @@ For running multiple experiments sequentially, use the built-in Python batch com
 #### Batch from presets or config files
 
 ```bash
-python -m apps.sim batch --preset ai/su-dp-light --preset ai/su-mixed-light
+python -m apps.sim batch --preset ai/su-dp-low-small --preset ai/su-mixed-light
 python -m apps.sim batch --config experiments/run1.yaml --config experiments/run2.yaml
 python -m apps.sim batch --directory experiments/
 ```
@@ -187,7 +187,7 @@ python -m apps.sim batch --directory experiments/
 #### Batch output summary
 
 ```bash
-python -m apps.sim batch --preset ai/su-dp-low --preset ai/su-mixed-low --summary-out results/batch-summary.yaml
+python -m apps.sim batch --preset ai/su-dp-low-small --preset ai/su-mixed-light --summary-out results/batch-summary.yaml
 ```
 
 #### Stop on first failure
@@ -203,8 +203,8 @@ python -m apps.sim batch --directory experiments/ --stop-on-error
 For cartesian parameter sweeps, use the built-in sweep command.
 
 ```bash
-python -m apps.sim sweep --preset ai/su-dp-low --vary routing.mode=ecmp,adaptive --vary topology.params.leaf_count=8,16
-python -m apps.sim sweep --preset ai/su-mixed-low --vary topology.params.fabric.link_failure_percent=0,5 --summary-out results/sweep.yaml
+python -m apps.sim sweep --preset ai/su-dp-low-small --vary routing.mode=ecmp,adaptive --vary topology.params.leaf_count=8,16
+python -m apps.sim sweep --preset ai/su-mixed-light --vary topology.params.fabric.link_failure_percent=0,5 --summary-out results/sweep.yaml
 ```
 
 This replaces the old shell-driven workflow for selecting many scenario combinations manually.
@@ -219,8 +219,8 @@ The new config model is centered on one concept: an **experiment**.
 kind: experiment
 
 meta:
-  name: ai-su-mixed-mid
-  description: Medium-load mixed workload on the AI scale-unit clos preset
+  name: ai-su-mixed-light
+  description: Example mixed workload on the AI scale-unit clos preset
 
 run:
   file_debug: false
@@ -275,7 +275,7 @@ Workload defaults now live in YAML preset fragments under `sim/presets/ai/`, and
 
 - `kind: dp-heavy` selects the DP-heavy training-step model
 - `kind: mixed` selects the concurrent TP-heavy + PP+DP model
-- built-in presets like `su-dp-light.yaml` and `su-mixed-high.yaml` inherit documented workload fragments for their common defaults
+- built-in presets like `su-dp-low-small.yaml` and `su-mixed-light.yaml` inherit documented workload fragments for their common defaults
 
 Example:
 
@@ -284,12 +284,12 @@ workload:
   kind: dp-heavy
   params:
     bucket_bytes_per_participant: 4194304
-    chunk_redundancy_percent: 12.5
+    chunk_redundancy_extra_packets: 2
     mice:
       enabled: false
 ```
 
-`chunk_redundancy_percent` inflates transmitted communication bytes above the useful payload and considers a chunk complete once the first 100% of useful bytes arrive. This models chunk-level redundancy / coded slack at the cost of extra load on the network.
+`chunk_redundancy_extra_packets` adds a fixed number of redundant packets to each communication flow on top of the useful payload. Redundancy is packet-based now, and the simulator validates that each useful flow payload is already an exact whole number of MTU-sized packets before adding those extras. Flows still complete once the useful payload arrives, while the extra packets add network load.
 
 ### Preset inheritance
 
@@ -300,12 +300,12 @@ extends:
   - presets-experiments-base.yaml
   - workload-dp-heavy-low.yaml
 meta:
-  name: ai-su-dp-low
+  name: ai-su-dp-low-small
 ```
 
 The AI preset stack now works roughly like:
 
-- `su-dp-low.yaml` inherits from `base-ai-su.yaml` and `workload-dp-heavy-low.yaml`
+- `su-dp-low-small.yaml` inherits from `base-ai-su.yaml` and `workload-dp-heavy-low.yaml`
 - `base-ai-su.yaml` inherits from `topology-clos-scale-unit.yaml`
 - `workload-dp-heavy-low.yaml` inherits from `workload-dp-heavy-base.yaml`
 

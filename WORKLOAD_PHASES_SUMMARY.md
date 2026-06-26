@@ -29,7 +29,7 @@ A classic **data-parallel training step** where all workers:
   - then `all-gather`
 - The collective expansion is done by `expand_collective(...)`.
 - The current scenario uses the `RING` collective algorithm.
-- Optional `chunk_redundancy_percent` can inflate transmitted bytes while considering the flow complete after the original useful bytes arrive.
+- Optional `chunk_redundancy_extra_packets` adds a fixed number of redundant packets to each communication flow while still considering the flow complete after the original useful payload arrives.
 
 ### Why this is realistic
 This is a standard decomposition of distributed DP training:
@@ -85,7 +85,7 @@ The simulator captures that with:
 - many alternating comm/compute micro-phases,
 - a larger final collective,
 - configurable traffic scaling.
-- optional `chunk_redundancy_percent` on communication flows.
+- optional `chunk_redundancy_extra_packets` on communication flows.
 
 ---
 
@@ -122,7 +122,7 @@ This approximates the communication pattern of pipeline training:
 
 The simulator simplifies reality by representing each pipeline hop as a deterministic burst rather than a full execution engine with overlapping compute kernels and scheduler details.
 
-Like the other workloads, `mixed` can also use `chunk_redundancy_percent` to send extra bytes per communication chunk while completing on the first 100% of useful bytes delivered.
+Like the other workloads, `mixed` can also use `chunk_redundancy_extra_packets` to send extra packets per communication chunk while completing on the first 100% of useful bytes delivered.
 
 ---
 

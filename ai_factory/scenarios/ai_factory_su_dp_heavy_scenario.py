@@ -21,7 +21,8 @@ class AIFactorySUDpHeavyScenario(Scenario):
         gap_us: float,
         t_fwd_bwd_ms: float,
         optimizer_ms: float,
-        chunk_redundancy_percent: float = 0.0,
+        mtu: int = 4096,
+        chunk_redundancy_extra_packets: int = 0,
         single_ring_only: bool = False,
         *,
         mice: MiceConfig | None = None,
@@ -33,7 +34,8 @@ class AIFactorySUDpHeavyScenario(Scenario):
         self.gap_us = gap_us
         self.t_fwd_bwd_ms = t_fwd_bwd_ms
         self.optimizer_ms = optimizer_ms
-        self.chunk_redundancy_percent = chunk_redundancy_percent
+        self.mtu = mtu
+        self.chunk_redundancy_extra_packets = chunk_redundancy_extra_packets
         self.single_ring_only = single_ring_only
         self.mice = mice
 
@@ -48,7 +50,8 @@ class AIFactorySUDpHeavyScenario(Scenario):
             seed=int(self.seed),
             t_fwd_bwd_ms=float(self.t_fwd_bwd_ms),
             optimizer_ms=float(self.optimizer_ms),
-            chunk_redundancy_percent=float(self.chunk_redundancy_percent),
+            mtu=int(self.mtu),
+            chunk_redundancy_extra_packets=int(self.chunk_redundancy_extra_packets),
             single_ring_only=bool(self.single_ring_only),
         )
         job = build_dp_heavy_workload_job(participants=participants, config=cfg)
@@ -83,7 +86,8 @@ class AIFactorySUDpHeavyScenario(Scenario):
                 "gap_us": self.gap_us,
                 "t_fwd_bwd_ms": self.t_fwd_bwd_ms,
                 "optimizer_ms": self.optimizer_ms,
-                "chunk_redundancy_percent": self.chunk_redundancy_percent,
+                "mtu": self.mtu,
+                "chunk_redundancy_extra_packets": self.chunk_redundancy_extra_packets,
                 "single_ring_only": self.single_ring_only,
             }
         )
@@ -93,6 +97,3 @@ class AIFactorySUDpHeavyScenario(Scenario):
             out["mice_packets_range"] = f"{self.mice.min_packets}-{self.mice.max_packets}"
             out["mice_force_cross_rack"] = self.mice.force_cross_rack
         return out
-
-
-

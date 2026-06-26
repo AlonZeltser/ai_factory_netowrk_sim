@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
@@ -37,15 +36,27 @@ class Flow:
         return (self.src_node_id, self.dst_node_id, int(self.size_bytes), float(self.start_time), self.tag)
 
 
-def apply_chunk_redundancy(flows: list[Flow], *, extra_percent: float) -> list[Flow]:
-    if extra_percent <= 0.0:
+def apply_chunk_redundancy(flows: list[Flow], *, extra_packets: int, mtu: int) -> list[Flow]:
+    """Add exactly `extra_packets` redundant packets on top of the useful payload.
+
+    Validates that each flow's payload is a whole number of packets (size_bytes % mtu == 0).
+    When extra_packets == 0 the original list is returned unchanged.
+    """
+    if extra_packets <= 0:
         return flows
 
-    multiplier = 1.0 + (float(extra_percent) / 100.0)
+    if mtu <= 0:
+        raise ValueError(f"mtu must be > 0, got {mtu}")
+
     out: list[Flow] = []
     for flow in flows:
         useful_bytes = int(flow.useful_size_bytes)
-        redundant_bytes = max(useful_bytes, int(math.ceil(useful_bytes * multiplier)))
+        if useful_bytes % mtu != 0:
+            raise ValueError(
+                f"Flow {flow.flow_id} useful_size_bytes={useful_bytes} is not a whole number "
+                f"of packets (mtu={mtu}). Remainder={useful_bytes % mtu}."
+            )
+        gross_bytes = useful_bytes + int(extra_packets) * int(mtu)
         out.append(
             Flow(
                 flow_id=int(flow.flow_id),
@@ -56,12 +67,12 @@ def apply_chunk_redundancy(flows: list[Flow], *, extra_percent: float) -> list[F
                 tag=flow.tag,
                 src_node_id=flow.src_node_id,
                 dst_node_id=flow.dst_node_id,
-                size_bytes=redundant_bytes,
+                size_bytes=gross_bytes,
                 completion_bytes=useful_bytes,
                 start_time=float(flow.start_time),
                 priority=flow.priority,
                 deadline=flow.deadline,
-                metadata={**dict(flow.metadata), "chunk_redundancy_percent": float(extra_percent)},
+                metadata={**dict(flow.metadata), "chunk_redundancy_extra_packets": int(extra_packets)},
             )
         )
     return out

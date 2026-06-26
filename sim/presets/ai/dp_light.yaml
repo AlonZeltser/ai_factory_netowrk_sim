@@ -1,9 +1,0 @@
-extends:
-  - bases/presets-experiments-base.yaml
-  - bases/topology-clos-large-scale-unit.yaml
-  - dp_heavy_workloads/workload-dp-heavy-light.yaml
-meta:
-  name: dp-light
-  description: Lightweight DP-heavy preset on the AI scale-unit clos profile
-
-

@@ -49,7 +49,7 @@ class MixedScenario(Scenario):
 
     seed: int = 1234
     traffic_scale: float = 1.0
-    chunk_redundancy_percent: float = 0.0
+    chunk_redundancy_extra_packets: int = 0
 
     allocation_mode: AllocationMode = "rack_balanced"
     stage_placement_mode: StagePlacementMode = "topology_aware"
@@ -148,7 +148,8 @@ class MixedScenario(Scenario):
             tail_compute_ms=float(self.tp_heavy_tail_compute_ms),
             gap_us=float(self.tp_heavy_gap_us),
             algorithm=CollectiveAlgorithm.RING,
-            chunk_redundancy_percent=float(self.chunk_redundancy_percent),
+            mtu=int(getattr(network, "mtu", 4096)),
+            chunk_redundancy_extra_packets=int(self.chunk_redundancy_extra_packets),
         )
 
         pp_dp_cfg = MixedScenarioPpDpConfig(
@@ -161,7 +162,8 @@ class MixedScenario(Scenario):
             grad_bytes_per_microbatch=int(self.pp_dp_grad_bytes_per_microbatch),
             dp_sync_bytes_per_participant=int(self.pp_dp_dp_sync_bytes_per_participant),
             tail_compute_ms=float(self.pp_dp_tail_compute_ms),
-            chunk_redundancy_percent=float(self.chunk_redundancy_percent),
+            mtu=int(getattr(network, "mtu", 4096)),
+            chunk_redundancy_extra_packets=int(self.chunk_redundancy_extra_packets),
         )
 
         tp_heavy = build_mixed_scenario_tp_heavy(participants=tp_heavy_nodes, config=tp_heavy_cfg, job_name="mixed-scenario-tp_heavy")
@@ -204,7 +206,7 @@ class MixedScenario(Scenario):
                 "pp_dp_steps": (self.pp_dp_steps if self.pp_dp_steps is not None else self.steps),
                 "seed": self.seed,
                 "traffic_scale": self.traffic_scale,
-                "chunk_redundancy_percent": self.chunk_redundancy_percent,
+                "chunk_redundancy_extra_packets": self.chunk_redundancy_extra_packets,
                 "allocation_mode": self.allocation_mode,
                 "stage_placement_mode": self.stage_placement_mode,
                 "tp_heavy_micro_collectives": self.tp_heavy_micro_collectives,

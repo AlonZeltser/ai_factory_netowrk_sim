@@ -28,10 +28,10 @@
 
 ## Developer workflows that are actually used
 - List capabilities: `python -m apps.sim list presets|workloads|routing`
-- Validate resolved config without running: `python -m apps.sim validate --preset ai/su-mixed-mid`
-- Run one experiment: `python -m apps.sim run --preset ai/su-dp-light`
-- Batch presets/configs: `python -m apps.sim batch --preset ai/su-dp-light --preset ai/su-mixed-light`
-- Sweep cartesian overrides: `python -m apps.sim sweep --preset ai/su-dp-low --vary routing.mode=ecmp,adaptive`
+- Validate resolved config without running: `python -m apps.sim validate --preset ai/su-mixed-light`
+- Run one experiment: `python -m apps.sim run --preset ai/su-dp-low-small`
+- Batch presets/configs: `python -m apps.sim batch --preset ai/su-dp-low-small --preset ai/su-mixed-light`
+- Sweep cartesian overrides: `python -m apps.sim sweep --preset ai/su-dp-low-small --vary routing.mode=ecmp,adaptive`
 - Tests: `python -m pytest tests/ -v` (targeted suites under `tests/des`, `tests/network`, `tests/ai_factory`, `tests/sim`).
 
 ## Integration points and dependencies

@@ -35,14 +35,10 @@ Workloads are currently centered on:
 ## Presets
 Presets live under `sim/presets/ai/` and use inheritance via `extends`.
 Examples:
-- `ai/su-dp-light`
-- `ai/su-dp-low`
-- `ai/su-dp-mid`
-- `ai/su-dp-high`
+- `ai/su-dp-low-small`
+- `ai/su-dp-tiny`
+- `ai/su-dp-single-ring`
 - `ai/su-mixed-light`
-- `ai/su-mixed-low`
-- `ai/su-mixed-mid`
-- `ai/su-mixed-high`
 ## Registry Layers
 The unified interface is implemented through registries:
 - `sim/registry/topologies.py`

@@ -18,16 +18,6 @@ class PresetRegistryItem:
 
 
 _REGISTRY: dict[str, PresetRegistryItem] = {
-    "ai/dp-light": PresetRegistryItem(
-        name="ai/dp-light",
-        description="AI scale-unit (SU) DP-heavy lightweight preset on the unified clos family",
-        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_light.yaml",
-    ),
-    "ai/dp-low": PresetRegistryItem(
-        name="ai/dp-low",
-        description="AI scale-unit (SU) DP-heavy low-load preset on the unified clos family",
-        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_low.yaml",
-    ),
     "ai/dp-low-small": PresetRegistryItem(
         name="ai/dp-low-small",
         description="AI scale-unit (SU) DP-heavy smaller topology, low-load preset on the unified clos family",
@@ -43,36 +33,18 @@ _REGISTRY: dict[str, PresetRegistryItem] = {
         description="AI scale-unit (SU) DP-heavy small-scale preset with reduce-scatter only (single ring)",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_single_ring.yaml",
     ),
-    "ai/dp-mid": PresetRegistryItem(
-        name="ai/dp-mid",
-        description="AI scale-unit (SU) DP-heavy medium-load preset on the unified clos family",
-        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_mid.yaml",
-    ),
-    "ai/dp-high": PresetRegistryItem(
-        name="ai/dp-high",
-        description="AI scale-unit (SU) DP-heavy high-load preset on the unified clos family",
-        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_high.yaml",
-    ),
     "ai/mixed-light": PresetRegistryItem(
         name="ai/mixed-light",
         description="AI scale-unit (SU) mixed lightweight preset on the unified clos family",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "mixed_light.yaml",
     ),
-    "ai/mixed-low": PresetRegistryItem(
-        name="ai/mixed-low",
-        description="AI scale-unit (SU) mixed low-load preset on the unified clos family",
-        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "mixed_low.yaml",
-    ),
-    "ai/mixed-mid": PresetRegistryItem(
-        name="ai/mixed-mid",
-        description="AI scale-unit (SU) mixed medium-load preset on the unified clos family",
-        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "mixed_mid.yaml",
-    ),
-    "ai/mixed-high": PresetRegistryItem(
-        name="ai/mixed-high",
-        description="AI scale-unit (SU) mixed high-load preset on the unified clos family",
-        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "mixed_high.yaml",
-    ),
+}
+
+_ALIASES: dict[str, str] = {
+    "ai/su-dp-low-small": "ai/dp-low-small",
+    "ai/su-dp-tiny": "ai/dp-tiny",
+    "ai/su-dp-single-ring": "ai/dp-single-ring",
+    "ai/su-mixed-light": "ai/mixed-light",
 }
 
 
@@ -82,10 +54,11 @@ def iter_preset_items() -> Iterable[PresetRegistryItem]:
 
 
 def get_preset_item(name: str) -> PresetRegistryItem:
-    key = str(name).strip()
+    key = str(name).strip().lower()
+    key = _ALIASES.get(key, key)
     item = _REGISTRY.get(key)
     if item is None:
-        valid = ", ".join(sorted(_REGISTRY))
+        valid = ", ".join(sorted(set(_REGISTRY) | set(_ALIASES)))
         raise ConfigError(f"Unknown preset '{name}'. Valid: {valid}")
     return item
 

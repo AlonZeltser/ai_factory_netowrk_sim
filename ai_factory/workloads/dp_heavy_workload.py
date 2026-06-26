@@ -19,7 +19,8 @@ class DPHeavyWorkloadConfig:
     gap_us: float
     optimizer_ms: float
     seed: int
-    chunk_redundancy_percent: float = 0.0
+    mtu: int = 4096
+    chunk_redundancy_extra_packets: int = 0
     single_ring_only: bool = False
 
 
@@ -97,7 +98,8 @@ def build_dp_heavy_workload_job(
                     bucket_id=bucket_id,
                     flows=apply_chunk_redundancy(
                         rs.flows + ag_flows,
-                        extra_percent=float(config.chunk_redundancy_percent),
+                        extra_packets=int(config.chunk_redundancy_extra_packets),
+                        mtu=int(config.mtu),
                     ),
                 )
             )
@@ -115,5 +117,3 @@ def build_dp_heavy_workload_job(
         steps.append(JobStep(step_id=step_idx, phases=phases))
 
     return Job(job_id=job_id, name=job_name, steps=steps, participants=participants)
-
-

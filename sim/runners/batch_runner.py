@@ -396,7 +396,7 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
         "routing_mode": spec.routing.mode,
         "link_failure_percent": params.get("link_failure_percent"),
         "packet_stall_percent": params.get("packet_stall_percent", 0.0),
-        "chunk_redundancy_percent": params.get("chunk_redundancy_percent", 0.0),
+        "chunk_redundancy_extra_packets": params.get("chunk_redundancy_extra_packets", 0),
         # Keep historical key for compatibility with older dashboards.
         "chunk_time_avg_ms": flow_stats["avg"],
         "flow_time_avg_ms": flow_stats["avg"],

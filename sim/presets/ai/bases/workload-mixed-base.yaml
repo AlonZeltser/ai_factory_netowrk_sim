@@ -8,8 +8,8 @@ workload:
     seed: 2026
     # Global multiplier applied to communication byte volumes in both jobs. Range: float > 0.0.
     traffic_scale: 0.25
-    # Extra communication overhead sent per chunk, expressed as a percent of useful bytes. Range: float >= 0.0.
-    chunk_redundancy_percent: 0.0
+    # Number of extra redundant packets added per flow on top of the useful payload. Range: integer >= 0.
+    chunk_redundancy_extra_packets: 0
     # How hosts are split between the two jobs. Allowed values: `rack_balanced` | `contiguous`.
     allocation_mode: rack_balanced
     # How the PP+DP job maps its hosts onto 4 pipeline stages. Allowed values: `topology_aware` | `topology_unaware`.

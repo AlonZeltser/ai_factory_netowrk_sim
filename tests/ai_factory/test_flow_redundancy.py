@@ -13,6 +13,7 @@ from ai_factory.workloads.dp_heavy_workload import DPHeavyWorkloadConfig, build_
 
 
 def test_apply_chunk_redundancy_preserves_useful_bytes() -> None:
+    mtu = 100
     flows = [
         Flow(
             flow_id=1,
@@ -28,12 +29,12 @@ def test_apply_chunk_redundancy_preserves_useful_bytes() -> None:
         )
     ]
 
-    redundant = apply_chunk_redundancy(flows, extra_percent=12.5)
+    redundant = apply_chunk_redundancy(flows, extra_packets=2, mtu=mtu)
 
     assert len(redundant) == 1
-    assert redundant[0].size_bytes == 900
+    assert redundant[0].size_bytes == 1000  # 800 + 2*100
     assert redundant[0].useful_size_bytes == 800
-    assert redundant[0].metadata["chunk_redundancy_percent"] == 12.5
+    assert redundant[0].metadata["chunk_redundancy_extra_packets"] == 2
 
 
 def test_dp_heavy_job_marks_comm_flows_complete_after_useful_bytes() -> None:
@@ -48,7 +49,8 @@ def test_dp_heavy_job_marks_comm_flows_complete_after_useful_bytes() -> None:
             gap_us=0.0,
             optimizer_ms=1.0,
             seed=7,
-            chunk_redundancy_percent=12.5,
+            mtu=256,
+            chunk_redundancy_extra_packets=1,
         ),
     )
 
@@ -97,7 +99,8 @@ def test_mixed_jobs_apply_chunk_redundancy_to_tp_and_pp_flows() -> None:
             tail_compute_ms=0.2,
             gap_us=0.0,
             algorithm=CollectiveAlgorithm.RING,
-            chunk_redundancy_percent=25.0,
+            mtu=512,
+            chunk_redundancy_extra_packets=2,
         ),
     )
     tp_comm_phases = [phase for phase in tp_job.steps[0].phases if isinstance(phase, CommPhase)]
@@ -117,7 +120,8 @@ def test_mixed_jobs_apply_chunk_redundancy_to_tp_and_pp_flows() -> None:
             grad_bytes_per_microbatch=1024,
             dp_sync_bytes_per_participant=4096,
             tail_compute_ms=0.2,
-            chunk_redundancy_percent=25.0,
+            mtu=512,
+            chunk_redundancy_extra_packets=2,
         ),
     )
     pp_comm_phases = [phase for phase in pp_job.steps[0].phases if isinstance(phase, CommPhase)]

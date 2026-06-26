@@ -11,7 +11,7 @@ from sim.runners.experiment_runner import run_experiment, validate_experiment
 
 def test_load_ai_preset_with_overrides() -> None:
     spec = load_experiment_spec(
-        preset_name="ai/su-dp-light",
+        preset_name="ai/dp-low-small",
         overrides=[
             "routing.mode=adaptive",
             "topology.params.leaf_count=12",
@@ -25,12 +25,12 @@ def test_load_ai_preset_with_overrides() -> None:
     assert spec.topology.params["leaf_count"] == 12
     assert spec.topology.params["fabric"]["packet_stall_percent"] == 3
     assert spec.topology.params["fabric"]["packet_stall_delay_ms"] == 50
-    assert spec.source_preset == "ai/su-dp-light"
+    assert spec.source_preset == "ai/dp-low-small"
 
 
 def test_load_unified_ai_yaml_as_experiment_spec() -> None:
     spec = load_experiment_spec(
-        config_path="sim/presets/ai/dp_light.yaml"
+        config_path="sim/presets/ai/dp_low_small.yaml"
     )
 
     assert spec.topology.name == "clos"
@@ -38,18 +38,19 @@ def test_load_unified_ai_yaml_as_experiment_spec() -> None:
     assert spec.workload.name == "dp-heavy"
     assert spec.workload.profile == ""
     assert spec.routing.mode == "adaptive"
-    assert spec.topology.params["leaf_count"] == 8
-    assert spec.topology.params["fabric"]["bandwidth_profile"] == "400g"
-    assert spec.source_config_path.endswith("sim\\presets\\ai\\dp_light.yaml")
+    assert spec.topology.params["leaf_count"] == 4
+    assert spec.topology.params["fabric"]["server_to_leaf_bandwidth_bps"] == 1e9
+    assert spec.topology.params["fabric"]["leaf_to_spine_bandwidth_bps"] == 1e9
+    assert spec.source_config_path.endswith("sim\\presets\\ai\\dp_low_small.yaml")
 
 
-def test_validate_and_run_dp_light() -> None:
-    spec = load_experiment_spec(preset_name="ai/su-dp-light")
+def test_validate_and_run_dp_low_small() -> None:
+    spec = load_experiment_spec(preset_name="ai/dp-low-small")
 
     summary = validate_experiment(spec)
     assert summary["topology"] == "clos"
     assert summary["workload"] == "dp-heavy"
-    assert summary["source_preset"] == "ai/su-dp-light"
+    assert summary["source_preset"] == "ai/dp-low-small"
 
     results = run_experiment(spec)
     stats = results["run statistics"]
@@ -59,7 +60,7 @@ def test_validate_and_run_dp_light() -> None:
 
 
 def test_load_ai_preset_with_inheritance_and_profiles() -> None:
-    spec = load_experiment_spec(preset_name="ai/su-mixed-mid")
+    spec = load_experiment_spec(preset_name="ai/mixed-light")
 
     assert spec.topology.name == "clos"
     assert spec.topology.profile == ""
@@ -72,7 +73,7 @@ def test_load_config_supports_chained_extends_for_topology_defaults(tmp_path: Pa
     base = tmp_path / "a.yaml"
     mid = tmp_path / "b.yaml"
     leaf = tmp_path / "c.yaml"
-    topology_defaults = Path("sim/presets/ai/topology-clos-large-scale-unit.yaml").resolve()
+    topology_defaults = Path("sim/presets/ai/bases/topology-clos-large-scale-unit.yaml").resolve()
 
     base.write_text(
         f"""
@@ -120,7 +121,7 @@ workload:
     assert spec.topology.name == "clos"
     assert spec.topology.params["leaf_count"] == 12
     assert spec.topology.params["spine_count"] == 6
-    assert spec.topology.params["fabric"]["host_links_per_server"] == 8
+    assert spec.topology.params["fabric"]["host_links_per_server"] == 4
     assert spec.topology.params["fabric"]["bandwidth_profile"] == "400g"
 
 
@@ -151,19 +152,19 @@ workload:
 
 def test_validate_clos_override() -> None:
     spec = load_experiment_spec(
-        preset_name="ai/su-dp-low",
+        preset_name="ai/dp-low-small",
         overrides=["topology.params.leaf_count=10", "topology.params.fabric.bandwidth_profile=400g"],
     )
 
     summary = validate_experiment(spec)
     assert summary["topology"] == "clos"
     assert summary["workload"] == "dp-heavy"
-    assert summary["source_preset"] == "ai/su-dp-low"
+    assert summary["source_preset"] == "ai/dp-low-small"
 
 
 def test_run_collect_packet_timeline_implies_store_packets() -> None:
     spec = load_experiment_spec(
-        preset_name="ai/dp-low",
+        preset_name="ai/dp-low-small",
         overrides=["run.collect_packet_timeline=true"],
     )
 
@@ -173,13 +174,8 @@ def test_run_collect_packet_timeline_implies_store_packets() -> None:
 
 def test_run_deep_flow_chain_log_flag_is_parsed() -> None:
     spec = load_experiment_spec(
-        preset_name="ai/dp-low",
+        preset_name="ai/dp-low-small",
         overrides=["run.deep_flow_chain_log=true"],
     )
 
     assert spec.run.deep_flow_chain_log is True
-
-
-
-
-

@@ -156,7 +156,7 @@ def visualize_ai_factory_comm_distributions(
     *,
     routing_mode: str = "",
     link_failure_percent: float | None = None,
-    redundancy_percent: float | None = None,
+    redundancy_extra_packets: int | None = None,
     out_dir: str = "results",
     show: bool = False,
 ) -> Optional[str]:
@@ -200,8 +200,8 @@ def visualize_ai_factory_comm_distributions(
             title_parts.append(f"routing={routing_mode}")
         if link_failure_percent is not None:
             title_parts.append(f"link failure={float(link_failure_percent):.3f}%")
-        if redundancy_percent is not None:
-            title_parts.append(f"redundancy={redundancy_percent:.3f}%")
+        if redundancy_extra_packets is not None:
+            title_parts.append(f"redundancy={int(redundancy_extra_packets)} pkt")
         fig.suptitle(" | ".join(title_parts), fontsize=14, fontweight="bold")
 
         ax = axes[0, 0]
@@ -448,7 +448,7 @@ def visualize_summary_step_traffic_matrices(
         label = str(row.get("label") or f"summary_{row_idx}")
         safe_label = re.sub(r"[^A-Za-z0-9._-]+", "_", label).strip("_") or f"summary_{row_idx}"
         routing_mode = row.get("routing_mode")
-        redundancy = _summary_float(row, "chunk_redundancy_percent")
+        redundancy = _summary_float(row, "chunk_redundancy_extra_packets")
         x_key, x_label, _, _ = _choose_sweep_x_axis([row])
         x_value = _summary_float(row, x_key)
 
@@ -481,7 +481,7 @@ def visualize_summary_step_traffic_matrices(
             if routing_mode:
                 title_parts.append(f"routing={routing_mode}")
             if redundancy is not None:
-                title_parts.append(f"redundancy={redundancy:.3f}%")
+                title_parts.append(f"redundancy={int(redundancy)} pkt")
             if x_value is not None:
                 title_parts.append(f"{x_label}={x_value:.3f}")
             ax.set_title(" | ".join(title_parts), fontsize=13, fontweight="bold")
@@ -634,7 +634,7 @@ def _write_stall_distribution_csv(
 ) -> str | None:
     flat_rows: list[dict[str, Any]] = []
     for row in rows:
-        redundancy = _summary_float(row, "chunk_redundancy_percent")
+        redundancy = _summary_float(row, "chunk_redundancy_extra_packets")
         x_value = _summary_float(row, x_key)
         if redundancy is None or x_value is None:
             continue
@@ -649,7 +649,7 @@ def _write_stall_distribution_csv(
                 {
                     "label": str(row.get("label", "")),
                     "routing_mode": str(row.get("routing_mode", "")),
-                    "chunk_redundancy_percent": redundancy,
+                    "chunk_redundancy_extra_packets": redundancy,
                     "x_value": x_value,
                     "stall_count": stall_count,
                     "flow_count": flow_count,
@@ -665,7 +665,7 @@ def _write_stall_distribution_csv(
     fieldnames = [
         "label",
         "routing_mode",
-        "chunk_redundancy_percent",
+        "chunk_redundancy_extra_packets",
         "x_value",
         "stall_count",
         "flow_count",
@@ -693,7 +693,7 @@ def _write_step_time_points_csv(
                 {
                     "label": str(point.get("label", "")),
                     "routing_mode": str(point.get("routing_mode", "")),
-                    "chunk_redundancy_percent": redundancy,
+                    "chunk_redundancy_extra_packets": redundancy,
                     "x_value": point["x"],
                     "step_time_avg_ms": point["y"],
                     "step_time_min_ms": point.get("step_time_min_ms"),
@@ -730,7 +730,7 @@ def _write_step_time_points_csv(
     fieldnames = [
         "label",
         "routing_mode",
-        "chunk_redundancy_percent",
+        "chunk_redundancy_extra_packets",
         "x_value",
         "step_time_avg_ms",
         "step_time_min_ms",
@@ -834,7 +834,7 @@ def visualize_sweep_time_comparison(
         grouped: dict[float, list[dict[str, float]]] = {}
         grouped_rows: dict[float, list[dict[str, Any]]] = {}
         for row in rows:
-            redundancy = _summary_float(row, "chunk_redundancy_percent")
+            redundancy = _summary_float(row, "chunk_redundancy_extra_packets")
             x_value = _summary_float(row, x_key)
             metric_value = _summary_float(row, metric["avg"])
             if redundancy is None or x_value is None or metric_value is None:
@@ -937,7 +937,7 @@ def visualize_sweep_time_comparison(
                 include_legend=False,
             )
             ax_single.set_title(
-                f"{metric['title'].replace('impairment', title_suffix)} | redundancy={redundancy:.3f}%{spread_suffix_single}",
+                f"{metric['title'].replace('impairment', title_suffix)} | redundancy={int(redundancy)} pkt{spread_suffix_single}",
                 fontsize=14,
                 fontweight='bold',
             )
@@ -947,7 +947,7 @@ def visualize_sweep_time_comparison(
 
             filepath_single = os.path.join(
                 out_dir,
-                f"{metric['stem']}_vs_{file_suffix}_redundancy_{redundancy:.3f}_{timestamp}.png",
+                f"{metric['stem']}_vs_{file_suffix}_redundancy_{int(redundancy)}pkt_{timestamp}.png",
             )
             _save_or_show(fig_single, filepath_single, show=show)
             logging.info("Sweep comparison graph saved to: %s", filepath_single)
@@ -1018,7 +1018,7 @@ def visualize_experiment_results(results: List[Dict[str, Dict[str, Any]]],
         routing_mode = params.get('routing_mode', '')
         link_failure_percent = params.get('link_failure_percent')
         total_time = stats.get('total run time (simulator time in seconds)', 0)
-        redundancy_percent = params.get('chunk_redundancy_percent')
+        redundancy_extra_packets = params.get('chunk_redundancy_extra_packets')
 
         if packet_timeline:
             visualize_send_timeline(
@@ -1035,7 +1035,7 @@ def visualize_experiment_results(results: List[Dict[str, Dict[str, Any]]],
                 flow_metrics,
                 routing_mode=routing_mode,
                 link_failure_percent=(float(link_failure_percent) if link_failure_percent is not None else None),
-                redundancy_percent=(float(redundancy_percent) if redundancy_percent is not None else None),
+                redundancy_extra_packets=(int(redundancy_extra_packets) if redundancy_extra_packets is not None else None),
                 out_dir=out_dir,
                 show=show,
             )

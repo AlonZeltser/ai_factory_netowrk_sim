@@ -1,9 +1,0 @@
-extends: ../bases/workload-mixed-base.yaml
-workload:
-  params:
-    tp_heavy_micro_collective_bytes_per_participant: 1048576
-    tp_heavy_final_sync_bytes_per_participant: 16777216
-    pp_dp_activation_bytes_per_microbatch: 2097152
-    pp_dp_grad_bytes_per_microbatch: 2097152
-    pp_dp_dp_sync_bytes_per_participant: 33554432
-

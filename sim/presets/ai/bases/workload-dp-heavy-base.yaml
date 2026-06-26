@@ -16,8 +16,8 @@ workload:
     t_fwd_bwd_ms: 10.0
     # Optimizer/update compute time after gradient synchronization, in milliseconds. Range: float >= 0.0.
     optimizer_ms: 5.0
-    # Extra communication overhead sent per chunk, expressed as a percent of useful bytes. Range: float >= 0.0.
-    chunk_redundancy_percent: 0.0
+    # Number of extra redundant packets added per flow on top of the useful payload. Range: integer >= 0.
+    chunk_redundancy_extra_packets: 0
     # If true, run only the reduce-scatter ring and skip all-gather. Allowed values: true | false.
     single_ring_only: false
     # Optional background mice traffic. Set this entire mapping to `null` to disable inherited mice traffic.

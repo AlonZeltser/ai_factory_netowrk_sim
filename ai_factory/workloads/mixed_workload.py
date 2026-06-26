@@ -24,7 +24,8 @@ class MixedScenarioTpHeavyConfig:
 
     gap_us: float
     algorithm: CollectiveAlgorithm
-    chunk_redundancy_percent: float = 0.0
+    mtu: int = 4096
+    chunk_redundancy_extra_packets: int = 0
 
 
 @dataclass(frozen=True)
@@ -40,7 +41,8 @@ class MixedScenarioPpDpConfig:
 
     dp_sync_bytes_per_participant: int
     tail_compute_ms: float
-    chunk_redundancy_percent: float = 0.0
+    mtu: int = 4096
+    chunk_redundancy_extra_packets: int = 0
 
 
 def build_mixed_scenario_tp_heavy(
@@ -91,7 +93,8 @@ def build_mixed_scenario_tp_heavy(
                             bucket_id=0,
                             flows=apply_chunk_redundancy(
                                 _retag(coll.flows, job_id=job_id, tag_prefix="tp_heavy_tp_micro"),
-                                extra_percent=float(config.chunk_redundancy_percent),
+                                extra_packets=int(config.chunk_redundancy_extra_packets),
+                                mtu=int(config.mtu),
                             ),
                         )
                     ],
@@ -144,7 +147,8 @@ def build_mixed_scenario_tp_heavy(
                         bucket_id=0,
                         flows=apply_chunk_redundancy(
                             _retag(rs.flows + ag.flows, job_id=job_id, tag_prefix="tp_heavy_dp_sync"),
-                            extra_percent=float(config.chunk_redundancy_percent),
+                            extra_packets=int(config.chunk_redundancy_extra_packets),
+                            mtu=int(config.mtu),
                         ),
                     )
                 ],
@@ -213,7 +217,8 @@ def build_mixed_scenario_pp_dp(
                                 bytes_per_send=fwd_bytes,
                                 direction="fwd",
                             ),
-                            extra_percent=float(config.chunk_redundancy_percent),
+                            extra_packets=int(config.chunk_redundancy_extra_packets),
+                            mtu=int(config.mtu),
                         ),
                     )
                 ],
@@ -239,7 +244,8 @@ def build_mixed_scenario_pp_dp(
                                 bytes_per_send=bwd_bytes,
                                 direction="bwd",
                             ),
-                            extra_percent=float(config.chunk_redundancy_percent),
+                            extra_packets=int(config.chunk_redundancy_extra_packets),
+                            mtu=int(config.mtu),
                         ),
                     )
                 ],
@@ -285,7 +291,8 @@ def build_mixed_scenario_pp_dp(
                         bucket_id=0,
                         flows=apply_chunk_redundancy(
                             _retag(rs.flows + ag.flows, job_id=job_id, tag_prefix="pp_dp_dp_sync"),
-                            extra_percent=float(config.chunk_redundancy_percent),
+                            extra_packets=int(config.chunk_redundancy_extra_packets),
+                            mtu=int(config.mtu),
                         ),
                     )
                 ],
@@ -382,4 +389,3 @@ def _retag(flows: list[Flow], *, job_id: int, tag_prefix: str) -> list[Flow]:
             )
         )
     return out
-

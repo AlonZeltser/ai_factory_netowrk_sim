@@ -62,7 +62,8 @@ def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
         gap_us=float(_require_param(params, "gap_us")),
         t_fwd_bwd_ms=float(_require_param(params, "t_fwd_bwd_ms")),
         optimizer_ms=float(_require_param(params, "optimizer_ms")),
-        chunk_redundancy_percent=float(_require_param(params, "chunk_redundancy_percent")),
+        mtu=mtu,
+        chunk_redundancy_extra_packets=int(_require_param(params, "chunk_redundancy_extra_packets")),
         single_ring_only=bool(params.get("single_ring_only", False)),
         mice=mice,
     )
@@ -104,7 +105,7 @@ def _build_mixed(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
         pp_dp_steps=(int(pp_cfg["steps"]) if "steps" in pp_cfg else None),
         seed=seed,
         traffic_scale=float(_require_param(params, "traffic_scale")),
-        chunk_redundancy_percent=float(_require_param(params, "chunk_redundancy_percent")),
+        chunk_redundancy_extra_packets=int(_require_param(params, "chunk_redundancy_extra_packets")),
         allocation_mode=_allocation_mode(params),
         stage_placement_mode=_stage_placement_mode(params),
         tp_heavy_fwd_compute_ms=float(_require_param(params, "tp_heavy_fwd_compute_ms")),
