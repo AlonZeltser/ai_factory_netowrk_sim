@@ -16,12 +16,12 @@ def _leaf_key(host_id: str) -> int:
 
 def test_build_ring_order_keeps_hosts_chain_within_leaf() -> None:
     participants = [
-        "su1_leaf2_srv1",
-        "su1_leaf0_srv1",
-        "su1_leaf1_srv0",
-        "su1_leaf2_srv0",
-        "su1_leaf0_srv0",
-        "su1_leaf1_srv1",
+        "leaf2_srv1",
+        "leaf0_srv1",
+        "leaf1_srv0",
+        "leaf2_srv0",
+        "leaf0_srv0",
+        "leaf1_srv1",
     ]
 
     ring = build_ring_order(participants, seed=2026)
@@ -39,7 +39,7 @@ def test_build_ring_order_keeps_hosts_chain_within_leaf() -> None:
 
 
 def test_dp_heavy_ring_order_is_step_stable_and_varies_across_steps() -> None:
-    participants = [f"su1_leaf{leaf}_srv{srv}" for leaf in range(8) for srv in range(2)]
+    participants = [f"leaf{leaf}_srv{srv}" for leaf in range(8) for srv in range(2)]
     cfg = DPHeavyWorkloadConfig(
         steps=2,
         t_fwd_bwd_ms=1.0,

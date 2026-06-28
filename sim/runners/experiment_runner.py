@@ -11,13 +11,29 @@ from ..registry.topologies import build_network
 from ..registry.workloads import build_scenario
 
 
+_RUN_STATS_LOG_OMIT_KEYS = {"packet_stall_triggered_count_by_flow_id"}
+
+
 def _log_results_summary(results: dict[str, Any]) -> None:
     def _fmt_block(value: Any) -> str:
         return "\n".join(f"\t{k}: {v}" for k, v in value.items()) if isinstance(value, dict) and value else "(empty)"
 
     logging.info("Results summary - Topology:\n%s", _fmt_block(results.get("topology summary", {})))
     logging.info("Results summary - Parameters:\n%s", _fmt_block(results.get("parameters summary", {})))
-    logging.info("Results summary - Run statistics:\n%s", _fmt_block(results.get("run statistics", {})))
+    run_statistics = results.get("run statistics", {})
+    run_statistics_for_log = {
+        key: value
+        for key, value in run_statistics.items()
+        if key not in _RUN_STATS_LOG_OMIT_KEYS
+    } if isinstance(run_statistics, dict) else run_statistics
+    if isinstance(run_statistics_for_log, dict) and run_statistics_for_log:
+        logging.info("Results summary - Run statistics:\n%s", _fmt_block(run_statistics_for_log))
+        logging.info(
+            "Packet time statistics (seconds): min=%.6f max=%.6f avg=%.6f",
+            float(run_statistics_for_log.get("min packet time (s)", 0.0) or 0.0),
+            float(run_statistics_for_log.get("max packet time (s)", 0.0) or 0.0),
+            float(run_statistics_for_log.get("avg packet time (s)", 0.0) or 0.0),
+        )
 
 
 def validate_experiment(spec: ExperimentSpec) -> dict[str, str]:

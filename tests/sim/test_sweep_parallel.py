@@ -236,7 +236,7 @@ def test_sweep_cli_writes_deep_flow_chain_logs(monkeypatch, tmp_path: Path) -> N
     generated = list(deep_root.rglob("*.txt"))
     assert generated
     content = generated[0].read_text(encoding="utf-8")
-    assert "header: net packets in flow, gross packets in flow, stall percentage" in content
+    assert "header: net packets in flow, gross packets in flow, stall packets" in content
     assert "sending host=h1" in content
 
 

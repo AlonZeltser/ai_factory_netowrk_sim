@@ -361,6 +361,53 @@ def _choose_sweep_x_axis(rows: List[Dict[str, Any]]) -> tuple[str, str, str, str
     return candidates[-1]
 
 
+def _apply_exponential_x_axis(ax, series: list[tuple[float, list[dict[str, float]]]]) -> None:
+    x_values: list[float] = []
+    for _, points in series:
+        for point in points:
+            try:
+                x_values.append(float(point.get("x", 0.0)))
+            except (TypeError, ValueError):
+                continue
+    if not x_values:
+        return
+
+    positive_values = sorted(v for v in x_values if v > 0.0)
+    if not positive_values:
+        return
+
+    if any(v <= 0.0 for v in x_values):
+        linthresh = max(1e-6, positive_values[0] / 2.0)
+        ax.set_xscale("symlog", base=10, linthresh=linthresh)
+    else:
+        ax.set_xscale("log", base=10)
+
+
+def _format_sweep_x_tick(value: float) -> str:
+    if abs(value - round(value)) < 1e-9:
+        return str(int(round(value)))
+    return f"{value:g}"
+
+
+def _set_sweep_x_ticks(ax, series: list[tuple[float, list[dict[str, float]]]]) -> None:
+    x_values: list[float] = []
+    for _, points in series:
+        for point in points:
+            try:
+                x_values.append(float(point.get("x", 0.0)))
+            except (TypeError, ValueError):
+                continue
+    if not x_values:
+        return
+
+    ticks = sorted(set(x_values))
+    if not ticks:
+        return
+
+    ax.set_xticks(ticks)
+    ax.set_xticklabels([_format_sweep_x_tick(v) for v in ticks])
+
+
 def _natural_sort_key(value: str) -> tuple[Any, ...]:
     parts = re.split(r"(\d+)", str(value))
     return tuple(int(part) if part.isdigit() else part.lower() for part in parts)
@@ -525,12 +572,8 @@ def _plot_sweep_metric_series(
         has_minmax = has_minmax or any(bool(p.get("has_minmax")) for p in points)
 
     spread_suffix = ""
-    if has_std and has_minmax:
-        spread_suffix = " (avg with ±std and min-max)"
-    elif has_std:
+    if has_std:
         spread_suffix = " (avg with ±std)"
-    elif has_minmax:
-        spread_suffix = " (avg with min-max)"
 
     ax.set_facecolor('#EAEAF2')
     ax.grid(True, color='white', linewidth=1.1, alpha=0.95)
@@ -542,18 +585,12 @@ def _plot_sweep_metric_series(
         y_vals = [p["y"] for p in points]
         color = colors_accessible[idx % len(colors_accessible)]
 
-        if any(bool(p.get("has_minmax")) for p in points):
-            min_vals = [p["min_value"] if p.get("has_minmax") else p["y"] for p in points]
-            max_vals = [p["max_value"] if p.get("has_minmax") else p["y"] for p in points]
-            ax.fill_between(
-                x_vals,
-                min_vals,
-                max_vals,
-                color=color,
-                alpha=0.12,
-                linewidth=0.0,
-                zorder=1,
-            )
+        # Extract N (useful packets per flow) from the first point if available
+        n_value = None
+        if points and "avg_packets_in_ring_before_redundancy" in points[0]:
+            n_val = points[0].get("avg_packets_in_ring_before_redundancy")
+            if n_val is not None:
+                n_value = int(round(n_val))
 
         if any(bool(p.get("has_std")) for p in points):
             std_low = [p["y"] - p["std_low"] if p.get("has_std") else p["y"] for p in points]
@@ -568,6 +605,12 @@ def _plot_sweep_metric_series(
                 zorder=2,
             )
 
+        # Build label with redundancy and N value
+        if n_value is not None:
+            label = f"redundancy={int(redundancy)} pkt (N={n_value})"
+        else:
+            label = f"redundancy={int(redundancy)} pkt"
+
         ax.plot(
             x_vals,
             y_vals,
@@ -578,7 +621,7 @@ def _plot_sweep_metric_series(
             color=color,
             markerfacecolor='white',
             markeredgewidth=1.8,
-            label=f"redundancy={int(redundancy)} pkt",
+            label=label,
             zorder=3,
         )
 
@@ -846,10 +889,12 @@ def visualize_sweep_time_comparison(
                 min_key=metric["min"],
                 max_key=metric["max"],
             )
+            avg_packets_in_ring_before_redundancy = _summary_float(row, "avg_packets_in_ring_before_redundancy")
             grouped.setdefault(redundancy, []).append(
                 {
                     "x": x_value,
                     "y": metric_value,
+                    "avg_packets_in_ring_before_redundancy": avg_packets_in_ring_before_redundancy,
                     **spread,
                 }
             )
@@ -922,6 +967,8 @@ def visualize_sweep_time_comparison(
         ax.set_title(f"{metric['title'].replace('impairment', title_suffix)}{spread_suffix_global}", fontsize=14, fontweight='bold')
         ax.set_xlabel(x_label, fontsize=12)
         ax.set_ylabel(metric["ylabel"], fontsize=12)
+        _apply_exponential_x_axis(ax, sorted_series)
+        _set_sweep_x_ticks(ax, sorted_series)
         ax.grid(alpha=0.3, linestyle='--', linewidth=0.7)
 
         filepath = os.path.join(out_dir, f"{metric['stem']}_vs_{file_suffix}_{timestamp}.png")
@@ -936,17 +983,34 @@ def visualize_sweep_time_comparison(
                 [(redundancy, points)],
                 include_legend=False,
             )
+            # Extract N value from first point if available
+            n_value = None
+            if points and "avg_packets_in_ring_before_redundancy" in points[0]:
+                n_val = points[0].get("avg_packets_in_ring_before_redundancy")
+                if n_val is not None:
+                    n_value = int(round(n_val))
+            
+            if n_value is not None:
+                title_suffix_n = f" | redundancy={int(redundancy)} pkt (N={n_value})"
+            else:
+                title_suffix_n = f" | redundancy={int(redundancy)} pkt"
+            
             ax_single.set_title(
-                f"{metric['title'].replace('impairment', title_suffix)} | redundancy={int(redundancy)} pkt{spread_suffix_single}",
+                f"{metric['title'].replace('impairment', title_suffix)}{title_suffix_n}{spread_suffix_single}",
                 fontsize=14,
                 fontweight='bold',
             )
             ax_single.set_xlabel(x_label, fontsize=12)
             ax_single.set_ylabel(metric["ylabel"], fontsize=12)
+            _apply_exponential_x_axis(ax_single, [(redundancy, points)])
+            _set_sweep_x_ticks(ax_single, [(redundancy, points)])
             ax_single.grid(alpha=0.3, linestyle='--', linewidth=0.7)
 
+            if not os.path.exists(os.path.join(out_dir,f"detailed_charts")):
+                os.makedirs(os.path.join(out_dir,f"detailed_charts"))
             filepath_single = os.path.join(
                 out_dir,
+                f"detailed_charts",
                 f"{metric['stem']}_vs_{file_suffix}_redundancy_{int(redundancy)}pkt_{timestamp}.png",
             )
             _save_or_show(fig_single, filepath_single, show=show)

@@ -59,7 +59,7 @@ def _build_chains_for_group(records: list[dict[str, Any]]) -> dict[str, list[dic
 
 def _write_step_file(path: Path, records: list[dict[str, Any]]) -> None:
     lines: list[str] = []
-    lines.append("header: net packets in flow, gross packets in flow, stall percentage")
+    lines.append("header: net packets in flow, gross packets in flow, stall packets")
     lines.append(
         "columns: sending host, receiving host, sim start time, sim end time, sim duration, # of packets stalled, max place in egress, average place in egress, latest arriving valuable packet to receiver (N): start time, end time, list of egress values, sum of egress"
     )
@@ -95,7 +95,7 @@ def _write_step_file(path: Path, records: list[dict[str, Any]]) -> None:
                         [
                             f"net packets in flow={record.get('net_packets_in_flow', 0)}",
                             f"gross packets in flow={record.get('gross_packets_in_flow', 0)}",
-                            f"stall percentage={_fmt_float(record.get('stall_percentage'))}",
+                            f"stall packets={int(record.get('packets_stalled', 0) or 0)}",
                             f"sending host={record.get('src_node_id', '')}",
                             f"receiving host={record.get('dst_node_id', '')}",
                             f"sim start time={_fmt_float(record.get('sim_start_time'))}",

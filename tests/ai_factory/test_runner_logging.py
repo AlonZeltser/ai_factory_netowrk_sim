@@ -6,6 +6,7 @@ from ai_factory.core.entities import Bucket, CommPhase, ComputePhase, Job, JobSt
 from ai_factory.core.runner import FlowInjector, JobRunner
 from ai_factory.traffic.flow import Flow
 from des.des import DiscreteEventSimulator
+from sim.runners.experiment_runner import _log_results_summary
 
 
 class _NoopInjector(FlowInjector):
@@ -96,4 +97,26 @@ def test_step_finished_log_includes_max_per_flow_drops_for_step_flows(caplog) ->
     step_finished_lines = [rec.getMessage() for rec in caplog.records if "Step finished" in rec.getMessage()]
     assert step_finished_lines
     assert "max_per_flow_drops=7" in step_finished_lines[0]
+
+
+def test_results_summary_logs_packet_time_statistics(caplog) -> None:
+    results = {
+        "topology summary": {},
+        "parameters summary": {},
+        "run statistics": {
+            "min packet time (s)": 0.125,
+            "max packet time (s)": 1.5,
+            "avg packet time (s)": 0.625,
+        },
+    }
+
+    with caplog.at_level(logging.INFO):
+        _log_results_summary(results)
+
+    packet_time_lines = [rec.getMessage() for rec in caplog.records if "Packet time statistics" in rec.getMessage()]
+    assert packet_time_lines
+    assert "min=0.125000" in packet_time_lines[0]
+    assert "max=1.500000" in packet_time_lines[0]
+    assert "avg=0.625000" in packet_time_lines[0]
+
 

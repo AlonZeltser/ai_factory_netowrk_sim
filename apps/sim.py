@@ -38,6 +38,21 @@ from visualization.experiment_visualizer import (
 )
 
 
+_CONSOLE_SUMMARY_OMIT_KEYS = {"packet_stall_triggered_count_by_flow_id"}
+
+
+def _sanitize_for_console(value):
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_for_console(item)
+            for key, item in value.items()
+            if key not in _CONSOLE_SUMMARY_OMIT_KEYS
+        }
+    if isinstance(value, list):
+        return [_sanitize_for_console(item) for item in value]
+    return value
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Unified simulator CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -162,7 +177,7 @@ def _cmd_batch(args: argparse.Namespace) -> int:
         collect_batch_inputs(presets=args.presets, configs=args.configs, directory=args.directory),
         stop_on_error=args.stop_on_error,
     )
-    print(yaml.safe_dump(summary, sort_keys=False))
+    print(yaml.safe_dump(_sanitize_for_console(summary), sort_keys=False))
     output_path = None
     if args.summary_out:
         output_path = write_batch_summary(summary, args.summary_out)
@@ -202,7 +217,7 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
         stop_on_error=args.stop_on_error,
         max_processes=args.processes,
     )
-    print(yaml.safe_dump(summary, sort_keys=False))
+    print(yaml.safe_dump(_sanitize_for_console(summary), sort_keys=False))
     output_path = None
     if args.summary_out:
         output_path = write_batch_summary(summary, args.summary_out)

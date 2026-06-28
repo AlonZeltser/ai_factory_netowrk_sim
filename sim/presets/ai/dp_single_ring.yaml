@@ -11,16 +11,16 @@ topology:
   params:
     mtu: 4096
     fabric:
-      packet_stall_delay_ms: 16
+      packet_stall_delay_ms: 4
 workload:
   params:
-    steps: 4
+    steps: 20
     seed: 2026
     t_fwd_bwd_ms: 0.0
     optimizer_ms: 0.0
     #bucket_bytes_per_participant: 2097152
-    bucket_bytes_per_participant: 16777216
-    #bucket_bytes_per_participant: 65536000
+    #bucket_bytes_per_participant: 16777216
+    bucket_bytes_per_participant: 6553600 # = 100 packets in flow
     num_buckets: 1
     single_ring_only: true
 

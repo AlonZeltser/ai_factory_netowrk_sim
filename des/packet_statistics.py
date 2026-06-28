@@ -26,11 +26,17 @@ class PacketStatistics:
     route_length_min: int = 999999
     route_length_max: int = 0
 
+    # Packet time statistics (end-to-end delivery latency in seconds)
+    packet_time_count: int = 0
+    packet_time_sum: float = 0.0
+    packet_time_min: float = float("inf")
+    packet_time_max: float = 0.0
+
     def record_created(self) -> None:
         """Called when a packet is created."""
         self.total_count += 1
 
-    def record_delivered(self, route_length: int) -> None:
+    def record_delivered(self, route_length: int, packet_time: float | None = None) -> None:
         """Called when a packet is successfully delivered."""
         self.delivered_count += 1
         self.route_length_sum += route_length
@@ -38,6 +44,16 @@ class PacketStatistics:
             self.route_length_min = route_length
         if route_length > self.route_length_max:
             self.route_length_max = route_length
+
+        if packet_time is None:
+            return
+
+        self.packet_time_count += 1
+        self.packet_time_sum += packet_time
+        if packet_time < self.packet_time_min:
+            self.packet_time_min = packet_time
+        if packet_time > self.packet_time_max:
+            self.packet_time_max = packet_time
 
     def record_dropped(self, packet: Any | None = None) -> None:
         """Called when a packet is dropped."""
@@ -89,4 +105,18 @@ class PacketStatistics:
     def max_route_length(self) -> int:
         """Maximum route length of delivered packets."""
         return self.route_length_max
-# packet_statistics.py placeholder
+
+    @property
+    def avg_packet_time(self) -> float:
+        """Average packet delivery time in seconds."""
+        return self.packet_time_sum / self.packet_time_count if self.packet_time_count > 0 else 0.0
+
+    @property
+    def min_packet_time(self) -> float:
+        """Minimum packet delivery time in seconds."""
+        return self.packet_time_min if self.packet_time_min != float("inf") else 0.0
+
+    @property
+    def max_packet_time(self) -> float:
+        """Maximum packet delivery time in seconds."""
+        return self.packet_time_max

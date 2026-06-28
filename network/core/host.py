@@ -156,7 +156,10 @@ class Host(NetworkNode):
         packet.tracking_info.arrival_time = now
         self._received_count += 1
         # Record delivery in streaming stats
-        self.scheduler.packet_stats.record_delivered(packet.tracking_info.route_length)
+        self.scheduler.packet_stats.record_delivered(
+            packet.tracking_info.route_length,
+            now - float(packet.tracking_info.birth_time),
+        )
 
         if self.message_verbose and _logger.isEnabledFor(logging.DEBUG):
             _logger.debug(

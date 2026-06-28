@@ -177,7 +177,7 @@ class AIFactorySUNetworkSimulator(Network):
             leaf_subnet_third_octet = leaf_i + 1
 
             for srv_i in range(servers_per_leaf):
-                host_name = f"su{self.POD_ID}_leaf{leaf_i}_srv{srv_i}"
+                host_name = f"leaf{leaf_i}_srv{srv_i}"
                 ip = f"10.{self.POD_ID}.{leaf_subnet_third_octet}.{srv_i + 1}"
                 host = self.create_host(host_name, ip, ports_count=server_parallel_links)
 
