@@ -29,6 +29,8 @@ def _require_param(params: dict[str, Any], key: str) -> Any:
     if key not in params:
         raise ConfigError(f"Missing required key 'workload.params.{key}'")
     return params[key]
+
+
 def _build_mice(params: dict[str, object], *, default_seed: int, mtu_bytes: int) -> MiceConfig | None:
     mice = params.get("mice")
     if mice is None:

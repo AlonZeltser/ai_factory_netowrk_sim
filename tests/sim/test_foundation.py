@@ -179,3 +179,4 @@ def test_run_deep_flow_chain_log_flag_is_parsed() -> None:
     )
 
     assert spec.run.deep_flow_chain_log is True
+

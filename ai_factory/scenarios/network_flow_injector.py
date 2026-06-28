@@ -16,7 +16,7 @@ class _FlowDeliveryState:
     dst_ip: str
     useful_packet_count: int
     gross_packet_count: int
-    delivered_valuable_packet_seqs: set[int]
+    delivered_packet_count: int
     latest_valuable_arrival_time: float
     latest_valuable_packet_start_time: float | None
     latest_valuable_packet_end_time: float | None
@@ -54,23 +54,18 @@ class NetworkFlowInjector(FlowInjector):
                 if packet.routing_header.five_tuple.dst_ip != stat.dst_ip:
                     return
 
-                if self._deep_flow_chain_log:
+                stat.delivered_packet_count += 1
+                if self._deep_flow_chain_log and stat.delivered_packet_count <= stat.useful_packet_count:
                     egress_positions = list(packet.tracking_info.egress_queue_positions)
                     stat.all_observed_egress_positions.extend(egress_positions)
-                    flow_seq = int(packet.transport_header.flow_seq)
-                    if flow_seq < stat.useful_packet_count:
-                        arrival_time = float(self._network.simulator.get_current_time())
-                        if arrival_time >= stat.latest_valuable_arrival_time:
-                            stat.latest_valuable_arrival_time = arrival_time
-                            stat.latest_valuable_packet_start_time = float(packet.tracking_info.birth_time)
-                            stat.latest_valuable_packet_end_time = arrival_time
-                            stat.latest_valuable_packet_egress_positions = egress_positions
+                    arrival_time = float(self._network.simulator.get_current_time())
+                    if arrival_time >= stat.latest_valuable_arrival_time:
+                        stat.latest_valuable_arrival_time = arrival_time
+                        stat.latest_valuable_packet_start_time = float(packet.tracking_info.birth_time)
+                        stat.latest_valuable_packet_end_time = arrival_time
+                        stat.latest_valuable_packet_egress_positions = egress_positions
 
-                flow_seq = int(packet.transport_header.flow_seq)
-                if flow_seq < stat.useful_packet_count:
-                    stat.delivered_valuable_packet_seqs.add(flow_seq)
-
-                if len(stat.delivered_valuable_packet_seqs) >= stat.useful_packet_count:
+                if stat.delivered_packet_count >= stat.useful_packet_count:
                     flow = self._flows.pop(flow_id, None)
                     start_time = self._start_times.pop(flow_id, None)
                     cb = self._callbacks.pop(flow_id, None)
@@ -96,7 +91,7 @@ class NetworkFlowInjector(FlowInjector):
                         if self._deep_flow_chain_log:
                             stall_counts = getattr(self._network.simulator.packet_stats, "packet_stall_triggered_count_by_flow_id", {})
                             packets_stalled = int(stall_counts.get(flow_id, 0)) if isinstance(stall_counts, dict) else 0
-                            net_packets = max(1, int(stat.useful_packet_count))
+                            gross_packets = max(1, int(stat.gross_packet_count))
                             egress_values = stat.all_observed_egress_positions
                             avg_place = (float(sum(egress_values)) / float(len(egress_values))) if egress_values else 0.0
                             self._network.entities.setdefault("ai_factory_flow_chain_diagnostics", []).append(
@@ -117,7 +112,7 @@ class NetworkFlowInjector(FlowInjector):
                                     "packets_stalled": packets_stalled,
                                     "net_packets_in_flow": int(stat.useful_packet_count),
                                     "gross_packets_in_flow": int(stat.gross_packet_count),
-                                    "stall_percentage": (float(packets_stalled) / float(net_packets)) * 100.0,
+                                    "stall_percentage": (float(packets_stalled) / float(gross_packets)) * 100.0,
                                     "max_place_in_egress": int(max(egress_values, default=0)),
                                     "avg_place_in_egress": avg_place,
                                     "latest_valuable_packet_start_time": stat.latest_valuable_packet_start_time,
@@ -144,7 +139,7 @@ class NetworkFlowInjector(FlowInjector):
             dst_ip=dst.ip_address,
             useful_packet_count=useful_packet_count,
             gross_packet_count=gross_packet_count,
-            delivered_valuable_packet_seqs=set(),
+            delivered_packet_count=0,
             latest_valuable_arrival_time=-1.0,
             latest_valuable_packet_start_time=None,
             latest_valuable_packet_end_time=None,

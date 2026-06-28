@@ -249,7 +249,7 @@ def apply_chunk_redundancy(flows: list[Flow], *, extra_packets: int, mtu: int) -
   - `U_flow` = `useful_bytes`
 - `T_flow` = `redundant_bytes`
 - the function validates `U_flow % M == 0` before adding redundancy
-- `completion_bytes` is set to `useful_bytes` (flow completes after receiving original data)
+- `completion_bytes` is set to `useful_bytes` (flow with `N` useful packets completes after any `N` packets out of the gross `N + R` packet stream arrive)
 
 ---
 

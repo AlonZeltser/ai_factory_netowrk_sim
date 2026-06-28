@@ -289,7 +289,7 @@ workload:
       enabled: false
 ```
 
-`chunk_redundancy_extra_packets` adds a fixed number of redundant packets to each communication flow on top of the useful payload. Redundancy is packet-based now, and the simulator validates that each useful flow payload is already an exact whole number of MTU-sized packets before adding those extras. Flows still complete once the useful payload arrives, while the extra packets add network load.
+`chunk_redundancy_extra_packets` adds a fixed number of redundant packets to each communication flow on top of the useful payload. Redundancy is packet-based now, and the simulator validates that each useful flow payload is already an exact whole number of MTU-sized packets before adding those extras. If a flow has `N` useful packets and `R` redundant packets, it transmits `N + R` packets and completes when any `N` of those packets arrive at the receiver; late redundant/stalled packets may still add network load after the flow has completed.
 
 ### Preset inheritance
 

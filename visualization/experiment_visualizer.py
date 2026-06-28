@@ -578,7 +578,7 @@ def _plot_sweep_metric_series(
             color=color,
             markerfacecolor='white',
             markeredgewidth=1.8,
-            label=f"redundancy={redundancy:.3f}%",
+            label=f"redundancy={int(redundancy)} pkt",
             zorder=3,
         )
 

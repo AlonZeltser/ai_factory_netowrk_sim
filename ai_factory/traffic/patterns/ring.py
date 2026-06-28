@@ -105,6 +105,8 @@ def expand_ring_neighbor_sends(
 
     # Log the ring order for this collective
     if write_to_log:
+        logger.info("chunks:")
+        logger.info(chunk_per_step)
         logger.info(f"[{op_tag}] Ring order (job_id={job_id}, step_id={step_id}, bucket_id={bucket_id}): {' → '.join(ring.participants)} → {ring.participants[0]}")
 
     flows: list[Flow] = []

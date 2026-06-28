@@ -156,7 +156,7 @@ Validation rule:
 - if a useful flow payload is not an exact packet multiple, the simulator raises an error instead of silently rounding
 
 Important completion rule:
-- flow completion is triggered after receiving `useful_bytes`, not necessarily all inflated transmitted bytes.
+- if `N = U_flow / M` and `R_pkt` redundant packets are transmitted, flow completion is triggered when any `N` packets out of the gross `N + R_pkt` packets arrive, not necessarily after all gross packets arrive.
 
 ### 5.3 Packets per flow and totals
 
@@ -274,8 +274,8 @@ Cross-layer knobs that also affect effective behavior:
   - emits packets into routing/switch fabric
 - Packet delivery callback path:
   - host `on_message` is wrapped by injector
-  - injector counts received bytes for each flow ID
-  - when expected bytes are met, injector calls flow completion callback
+  - injector counts received packets for each flow ID
+  - when the first `N` packets have arrived, injector calls flow completion callback
   - callback resolves join/barrier in `JobRunner`
 
 ---
