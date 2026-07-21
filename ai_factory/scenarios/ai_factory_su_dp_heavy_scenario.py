@@ -14,20 +14,23 @@ class AIFactorySUDpHeavyScenario(Scenario):
 
     def __init__(
         self,
-        steps: int,
+        *,
         seed: int,
         num_buckets: int,
         bucket_bytes_per_participant: int,
         gap_us: float,
         t_fwd_bwd_ms: float,
         optimizer_ms: float,
+        collectives: int | None = None,
         mtu: int = 4096,
         chunk_redundancy_extra_packets: int = 0,
         single_ring_only: bool = False,
-        *,
+        steps: int | None = None,
         mice: MiceConfig | None = None,
     ):
-        self.steps = steps
+        if collectives is None and steps is None:
+            raise ValueError("Provide collectives (preferred) or legacy steps")
+        self.collectives = int(collectives if collectives is not None else steps)
         self.seed = seed
         self.num_buckets = num_buckets
         self.bucket_bytes_per_participant = bucket_bytes_per_participant
@@ -42,7 +45,7 @@ class AIFactorySUDpHeavyScenario(Scenario):
     def install(self, network) -> None:
         participants = sorted(network.hosts.keys())
         cfg = DPHeavyWorkloadConfig(
-            steps=int(self.steps),
+            collectives=int(self.collectives),
             num_buckets=int(self.num_buckets),
             bucket_bytes_per_participant=int(self.bucket_bytes_per_participant),
             algorithm=CollectiveAlgorithm.RING,
@@ -80,6 +83,7 @@ class AIFactorySUDpHeavyScenario(Scenario):
         out.update(
             {
                 "steps": self.steps,
+                "collectives": self.collectives,
                 "seed": self.seed,
                 "num_buckets": self.num_buckets,
                 "bucket_bytes_per_participant": self.bucket_bytes_per_participant,
@@ -97,3 +101,8 @@ class AIFactorySUDpHeavyScenario(Scenario):
             out["mice_packets_range"] = f"{self.mice.min_packets}-{self.mice.max_packets}"
             out["mice_force_cross_rack"] = self.mice.force_cross_rack
         return out
+
+    @property
+    def steps(self) -> int:
+        return self.collectives
+

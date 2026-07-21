@@ -30,19 +30,19 @@ def _natural_sort_key(value: str) -> tuple[Any, ...]:
     return tuple(int(part) if part.isdigit() else part.lower() for part in parts)
 
 
-def _build_step_traffic_matrices(flow_metrics: list[Any]) -> list[dict[str, Any]]:
-    step_pairs: dict[int, dict[tuple[str, str], int]] = {}
-    step_nodes: dict[int, set[str]] = {}
+def _build_collective_traffic_matrices(flow_metrics: list[Any]) -> list[dict[str, Any]]:
+    collective_pairs: dict[int, dict[tuple[str, str], int]] = {}
+    collective_nodes: dict[int, set[str]] = {}
 
     for metric in flow_metrics:
-        step_id_raw = _metric_value(metric, "step_id")
+        collective_id_raw = _metric_value(metric, "collective_id", _metric_value(metric, "step_id"))
         src = _metric_value(metric, "src_node_id")
         dst = _metric_value(metric, "dst_node_id")
-        if step_id_raw is None or not src or not dst:
+        if collective_id_raw is None or not src or not dst:
             continue
 
         try:
-            step_id = int(step_id_raw)
+            collective_id = int(collective_id_raw)
         except (TypeError, ValueError):
             continue
 
@@ -53,26 +53,27 @@ def _build_step_traffic_matrices(flow_metrics: list[Any]) -> list[dict[str, Any]
         except (TypeError, ValueError):
             byte_count = 0
 
-        step_pairs.setdefault(step_id, {})[(str(src), str(dst))] = step_pairs.setdefault(step_id, {}).get((str(src), str(dst)), 0) + max(0, byte_count)
-        step_nodes.setdefault(step_id, set()).update((str(src), str(dst)))
+        collective_pairs.setdefault(collective_id, {})[(str(src), str(dst))] = collective_pairs.setdefault(collective_id, {}).get((str(src), str(dst)), 0) + max(0, byte_count)
+        collective_nodes.setdefault(collective_id, set()).update((str(src), str(dst)))
 
     matrices: list[dict[str, Any]] = []
-    for step_id in sorted(step_pairs):
-        nodes = sorted(step_nodes.get(step_id, set()), key=_natural_sort_key)
+    for collective_id in sorted(collective_pairs):
+        nodes = sorted(collective_nodes.get(collective_id, set()), key=_natural_sort_key)
         if not nodes:
             continue
         node_index = {node: idx for idx, node in enumerate(nodes)}
         matrix = [[0 for _ in nodes] for _ in nodes]
         total_bytes = 0
         nonzero_pairs = 0
-        for (src, dst), byte_count in step_pairs[step_id].items():
+        for (src, dst), byte_count in collective_pairs[collective_id].items():
             matrix[node_index[src]][node_index[dst]] += byte_count
             total_bytes += byte_count
             if byte_count > 0:
                 nonzero_pairs += 1
         matrices.append(
             {
-                "step_id": step_id,
+                "collective_id": collective_id,
+                "step_id": collective_id,
                 "nodes": nodes,
                 "matrix_bytes": matrix,
                 "total_transmitted_bytes": total_bytes,
@@ -102,17 +103,17 @@ def _build_flow_stall_stats(flow_metrics: list[Any], stall_counts_by_flow_id: di
     bucket_flow_ids: dict[tuple[int, int, int, int], set[int]] = {}
 
     for metric in flow_metrics:
-        step_id_raw = _metric_value(metric, "step_id")
+        collective_id_raw = _metric_value(metric, "collective_id", _metric_value(metric, "step_id"))
         flow_id_raw = _metric_value(metric, "flow_id")
-        if step_id_raw is None or flow_id_raw is None:
+        if collective_id_raw is None or flow_id_raw is None:
             continue
 
         try:
-            step_id = int(step_id_raw)
+            collective_id = int(collective_id_raw)
             flow_id = int(flow_id_raw)
         except (TypeError, ValueError):
             continue
-        if step_id < 0:
+        if collective_id < 0:
             # Exclude non-training traffic such as background mice flows.
             continue
 
@@ -128,7 +129,7 @@ def _build_flow_stall_stats(flow_metrics: list[Any], stall_counts_by_flow_id: di
         except (TypeError, ValueError):
             continue
 
-        bucket_key = (job_id, step_id, phase_id, bucket_id)
+        bucket_key = (job_id, collective_id, phase_id, bucket_id)
         bucket_flow_ids.setdefault(bucket_key, set()).add(flow_id)
 
     avg_stalls_per_flow = (
@@ -270,29 +271,33 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
     flow_stats = _duration_stats_ms(flow_durations_ms)
 
     job_durations_ms: list[float] = []
-    step_avgs_ms: list[float] = []
-    step_stds_ms: list[float] = []
-    step_mins_ms: list[float] = []
-    step_maxs_ms: list[float] = []
-    per_job = stats.get("ai_factory_step_time_ms_per_job") or {}
+    collective_avgs_ms: list[float] = []
+    collective_stds_ms: list[float] = []
+    collective_mins_ms: list[float] = []
+    collective_maxs_ms: list[float] = []
+    per_job = stats.get("ai_factory_collective_time_ms_per_job") or stats.get("ai_factory_step_time_ms_per_job") or {}
     if isinstance(per_job, dict) and per_job:
         for value in per_job.values():
             if isinstance(value, dict) and value.get("job_duration_ms") is not None:
                 job_durations_ms.append(float(value["job_duration_ms"]))
-            if isinstance(value, dict) and value.get("step_time_avg_ms") is not None:
-                step_avgs_ms.append(float(value["step_time_avg_ms"]))
-            if isinstance(value, dict) and value.get("step_time_std_ms") is not None:
-                step_stds_ms.append(float(value["step_time_std_ms"]))
-            if isinstance(value, dict) and value.get("step_time_min_ms") is not None:
-                step_mins_ms.append(float(value["step_time_min_ms"]))
-            if isinstance(value, dict) and value.get("step_time_max_ms") is not None:
-                step_maxs_ms.append(float(value["step_time_max_ms"]))
+            avg_key = "collective_time_avg_ms" if value.get("collective_time_avg_ms") is not None else "step_time_avg_ms"
+            std_key = "collective_time_std_ms" if value.get("collective_time_std_ms") is not None else "step_time_std_ms"
+            min_key = "collective_time_min_ms" if value.get("collective_time_min_ms") is not None else "step_time_min_ms"
+            max_key = "collective_time_max_ms" if value.get("collective_time_max_ms") is not None else "step_time_max_ms"
+            if isinstance(value, dict) and value.get(avg_key) is not None:
+                collective_avgs_ms.append(float(value[avg_key]))
+            if isinstance(value, dict) and value.get(std_key) is not None:
+                collective_stds_ms.append(float(value[std_key]))
+            if isinstance(value, dict) and value.get(min_key) is not None:
+                collective_mins_ms.append(float(value[min_key]))
+            if isinstance(value, dict) and value.get(max_key) is not None:
+                collective_maxs_ms.append(float(value[max_key]))
 
     job_stats = _duration_stats_ms(job_durations_ms)
-    step_time_avg_ms = (sum(step_avgs_ms) / len(step_avgs_ms)) if step_avgs_ms else None
-    step_time_std_ms = (sum(step_stds_ms) / len(step_stds_ms)) if step_stds_ms else None
-    step_time_min_ms = min(step_mins_ms) if step_mins_ms else None
-    step_time_max_ms = max(step_maxs_ms) if step_maxs_ms else None
+    collective_time_avg_ms = (sum(collective_avgs_ms) / len(collective_avgs_ms)) if collective_avgs_ms else None
+    collective_time_std_ms = (sum(collective_stds_ms) / len(collective_stds_ms)) if collective_stds_ms else None
+    collective_time_min_ms = min(collective_mins_ms) if collective_mins_ms else None
+    collective_time_max_ms = max(collective_maxs_ms) if collective_maxs_ms else None
 
     total_packets = stats.get("total packets count")
     stall_counts_by_flow_id = _normalize_flow_stall_counts(stats.get("packet_stall_triggered_count_by_flow_id", {}))
@@ -308,14 +313,14 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
     total_useful_bytes_ring_flow = 0
     host_ring_useful_bytes: dict[tuple[int, int, int, int, str, str], int] = {}
     for metric in flow_metrics:
-        step_id_raw = _metric_value(metric, "step_id")
-        if step_id_raw is None:
+        collective_id_raw = _metric_value(metric, "collective_id", _metric_value(metric, "step_id"))
+        if collective_id_raw is None:
             continue
         try:
-            step_id = int(step_id_raw)
+            collective_id = int(collective_id_raw)
         except (TypeError, ValueError):
             continue
-        if step_id < 0:
+        if collective_id < 0:
             # Exclude non-training traffic such as background mice flows.
             continue
         tag = str(_metric_value(metric, "tag", "") or "")
@@ -342,7 +347,7 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
                 op_tag = tag.split("/", 1)[0]
                 ring_host_key = (
                     int(_metric_value(metric, "job_id", 0) or 0),
-                    int(step_id),
+                    int(collective_id),
                     int(_metric_value(metric, "phase_id", 0) or 0),
                     int(bucket_raw) if bucket_raw is not None else -1,
                     op_tag,
@@ -357,7 +362,7 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
         if ring_flow_count > 0
         else 0.0
     )
-    avg_data_per_step_per_ring_bytes = (
+    avg_data_per_collective_per_ring_bytes = (
         float(total_useful_bytes_ring_flow) / float(ring_flow_count)
         if ring_flow_count > 0
         else 0.0
@@ -407,10 +412,14 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
         "bucket_time_std_ms": bucket_stats["std"],
         "bucket_time_min_ms": bucket_stats["min"],
         "bucket_time_max_ms": bucket_stats["max"],
-        "step_time_avg_ms": step_time_avg_ms,
-        "step_time_std_ms": step_time_std_ms,
-        "step_time_min_ms": step_time_min_ms,
-        "step_time_max_ms": step_time_max_ms,
+        "collective_time_avg_ms": collective_time_avg_ms,
+        "collective_time_std_ms": collective_time_std_ms,
+        "collective_time_min_ms": collective_time_min_ms,
+        "collective_time_max_ms": collective_time_max_ms,
+        "step_time_avg_ms": collective_time_avg_ms,
+        "step_time_std_ms": collective_time_std_ms,
+        "step_time_min_ms": collective_time_min_ms,
+        "step_time_max_ms": collective_time_max_ms,
         "job_time_avg_ms": job_stats["avg"],
         "job_time_std_ms": job_stats["std"],
         "job_time_min_ms": job_stats["min"],
@@ -429,7 +438,8 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
         "avg_redundant_packets_per_flow": avg_redundant_packets_per_flow,
         "avg_packets_per_ring_flow": avg_packets_per_ring_flow,
         "avg_data_per_host_per_ring_bytes": avg_data_per_host_per_ring_bytes,
-        "avg_data_per_step_per_ring_bytes": avg_data_per_step_per_ring_bytes,
+        "avg_data_per_collective_per_ring_bytes": avg_data_per_collective_per_ring_bytes,
+        "avg_data_per_step_per_ring_bytes": avg_data_per_collective_per_ring_bytes,
         "avg_packets_in_ring_before_redundancy": avg_packets_in_ring_before_redundancy,
         "avg_packets_in_ring_after_redundancy": avg_packets_in_ring_after_redundancy,
         "packets_in_ring_flow_with_redundancy": packets_in_ring_flow_with_redundancy,
@@ -437,7 +447,8 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
         "dropped_packets_percent": stats.get("dropped packets percentage", 0.0),
         "max_per_flow_drops": stats.get("max per flow drops", 0),
         "sim_time_s": stats.get("total run time (simulator time in seconds)"),
-        "step_traffic_matrices": _build_step_traffic_matrices(flow_metrics),
+        "collective_traffic_matrices": _build_collective_traffic_matrices(flow_metrics),
+        "step_traffic_matrices": _build_collective_traffic_matrices(flow_metrics),
         "deep_flow_chain_log_enabled": bool(spec.run.deep_flow_chain_log),
         "deep_flow_chain_diagnostics": flow_chain_diagnostics if spec.run.deep_flow_chain_log else [],
     }

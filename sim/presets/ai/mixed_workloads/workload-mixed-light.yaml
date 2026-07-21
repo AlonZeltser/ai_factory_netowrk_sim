@@ -1,4 +1,4 @@
-extends: ../bases/workload-mixed-base.yaml
+extends: workload-mixed-base.yaml
 workload:
   params:
     steps: 2

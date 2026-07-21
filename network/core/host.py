@@ -140,6 +140,7 @@ class Host(NetworkNode):
         packet.routing_header.ttl = initial_ttl
         packet.tracking_info.arrival_time = None
         packet.tracking_info.delivered = False
+        packet.tracking_info.is_retransmit = True  # mark as retransmit for priority queueing
         if self.verbose_route and packet.tracking_info.verbose_route is not None:
             packet.tracking_info.verbose_route.append(self.name)
         if self.message_verbose and _logger.isEnabledFor(logging.DEBUG):

@@ -42,10 +42,10 @@ class MixedScenario(Scenario):
     name: str = "ai-factory-su-mixed_scenario"
 
     # General
-    steps: int = 400
-    # Per-job steps (if not provided, fall back to `steps`).
-    tp_heavy_steps: int | None = None
-    pp_dp_steps: int | None = None
+    collectives: int = 400
+    # Per-job collective counts (if not provided, fall back to `collectives`).
+    tp_heavy_collectives: int | None = None
+    pp_dp_collectives: int | None = None
 
     seed: int = 1234
     traffic_scale: float = 1.0
@@ -72,7 +72,7 @@ class MixedScenario(Scenario):
     pp_dp_tail_compute_ms: float = 3.0
 
     # Debug / determinism
-    record_first_step_flow_signatures: bool = True
+    record_first_collective_flow_signatures: bool = True
 
     # Optional background mice traffic
     mice: MiceConfig | None = None
@@ -133,11 +133,11 @@ class MixedScenario(Scenario):
             seed=int(self.seed),
         )
 
-        tp_steps = int(self.tp_heavy_steps) if self.tp_heavy_steps is not None else int(self.steps)
-        pp_steps = int(self.pp_dp_steps) if self.pp_dp_steps is not None else int(self.steps)
+        tp_collectives = int(self.tp_heavy_collectives) if self.tp_heavy_collectives is not None else int(self.collectives)
+        pp_collectives = int(self.pp_dp_collectives) if self.pp_dp_collectives is not None else int(self.collectives)
 
         tp_heavy_cfg = MixedScenarioTpHeavyConfig(
-            steps=tp_steps,
+            collectives=tp_collectives,
             seed=int(self.seed) ^ 0xA5A5,
             traffic_scale=float(self.traffic_scale),
             fwd_compute_ms=float(self.tp_heavy_fwd_compute_ms),
@@ -153,7 +153,7 @@ class MixedScenario(Scenario):
         )
 
         pp_dp_cfg = MixedScenarioPpDpConfig(
-            steps=pp_steps,
+            collectives=pp_collectives,
             seed=int(self.seed) ^ 0x5A5A,
             traffic_scale=float(self.traffic_scale),
             microbatch_count=int(self.pp_dp_microbatch_count),
@@ -188,11 +188,12 @@ class MixedScenario(Scenario):
         metrics_tp = runner_tp.run()
         metrics_pp = runner_pp.run()
 
-        # Optional determinism hook: record flow signatures for first step (before running) so repeated runs match.
+        # Optional determinism hook: record flow signatures for first collective (before running) so repeated runs match.
         # We hash the flow tuples for a stable fingerprint without dumping huge structures.
-        if self.record_first_step_flow_signatures:
-            sig_tp = _job_first_step_signature(tp_heavy)
-            sig_pp = _job_first_step_signature(pp_dp)
+        if self.record_first_collective_flow_signatures:
+            sig_tp = _job_first_collective_signature(tp_heavy)
+            sig_pp = _job_first_collective_signature(pp_dp)
+            network.entities["mixed_scenario_first_collective_signature"] = {"tp_heavy": sig_tp, "pp_dp": sig_pp}
             network.entities["mixed_scenario_first_step_signature"] = {"tp_heavy": sig_tp, "pp_dp": sig_pp}
 
         network.entities["ai_factory_job_metrics"] = {"tp_heavy": metrics_tp, "pp_dp": metrics_pp}
@@ -201,9 +202,12 @@ class MixedScenario(Scenario):
         out = super().parameters_summary()
         out.update(
             {
-                "steps": self.steps,
-                "tp_heavy_steps": (self.tp_heavy_steps if self.tp_heavy_steps is not None else self.steps),
-                "pp_dp_steps": (self.pp_dp_steps if self.pp_dp_steps is not None else self.steps),
+                "collectives": self.collectives,
+                "steps": self.collectives,
+                "tp_heavy_collectives": (self.tp_heavy_collectives if self.tp_heavy_collectives is not None else self.collectives),
+                "tp_heavy_steps": (self.tp_heavy_collectives if self.tp_heavy_collectives is not None else self.collectives),
+                "pp_dp_collectives": (self.pp_dp_collectives if self.pp_dp_collectives is not None else self.collectives),
+                "pp_dp_steps": (self.pp_dp_collectives if self.pp_dp_collectives is not None else self.collectives),
                 "seed": self.seed,
                 "traffic_scale": self.traffic_scale,
                 "chunk_redundancy_extra_packets": self.chunk_redundancy_extra_packets,
@@ -211,6 +215,8 @@ class MixedScenario(Scenario):
                 "stage_placement_mode": self.stage_placement_mode,
                 "tp_heavy_micro_collectives": self.tp_heavy_micro_collectives,
                 "pp_dp_microbatch_count": self.pp_dp_microbatch_count,
+                "record_first_collective_flow_signatures": self.record_first_collective_flow_signatures,
+                "record_first_step_flow_signatures": self.record_first_collective_flow_signatures,
             }
         )
         if self.mice is not None and self.mice.enabled:
@@ -260,16 +266,22 @@ def _assign_stages(
     return stages
 
 
-def _job_first_step_signature(job) -> str:
+def _job_first_collective_signature(job) -> str:
     tuples: list[tuple] = []
-    step0 = job.steps[0]
-    for ph in step0.phases:
+    collective0 = job.collectives[0]
+    for ph in collective0.phases:
         if hasattr(ph, "buckets"):
             for b in ph.buckets:
                 for f in b.flows:
                     tuples.append((f.src_node_id, f.dst_node_id, int(f.size_bytes), float(f.start_time), f.tag, int(f.job_id)))
     tuples.sort()
     return _sha1_tuples(tuples)
+
+
+MixedScenario.steps = property(lambda self: self.collectives)
+MixedScenario.tp_heavy_steps = property(lambda self: self.tp_heavy_collectives)
+MixedScenario.pp_dp_steps = property(lambda self: self.pp_dp_collectives)
+MixedScenario.record_first_step_flow_signatures = property(lambda self: self.record_first_collective_flow_signatures)
 
 
 __all__ = ["MixedScenario"]

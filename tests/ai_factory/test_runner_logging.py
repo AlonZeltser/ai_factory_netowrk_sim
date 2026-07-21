@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from ai_factory.core.entities import Bucket, CommPhase, ComputePhase, Job, JobStep
+from ai_factory.core.entities import Bucket, CommPhase, ComputePhase, Job, JobCollective
 from ai_factory.core.runner import FlowInjector, JobRunner
 from ai_factory.traffic.flow import Flow
 from des.des import DiscreteEventSimulator
@@ -14,14 +14,14 @@ class _NoopInjector(FlowInjector):
         on_complete(flow.flow_id)
 
 
-def test_step_finished_log_includes_step_duration(caplog) -> None:
+def test_collective_finished_log_includes_collective_duration(caplog) -> None:
     sim = DiscreteEventSimulator()
     job = Job(
         job_id=1,
         name="log-test",
-        steps=[
-            JobStep(
-                step_id=0,
+        collectives=[
+            JobCollective(
+                collective_id=0,
                 phases=[ComputePhase(phase_id=0, name="compute", duration_s=0.005)],
             )
         ],
@@ -34,15 +34,15 @@ def test_step_finished_log_includes_step_duration(caplog) -> None:
         runner.run()
         sim.run()
 
-    step_finished_lines = [rec.getMessage() for rec in caplog.records if "Step finished" in rec.getMessage()]
-    assert step_finished_lines
-    assert "step=0" in step_finished_lines[0]
-    assert "duration=" in step_finished_lines[0]
-    assert "ms" in step_finished_lines[0]
-    assert "max_per_flow_drops=0" in step_finished_lines[0]
+    collective_finished_lines = [rec.getMessage() for rec in caplog.records if "Collective finished" in rec.getMessage()]
+    assert collective_finished_lines
+    assert "collective=0" in collective_finished_lines[0]
+    assert "duration=" in collective_finished_lines[0]
+    assert "ms" in collective_finished_lines[0]
+    assert "max_per_flow_drops=0" in collective_finished_lines[0]
 
 
-def test_step_finished_log_includes_max_per_flow_drops_for_step_flows(caplog) -> None:
+def test_collective_finished_log_includes_max_per_flow_drops_for_collective_flows(caplog) -> None:
     sim = DiscreteEventSimulator()
     flow_a = Flow(
         flow_id=101,
@@ -71,9 +71,9 @@ def test_step_finished_log_includes_max_per_flow_drops_for_step_flows(caplog) ->
     job = Job(
         job_id=1,
         name="log-test-drops",
-        steps=[
-            JobStep(
-                step_id=0,
+        collectives=[
+            JobCollective(
+                collective_id=0,
                 phases=[
                     CommPhase(
                         phase_id=1,
@@ -94,9 +94,9 @@ def test_step_finished_log_includes_max_per_flow_drops_for_step_flows(caplog) ->
         runner.run()
         sim.run()
 
-    step_finished_lines = [rec.getMessage() for rec in caplog.records if "Step finished" in rec.getMessage()]
-    assert step_finished_lines
-    assert "max_per_flow_drops=7" in step_finished_lines[0]
+    collective_finished_lines = [rec.getMessage() for rec in caplog.records if "Collective finished" in rec.getMessage()]
+    assert collective_finished_lines
+    assert "max_per_flow_drops=7" in collective_finished_lines[0]
 
 
 def test_results_summary_logs_packet_time_statistics(caplog) -> None:

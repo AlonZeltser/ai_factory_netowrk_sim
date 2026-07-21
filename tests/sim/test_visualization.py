@@ -7,7 +7,7 @@ import yaml
 from ai_factory.core.entities import BucketMetrics, FlowMetrics
 from visualization.experiment_visualizer import (
     visualize_ai_factory_comm_distributions,
-    visualize_summary_step_traffic_matrices,
+    visualize_summary_collective_traffic_matrices,
     visualize_sweep_time_comparison,
     visualize_sweep_time_comparison_from_yaml,
 )
@@ -94,20 +94,25 @@ def test_visualize_sweep_time_comparison_saves_aggregate_and_per_redundancy_file
 
     outputs = visualize_sweep_time_comparison(summary, out_dir=str(tmp_path), show=False)
 
-    assert len(outputs) == 14
+    assert len(outputs) == 16
     assert all(Path(output).exists() for output in outputs)
-    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name for output in outputs) == 4
+    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name for output in outputs) == 5
     assert sum("_redundancy_0pkt_" in Path(output).name for output in outputs) == 4
     assert sum("_redundancy_2pkt_" in Path(output).name for output in outputs) == 4
+    assert any("best_collective_time_vs_" in Path(output).name for output in outputs)
+    assert any("best_redundancy_vs_" in Path(output).name for output in outputs)
     csv_outputs = [output for output in outputs if output.endswith(".csv")]
     assert len(csv_outputs) == 2
-    step_csv = [output for output in csv_outputs if "step_time_vs_" in Path(output).name]
+    step_csv = [output for output in csv_outputs if "collective_time_vs_" in Path(output).name]
     dist_csv = [output for output in csv_outputs if "stalls_distribution_vs_" in Path(output).name]
     assert len(step_csv) == 1
     assert len(dist_csv) == 1
     with open(step_csv[0], "r", encoding="utf-8", newline="") as fh:
         rows = list(csv.DictReader(fh))
     assert len(rows) == 4
+    assert rows[0]["collective_time_avg_ms"]
+    assert rows[0]["collective_time_min_ms"]
+    assert rows[0]["collective_time_max_ms"]
     assert rows[0]["step_time_min_ms"]
     assert rows[0]["step_time_max_ms"]
     assert rows[0]["flow_time_min_ms"]
@@ -125,7 +130,7 @@ def test_visualize_sweep_time_comparison_saves_aggregate_and_per_redundancy_file
     assert rows[0]["avg_redundant_packets_per_flow"]
     assert rows[0]["avg_packets_per_ring_flow"]
     assert rows[0]["avg_data_per_host_per_ring_bytes"]
-    assert rows[0]["avg_data_per_step_per_ring_bytes"]
+    assert rows[0]["avg_data_per_collective_per_ring_bytes"]
     assert rows[0]["avg_packets_in_ring_before_redundancy"]
     assert rows[0]["avg_packets_in_ring_after_redundancy"]
     assert rows[0]["packets_in_ring_flow_with_redundancy"]
@@ -137,7 +142,7 @@ def test_visualize_sweep_time_comparison_saves_aggregate_and_per_redundancy_file
     assert dist_rows[0]["flow_fraction_percent"]
 
 
-def test_visualize_summary_step_traffic_matrices_saves_one_file_per_step(tmp_path: Path) -> None:
+def test_visualize_summary_collective_traffic_matrices_saves_one_file_per_collective(tmp_path: Path) -> None:
     summary = [
         {
             "ok": True,
@@ -145,9 +150,9 @@ def test_visualize_summary_step_traffic_matrices_saves_one_file_per_step(tmp_pat
             "routing_mode": "adaptive",
             "packet_stall_percent": 3.0,
             "chunk_redundancy_extra_packets": 2,
-            "step_traffic_matrices": [
+            "collective_traffic_matrices": [
                 {
-                    "step_id": 0,
+                    "collective_id": 0,
                     "nodes": ["h1", "h2", "h10"],
                     "matrix_bytes": [
                         [0, 1200, 0],
@@ -156,7 +161,7 @@ def test_visualize_summary_step_traffic_matrices_saves_one_file_per_step(tmp_pat
                     ],
                 },
                 {
-                    "step_id": 1,
+                    "collective_id": 1,
                     "nodes": ["h2", "h1"],
                     "matrix_bytes": [
                         [0, 1024],
@@ -167,32 +172,32 @@ def test_visualize_summary_step_traffic_matrices_saves_one_file_per_step(tmp_pat
         }
     ]
 
-    outputs = visualize_summary_step_traffic_matrices(summary, out_dir=str(tmp_path), show=False)
+    outputs = visualize_summary_collective_traffic_matrices(summary, out_dir=str(tmp_path), show=False)
 
     assert len(outputs) == 2
     assert all(Path(output).exists() for output in outputs)
-    assert any("_step_000_" in Path(output).name for output in outputs)
-    assert any("_step_001_" in Path(output).name for output in outputs)
+    assert any("_collective_000_" in Path(output).name for output in outputs)
+    assert any("_collective_001_" in Path(output).name for output in outputs)
 
 
 def test_visualize_sweep_time_comparison_from_yaml_saves_plots_and_step_heatmaps(tmp_path: Path) -> None:
     summary = [
-        {"ok": True, "label": "case-a", "chunk_redundancy_extra_packets": 0, "packet_stall_percent": 0.0, "flow_time_avg_ms": 1.0, "bucket_time_avg_ms": 5.0, "step_time_avg_ms": 20.0, "job_time_avg_ms": 50.0, "max_per_flow_drops": 3, "stalls_per_flow_histogram": {0: 10, 1: 2}, "step_traffic_matrices": [{"step_id": 0, "nodes": ["h1", "h2"], "matrix_bytes": [[0, 100], [50, 0]]}]},
-        {"ok": True, "label": "case-b", "chunk_redundancy_extra_packets": 0, "packet_stall_percent": 3.0, "flow_time_avg_ms": 1.5, "bucket_time_avg_ms": 5.5, "step_time_avg_ms": 22.0, "job_time_avg_ms": 55.0, "max_per_flow_drops": 5, "stalls_per_flow_histogram": {0: 7, 1: 4, 2: 1}},
-        {"ok": True, "label": "case-c", "chunk_redundancy_extra_packets": 2, "packet_stall_percent": 0.0, "flow_time_avg_ms": 0.9, "bucket_time_avg_ms": 4.8, "step_time_avg_ms": 18.5, "job_time_avg_ms": 49.0, "max_per_flow_drops": 2, "stalls_per_flow_histogram": {0: 11, 1: 1}, "step_traffic_matrices": [{"step_id": 1, "nodes": ["h2", "h3"], "matrix_bytes": [[0, 200], [0, 0]]}]},
-        {"ok": True, "label": "case-d", "chunk_redundancy_extra_packets": 2, "packet_stall_percent": 3.0, "flow_time_avg_ms": 1.3, "bucket_time_avg_ms": 5.2, "step_time_avg_ms": 21.0, "job_time_avg_ms": 52.0, "max_per_flow_drops": 4, "stalls_per_flow_histogram": {0: 6, 1: 5, 2: 1}},
+        {"ok": True, "label": "case-a", "chunk_redundancy_extra_packets": 0, "packet_stall_percent": 0.0, "flow_time_avg_ms": 1.0, "bucket_time_avg_ms": 5.0, "collective_time_avg_ms": 20.0, "job_time_avg_ms": 50.0, "max_per_flow_drops": 3, "stalls_per_flow_histogram": {0: 10, 1: 2}, "collective_traffic_matrices": [{"collective_id": 0, "nodes": ["h1", "h2"], "matrix_bytes": [[0, 100], [50, 0]]}]},
+        {"ok": True, "label": "case-b", "chunk_redundancy_extra_packets": 0, "packet_stall_percent": 3.0, "flow_time_avg_ms": 1.5, "bucket_time_avg_ms": 5.5, "collective_time_avg_ms": 22.0, "job_time_avg_ms": 55.0, "max_per_flow_drops": 5, "stalls_per_flow_histogram": {0: 7, 1: 4, 2: 1}},
+        {"ok": True, "label": "case-c", "chunk_redundancy_extra_packets": 2, "packet_stall_percent": 0.0, "flow_time_avg_ms": 0.9, "bucket_time_avg_ms": 4.8, "collective_time_avg_ms": 18.5, "job_time_avg_ms": 49.0, "max_per_flow_drops": 2, "stalls_per_flow_histogram": {0: 11, 1: 1}, "collective_traffic_matrices": [{"collective_id": 1, "nodes": ["h2", "h3"], "matrix_bytes": [[0, 200], [0, 0]]}]},
+        {"ok": True, "label": "case-d", "chunk_redundancy_extra_packets": 2, "packet_stall_percent": 3.0, "flow_time_avg_ms": 1.3, "bucket_time_avg_ms": 5.2, "collective_time_avg_ms": 21.0, "job_time_avg_ms": 52.0, "max_per_flow_drops": 4, "stalls_per_flow_histogram": {0: 6, 1: 5, 2: 1}},
     ]
     summary_path = tmp_path / "sweep_summary.yaml"
     summary_path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
 
     outputs = visualize_sweep_time_comparison_from_yaml(str(summary_path), out_dir=str(tmp_path), show=False)
 
-    assert len(outputs) == 16
+    assert len(outputs) == 18
     assert all(Path(output).exists() for output in outputs)
-    # 4 aggregate comparison plots (no _redundancy_ suffix, not a traffic matrix file)
-    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name and "step_traffic_matrix_" not in Path(output).name for output in outputs) == 4
-    # 2 step traffic matrix heatmaps (one per row that has step_traffic_matrices data)
-    assert sum("step_traffic_matrix_" in Path(output).name for output in outputs) == 2
+    # 5 non-per-redundancy comparison plots (4 metric plots + best-step-time view).
+    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name and "collective_traffic_matrix_" not in Path(output).name for output in outputs) == 5
+    # 2 collective traffic matrix heatmaps (one per row that has collective_traffic_matrices data)
+    assert sum("collective_traffic_matrix_" in Path(output).name for output in outputs) == 2
     # 2 CSVs: step-time points and full stall distribution
     assert sum(Path(output).suffix == ".csv" for output in outputs) == 2
 

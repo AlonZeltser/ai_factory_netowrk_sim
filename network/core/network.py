@@ -26,7 +26,8 @@ class Network(ABC):
                  mtu: int,
                  ttl: int,
                  store_packets: bool = False,
-                 collect_packet_timeline: bool = False):
+                 collect_packet_timeline: bool = False,
+                 packet_stall_retransmit_priority: bool = False):
         """Base class for topology/scenario network_simulators.
 
         Parameters:
@@ -48,6 +49,7 @@ class Network(ABC):
         self.packet_stall_delay_ms = float(packet_stall_delay_ms)
         self.packet_stall_delay_s = self.packet_stall_delay_ms / 1000.0
         self.packet_stall_max_switch_hop = int(packet_stall_max_switch_hop)
+        self.packet_stall_retransmit_priority = bool(packet_stall_retransmit_priority)
         if not 0.0 <= self.packet_stall_percent <= 100.0:
             raise ValueError("packet_stall_percent must be between 0 and 100")
         if self.packet_stall_delay_ms < 0.0:
@@ -65,6 +67,7 @@ class Network(ABC):
         self.simulator.packet_stall_percent = self.packet_stall_percent
         self.simulator.packet_stall_delay_s = self.packet_stall_delay_s
         self.simulator.packet_stall_max_switch_hop = self.packet_stall_max_switch_hop
+        self.simulator.packet_stall_retransmit_priority = self.packet_stall_retransmit_priority
 
 
     def create(self, visualize:bool) -> None:
@@ -230,7 +233,7 @@ class Network(ABC):
 
         # --- AI-factory app metrics (if present) ---
         try:
-            from ai_factory.core.runner import _compute_step_stats  # type: ignore
+            from ai_factory.core.runner import _compute_collective_stats  # type: ignore
 
             job_metrics = self.entities.get("ai_factory_job_metrics")
             if job_metrics is not None:
@@ -244,18 +247,25 @@ class Network(ABC):
                     items = [("job", job_metrics)]
 
                 for name, jm in items:
-                    steps = getattr(jm, "steps", None)
+                    collectives = getattr(jm, "collectives", getattr(jm, "steps", None))
                     start_time = getattr(jm, "start_time", None)
                     end_time = getattr(jm, "end_time", None)
-                    if not steps:
+                    if not collectives:
                         if start_time is None or end_time is None:
                             continue
                         per_job[name] = {
                             "job_duration_ms": (float(end_time) - float(start_time)) * 1000.0,
                         }
                         continue
-                    stats = _compute_step_stats(list(steps))
+                    stats = _compute_collective_stats(list(collectives))
                     per_job[name] = {
+                        "collective_time_avg_ms": float(stats["avg"]) * 1000.0,
+                        "collective_time_p95_ms": float(stats["p95"]) * 1000.0,
+                        "collective_time_p99_ms": float(stats["p99"]) * 1000.0,
+                        "collective_time_std_ms": float(stats.get("std", 0.0)) * 1000.0,
+                        "collective_time_min_ms": float(stats.get("min", 0.0)) * 1000.0,
+                        "collective_time_max_ms": float(stats.get("max", 0.0)) * 1000.0,
+                        "collective_count": int(stats.get("count", 0)),
                         "step_time_avg_ms": float(stats["avg"]) * 1000.0,
                         "step_time_p95_ms": float(stats["p95"]) * 1000.0,
                         "step_time_p99_ms": float(stats["p99"]) * 1000.0,
@@ -268,6 +278,7 @@ class Network(ABC):
                         per_job[name]["job_duration_ms"] = (float(end_time) - float(start_time)) * 1000.0
 
                 if per_job:
+                    run_statistics["ai_factory_collective_time_ms_per_job"] = per_job
                     run_statistics["ai_factory_step_time_ms_per_job"] = per_job
         except Exception:
             # Never break results collection because of optional AI-factory metrics.
@@ -320,6 +331,7 @@ class Network(ABC):
             'packet_stall_percent': self.packet_stall_percent,
             'packet_stall_delay_ms': self.packet_stall_delay_ms,
             'packet_stall_max_switch_hop': self.packet_stall_max_switch_hop,
+            'packet_stall_retransmit_priority': self.packet_stall_retransmit_priority,
             'routing_mode': self.routing_mode.name.lower(),
             'ecmp_flowlet_n_packets': self.ecmp_flowlet_n_packets,
             'max_path': self.max_path,

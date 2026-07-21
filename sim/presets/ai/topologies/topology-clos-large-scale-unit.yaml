@@ -27,6 +27,9 @@ topology:
       packet_stall_delay_ms: 8.5
       # Maximum zero-based switch hop index eligible for the stall. Default 2 covers leaf->spine->leaf paths.
       packet_stall_max_switch_hop: 2
+      # When true, packets reinjected from the source host after a stall bypass regular packets in egress queues
+      # (two-level priority FIFO: retransmit packets first, regular packets second). Allowed values: true | false.
+      packet_stall_retransmit_priority: false
       # Optional string enum: set `bandwidth_profile` to `4g` or `400g` to override both bandwidth values below together.
       # bandwidth_profile: 400g
       # Bandwidth in bits/sec for each server-to-leaf link, unless overridden by bandwidth_profile. Range: float > 0.

@@ -18,20 +18,10 @@ class PresetRegistryItem:
 
 
 _REGISTRY: dict[str, PresetRegistryItem] = {
-    "ai/dp-low-small": PresetRegistryItem(
-        name="ai/dp-low-small",
-        description="AI scale-unit (SU) DP-heavy smaller topology, low-load preset on the unified clos family",
-        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_low_small.yaml",
-    ),
-    "ai/dp-tiny": PresetRegistryItem(
-        name="ai/dp-tiny",
-        description="AI scale-unit (SU) DP-heavy smaller topology, smallest preset on the unified clos family",
-        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_tiny.yaml",
-    ),
-    "ai/dp-single-ring": PresetRegistryItem(
-        name="ai/dp-single-ring",
+     "ai/dp-single-bucket": PresetRegistryItem(
+        name="ai/dp-single-bucket",
         description="AI scale-unit (SU) DP-heavy small-scale preset with reduce-scatter only (single ring)",
-        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_single_ring.yaml",
+        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_single_bucket.yaml",
     ),
     "ai/mixed-light": PresetRegistryItem(
         name="ai/mixed-light",
@@ -40,14 +30,6 @@ _REGISTRY: dict[str, PresetRegistryItem] = {
     ),
 }
 
-_ALIASES: dict[str, str] = {
-    "ai/su-dp-low-small": "ai/dp-low-small",
-    "ai/su-dp-tiny": "ai/dp-tiny",
-    "ai/su-dp-single-ring": "ai/dp-single-ring",
-    "ai/su-mixed-light": "ai/mixed-light",
-}
-
-
 def iter_preset_items() -> Iterable[PresetRegistryItem]:
     return (_REGISTRY[name] for name in sorted(_REGISTRY))
 
@@ -55,10 +37,8 @@ def iter_preset_items() -> Iterable[PresetRegistryItem]:
 
 def get_preset_item(name: str) -> PresetRegistryItem:
     key = str(name).strip().lower()
-    key = _ALIASES.get(key, key)
     item = _REGISTRY.get(key)
     if item is None:
-        valid = ", ".join(sorted(set(_REGISTRY) | set(_ALIASES)))
-        raise ConfigError(f"Unknown preset '{name}'. Valid: {valid}")
+        raise ConfigError(f"Unknown preset '{name}'. Valid presets are: {', '.join(sorted(_REGISTRY))}")
     return item
 

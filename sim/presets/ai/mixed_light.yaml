@@ -1,6 +1,6 @@
 extends:
-  - bases/presets-experiments-base.yaml
-  - bases/topology-clos-large-scale-unit.yaml
+  - experiments/presets-experiments-base.yaml
+  - topologies/topology-clos-small-scale-unit.yaml
   - mixed_workloads/workload-mixed-light.yaml
 meta:
   name: ai-su-mixed-light

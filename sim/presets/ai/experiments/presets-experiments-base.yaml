@@ -1,4 +1,3 @@
-extends: topology-clos-small-scale-unit.yaml
 # Unified experiment config kind. Allowed values: `experiment` only.
 kind: experiment
 meta:
@@ -12,9 +11,19 @@ run:
   # Whether to track and log verbose per-packet routes. Allowed values: true | false.
   verbose_route: false
   # Whether to launch visualization after the run completes. Allowed values: true | false.
-  visualize: true
+  visualize: false
   # Whether to open matplotlib windows interactively in addition to saving files. Allowed values: true | false.
   show_visualization_window: false
+  # Whether to store individual packet objects in memory during the run. Allowed values: true | false.
+  store_packets: false
+  # Whether to collect a per-packet timeline for post-run analysis (implies store_packets). Allowed values: true | false.
+  collect_packet_timeline: false
+  # Enable per-step deep flow chain textual logs for sweep analysis. Allowed values: true | false.
+  deep_flow_chain_log: false
+  # Directory for per-run log files (relative to repo root or absolute).
+  log_dir: results/logs
+  # Directory for experiment result artefacts (relative to repo root or absolute).
+  results_dir: results
 routing:
   # Routing strategy. Allowed values: `ecmp` | `adaptive` | `flowlet`.
   mode: adaptive

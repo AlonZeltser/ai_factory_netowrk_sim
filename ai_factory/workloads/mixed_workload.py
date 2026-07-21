@@ -2,15 +2,15 @@
 
 from dataclasses import dataclass
 
-from ai_factory.core.entities import Bucket, CommPhase, ComputePhase, Job, JobStep
+from ai_factory.core.entities import Bucket, CommPhase, ComputePhase, Job, JobCollective
 from ai_factory.core.ids import IdGenerator
 from ai_factory.traffic.flow import Flow, apply_chunk_redundancy
 from ai_factory.traffic.collective import CollectiveAlgorithm, CollectiveKind, expand_collective
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class MixedScenarioTpHeavyConfig:
-    steps: int
+    collectives: int
     seed: int
     traffic_scale: float
 
@@ -27,10 +27,45 @@ class MixedScenarioTpHeavyConfig:
     mtu: int = 4096
     chunk_redundancy_extra_packets: int = 0
 
+    def __init__(
+        self,
+        *,
+        collectives: int | None = None,
+        steps: int | None = None,
+        seed: int,
+        traffic_scale: float,
+        fwd_compute_ms: float,
+        micro_collectives: int,
+        micro_collective_bytes_per_participant: int,
+        micro_compute_gap_ms: float,
+        final_sync_bytes_per_participant: int,
+        tail_compute_ms: float,
+        gap_us: float,
+        algorithm: CollectiveAlgorithm,
+        mtu: int = 4096,
+        chunk_redundancy_extra_packets: int = 0,
+    ) -> None:
+        resolved_collectives = collectives if collectives is not None else steps
+        if resolved_collectives is None:
+            raise TypeError("Provide collectives (preferred) or legacy steps")
+        object.__setattr__(self, "collectives", int(resolved_collectives))
+        object.__setattr__(self, "seed", int(seed))
+        object.__setattr__(self, "traffic_scale", float(traffic_scale))
+        object.__setattr__(self, "fwd_compute_ms", float(fwd_compute_ms))
+        object.__setattr__(self, "micro_collectives", int(micro_collectives))
+        object.__setattr__(self, "micro_collective_bytes_per_participant", int(micro_collective_bytes_per_participant))
+        object.__setattr__(self, "micro_compute_gap_ms", float(micro_compute_gap_ms))
+        object.__setattr__(self, "final_sync_bytes_per_participant", int(final_sync_bytes_per_participant))
+        object.__setattr__(self, "tail_compute_ms", float(tail_compute_ms))
+        object.__setattr__(self, "gap_us", float(gap_us))
+        object.__setattr__(self, "algorithm", algorithm)
+        object.__setattr__(self, "mtu", int(mtu))
+        object.__setattr__(self, "chunk_redundancy_extra_packets", int(chunk_redundancy_extra_packets))
 
-@dataclass(frozen=True)
+
+@dataclass(frozen=True, init=False)
 class MixedScenarioPpDpConfig:
-    steps: int
+    collectives: int
     seed: int
     traffic_scale: float
 
@@ -44,6 +79,37 @@ class MixedScenarioPpDpConfig:
     mtu: int = 4096
     chunk_redundancy_extra_packets: int = 0
 
+    def __init__(
+        self,
+        *,
+        collectives: int | None = None,
+        steps: int | None = None,
+        seed: int,
+        traffic_scale: float,
+        microbatch_count: int,
+        microbatch_gap_us: float,
+        activation_bytes_per_microbatch: int,
+        grad_bytes_per_microbatch: int,
+        dp_sync_bytes_per_participant: int,
+        tail_compute_ms: float,
+        mtu: int = 4096,
+        chunk_redundancy_extra_packets: int = 0,
+    ) -> None:
+        resolved_collectives = collectives if collectives is not None else steps
+        if resolved_collectives is None:
+            raise TypeError("Provide collectives (preferred) or legacy steps")
+        object.__setattr__(self, "collectives", int(resolved_collectives))
+        object.__setattr__(self, "seed", int(seed))
+        object.__setattr__(self, "traffic_scale", float(traffic_scale))
+        object.__setattr__(self, "microbatch_count", int(microbatch_count))
+        object.__setattr__(self, "microbatch_gap_us", float(microbatch_gap_us))
+        object.__setattr__(self, "activation_bytes_per_microbatch", int(activation_bytes_per_microbatch))
+        object.__setattr__(self, "grad_bytes_per_microbatch", int(grad_bytes_per_microbatch))
+        object.__setattr__(self, "dp_sync_bytes_per_participant", int(dp_sync_bytes_per_participant))
+        object.__setattr__(self, "tail_compute_ms", float(tail_compute_ms))
+        object.__setattr__(self, "mtu", int(mtu))
+        object.__setattr__(self, "chunk_redundancy_extra_packets", int(chunk_redundancy_extra_packets))
+
 
 def build_mixed_scenario_tp_heavy(
     *,
@@ -54,10 +120,10 @@ def build_mixed_scenario_tp_heavy(
     ids = IdGenerator(seed=config.seed)
     job_id = ids.next_int()
 
-    steps: list[JobStep] = []
-    for step_idx in range(int(config.steps)):
+    collectives: list[JobCollective] = []
+    for collective_idx in range(int(config.collectives)):
         phases = []
-        step_ring_seed = ids.child(f"step{step_idx}/ring_order").seed
+        collective_ring_seed = ids.child(f"collective{collective_idx}/ring_order").seed
 
         phases.append(
             ComputePhase(
@@ -77,12 +143,12 @@ def build_mixed_scenario_tp_heavy(
                 bytes_per_participant=bytes_pp,
                 start_time=0.0,
                 gap_us=float(config.gap_us),
-                ids=ids.child(f"tp_heavy/step{step_idx}/micro{m}/tp"),
+                ids=ids.child(f"tp_heavy/collective{collective_idx}/micro{m}/tp"),
                 job_id=job_id,
-                step_id=step_idx,
+                collective_id=collective_idx,
                 phase_id=1 + (m * 2),
                 bucket_id=0,
-                ring_seed=step_ring_seed,
+                ring_seed=collective_ring_seed,
             )
             phases.append(
                 CommPhase(
@@ -117,12 +183,12 @@ def build_mixed_scenario_tp_heavy(
             bytes_per_participant=bytes_pp,
             start_time=0.0,
             gap_us=float(config.gap_us),
-            ids=ids.child(f"tp_heavy/step{step_idx}/final/rs"),
+            ids=ids.child(f"tp_heavy/collective{collective_idx}/final/rs"),
             job_id=job_id,
-            step_id=step_idx,
+            collective_id=collective_idx,
             phase_id=9991,
             bucket_id=0,
-            ring_seed=step_ring_seed,
+            ring_seed=collective_ring_seed,
         )
         ag = expand_collective(
             kind=CollectiveKind.ALL_GATHER,
@@ -131,12 +197,12 @@ def build_mixed_scenario_tp_heavy(
             bytes_per_participant=bytes_pp,
             start_time=0.0,
             gap_us=float(config.gap_us),
-            ids=ids.child(f"tp_heavy/step{step_idx}/final/ag"),
+            ids=ids.child(f"tp_heavy/collective{collective_idx}/final/ag"),
             job_id=job_id,
-            step_id=step_idx,
+            collective_id=collective_idx,
             phase_id=9992,
             bucket_id=0,
-            ring_seed=step_ring_seed,
+            ring_seed=collective_ring_seed,
         )
         phases.append(
             CommPhase(
@@ -163,9 +229,9 @@ def build_mixed_scenario_tp_heavy(
             )
         )
 
-        steps.append(JobStep(step_id=step_idx, phases=phases))
+        collectives.append(JobCollective(collective_id=collective_idx, phases=phases))
 
-    return Job(job_id=job_id, name=job_name, steps=steps, participants=participants)
+    return Job(job_id=job_id, name=job_name, collectives=collectives, participants=participants)
 
 
 def build_mixed_scenario_pp_dp(
@@ -189,10 +255,10 @@ def build_mixed_scenario_pp_dp(
     def partner(stage_k: int, idx: int) -> str:
         return stage_nodes[stage_k][idx]
 
-    steps: list[JobStep] = []
-    for step_idx in range(int(config.steps)):
+    collectives: list[JobCollective] = []
+    for collective_idx in range(int(config.collectives)):
         phases = []
-        step_ring_seed = ids.child(f"step{step_idx}/ring_order").seed
+        collective_ring_seed = ids.child(f"collective{collective_idx}/ring_order").seed
 
         # Forward microbatches: 0->1, 1->2, 2->3 sequential per microbatch.
         fwd_bytes = int(int(config.activation_bytes_per_microbatch) * float(config.traffic_scale))
@@ -207,9 +273,9 @@ def build_mixed_scenario_pp_dp(
                         bucket_id=0,
                         flows=apply_chunk_redundancy(
                             _build_pp_microbatches(
-                                ids=ids.child(f"pp_dp/step{step_idx}/fwd"),
+                                ids=ids.child(f"pp_dp/collective{collective_idx}/fwd"),
                                 job_id=job_id,
-                                step_id=step_idx,
+                                collective_id=collective_idx,
                                 phase_id=100,
                                 stage_nodes=stage_nodes,
                                 microbatch_count=int(config.microbatch_count),
@@ -234,9 +300,9 @@ def build_mixed_scenario_pp_dp(
                         bucket_id=0,
                         flows=apply_chunk_redundancy(
                             _build_pp_microbatches(
-                                ids=ids.child(f"pp_dp/step{step_idx}/bwd"),
+                                ids=ids.child(f"pp_dp/collective{collective_idx}/bwd"),
                                 job_id=job_id,
-                                step_id=step_idx,
+                                collective_id=collective_idx,
                                 phase_id=200,
                                 stage_nodes=stage_nodes,
                                 microbatch_count=int(config.microbatch_count),
@@ -261,12 +327,12 @@ def build_mixed_scenario_pp_dp(
             bytes_per_participant=dp_bytes,
             start_time=0.0,
             gap_us=0.0,
-            ids=ids.child(f"pp_dp/step{step_idx}/dp/rs"),
+            ids=ids.child(f"pp_dp/collective{collective_idx}/dp/rs"),
             job_id=job_id,
-            step_id=step_idx,
+            collective_id=collective_idx,
             phase_id=300,
             bucket_id=0,
-            ring_seed=step_ring_seed,
+            ring_seed=collective_ring_seed,
         )
         ag = expand_collective(
             kind=CollectiveKind.ALL_GATHER,
@@ -275,12 +341,12 @@ def build_mixed_scenario_pp_dp(
             bytes_per_participant=dp_bytes,
             start_time=0.0,
             gap_us=0.0,
-            ids=ids.child(f"pp_dp/step{step_idx}/dp/ag"),
+            ids=ids.child(f"pp_dp/collective{collective_idx}/dp/ag"),
             job_id=job_id,
-            step_id=step_idx,
+            collective_id=collective_idx,
             phase_id=301,
             bucket_id=0,
-            ring_seed=step_ring_seed,
+            ring_seed=collective_ring_seed,
         )
         phases.append(
             CommPhase(
@@ -307,16 +373,16 @@ def build_mixed_scenario_pp_dp(
             )
         )
 
-        steps.append(JobStep(step_id=step_idx, phases=phases))
+        collectives.append(JobCollective(collective_id=collective_idx, phases=phases))
 
-    return Job(job_id=job_id, name=job_name, steps=steps, participants=participants)
+    return Job(job_id=job_id, name=job_name, collectives=collectives, participants=participants)
 
 
 def _build_pp_microbatches(
     *,
     ids: IdGenerator,
     job_id: int,
-    step_id: int,
+    collective_id: int,
     phase_id: int,
     stage_nodes: list[list[str]],
     microbatch_count: int,
@@ -351,7 +417,7 @@ def _build_pp_microbatches(
                     Flow(
                         flow_id=flow_id,
                         job_id=job_id,
-                        step_id=step_id,
+                        collective_id=collective_id,
                         phase_id=phase_id,
                         bucket_id=0,
                         tag=f"{tag}/mb{mb}/hop{hop_idx}",
@@ -374,7 +440,7 @@ def _retag(flows: list[Flow], *, job_id: int, tag_prefix: str) -> list[Flow]:
             Flow(
                 flow_id=int(f.flow_id),
                 job_id=int(job_id),
-                step_id=int(f.step_id),
+                collective_id=int(f.collective_id),
                 phase_id=int(f.phase_id),
                 bucket_id=f.bucket_id,
                 tag=f"{tag_prefix}:{f.tag}",

@@ -82,6 +82,7 @@ class AIFactorySUNetworkSimulator(Network):
         packet_stall_percent: float = 0.0,
         packet_stall_delay_ms: float = 50.0,
         packet_stall_max_switch_hop: int = 2,
+        packet_stall_retransmit_priority: bool = False,
         routing_mode: RoutingMode = RoutingMode.ECMP,
         verbose: bool = False,
         verbose_route: bool = False,
@@ -103,6 +104,7 @@ class AIFactorySUNetworkSimulator(Network):
             packet_stall_percent=packet_stall_percent,
             packet_stall_delay_ms=packet_stall_delay_ms,
             packet_stall_max_switch_hop=packet_stall_max_switch_hop,
+            packet_stall_retransmit_priority=packet_stall_retransmit_priority,
             routing_mode=routing_mode,
             verbose=verbose,
             verbose_route=verbose_route,
@@ -141,6 +143,7 @@ class AIFactorySUNetworkSimulator(Network):
             "packet stall percent": packet_stall_percent,
             "packet stall delay ms": packet_stall_delay_ms,
             "packet stall max switch hop": packet_stall_max_switch_hop,
+            "packet stall retransmit priority": packet_stall_retransmit_priority,
             "server_to_leaf_bandwidth_bps": self.server_to_leaf_bandwidth_bps,
             "leaf_to_spine_bandwidth_bps": self.leaf_to_spine_bandwidth_bps,
         }

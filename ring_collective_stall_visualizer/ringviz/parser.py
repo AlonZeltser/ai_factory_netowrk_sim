@@ -181,6 +181,13 @@ def parse_log_text(text: str) -> pd.DataFrame:
     if "sender" in df.columns and "receiver" in df.columns:
         df["edge"] = df["sender"].astype(str) + " → " + df["receiver"].astype(str)
 
+    # Newer deep-flow logs may omit stalled-packet fields; keep downstream visualizations stable.
+    if "stalled_packets" not in df.columns:
+        if "stall_packets_declared" in df.columns:
+            df["stalled_packets"] = pd.to_numeric(df["stall_packets_declared"], errors="coerce").fillna(0)
+        else:
+            df["stalled_packets"] = pd.Series([pd.NA] * len(df), index=df.index, dtype="Int64")
+
     if "stalled_packets" in df.columns:
         df["stall_bucket"] = df["stalled_packets"].apply(_stall_bucket)
 

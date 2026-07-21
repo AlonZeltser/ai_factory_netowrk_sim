@@ -24,12 +24,20 @@ class Port:
     - The Link already tracks full-duplex availability via `next_available_time`.
     - The Port enforces FIFO ordering per port and schedules a drain attempt at the
       earliest time the attached link is available.
+
+    Priority queueing:
+    - When `scheduler.packet_stall_retransmit_priority` is True, packets that have
+      been reinjected from their source host after a stall (`packet.tracking_info.is_retransmit`)
+      are placed in a separate high-priority queue and drained before regular packets.
+    - Among priority (retransmit) packets, FIFO order is preserved.
+    - Among regular packets, FIFO order is preserved.
     """
     def __init__(self, id: int, owner: NetworkNode):
         self.port_id: int = id
         self.owner: NetworkNode = owner
         self.link: Link | None = None
         self.egress_queue: Deque[Packet] = deque()
+        self.priority_queue: Deque[Packet] = deque()  # high-priority retransmit packets
         self.peak_queue_len: int = 0
         self._drain_scheduled: bool = False
         self.is_connected: bool = False
@@ -40,21 +48,31 @@ class Port:
 
 
     def enqueue(self, packet: Packet) -> None:
-        """Queue a packet for transmission and schedule a drain attempt."""
+        """Queue a packet for transmission and schedule a drain attempt.
+
+        If `scheduler.packet_stall_retransmit_priority` is enabled and the packet
+        is a retransmit, it goes into the high-priority queue (drained first).
+        Otherwise it goes into the regular egress queue.
+        """
         if getattr(self.link, "failed", False):
             # Should normally be filtered by routing logic. But be defensive.
             packet.routing_header.dropped = True
             self.owner.scheduler.packet_stats.record_dropped(packet)
             return
 
-        self.egress_queue.append(packet)
-        qlen = len(self.egress_queue)
+        priority_enabled = bool(getattr(self.owner.scheduler, "packet_stall_retransmit_priority", False))
+        if priority_enabled and packet.tracking_info.is_retransmit:
+            self.priority_queue.append(packet)
+        else:
+            self.egress_queue.append(packet)
+
+        qlen = len(self.egress_queue) + len(self.priority_queue)
         if qlen > self.peak_queue_len:
             self.peak_queue_len = qlen
         self._ensure_drain_scheduled()
 
     def queue_size(self) -> int:
-        return len(self.egress_queue)
+        return len(self.egress_queue) + len(self.priority_queue)
 
     def _ensure_drain_scheduled(self) -> None:
         if self._drain_scheduled:
@@ -66,14 +84,16 @@ class Port:
         """Attempt to transmit exactly one packet, then reschedule if needed."""
         self._drain_scheduled = False
 
-        if not self.egress_queue:
+        # Combined emptiness check.
+        if not self.priority_queue and not self.egress_queue:
             return
         if getattr(self.link, "failed", False):
             # Drop everything queued if link fails.
-            while self.egress_queue:
-                pkt = self.egress_queue.popleft()
-                pkt.dropped = True
-                self.owner.scheduler.packet_stats.record_dropped(pkt)
+            for queue in (self.priority_queue, self.egress_queue):
+                while queue:
+                    pkt = queue.popleft()
+                    pkt.dropped = True
+                    self.owner.scheduler.packet_stats.record_dropped(pkt)
             return
 
         now = self.owner.scheduler.get_current_time()
@@ -86,7 +106,12 @@ class Port:
             self.owner.scheduler.schedule_event(next_avail - now, self._drain_once)
             return
 
-        packet = self.egress_queue.popleft()
+        # Drain from priority queue first, then regular queue.
+        if self.priority_queue:
+            packet = self.priority_queue.popleft()
+        else:
+            packet = self.egress_queue.popleft()
+
         if self.owner.message_verbose and _logger.isEnabledFor(logging.DEBUG):
             now = self.owner.scheduler.get_current_time()
             _logger.debug(
@@ -97,7 +122,7 @@ class Port:
 
         # If more messages waiting, schedule another attempt. Link.transmit updates
         # next_available_time, so we can schedule at that point for efficiency.
-        if self.egress_queue:
+        if self.priority_queue or self.egress_queue:
             next_avail_after = self.link.next_available_time[link_index]
             delay = max(0.0, next_avail_after - self.owner.scheduler.get_current_time())
             self._drain_scheduled = True
@@ -113,4 +138,3 @@ class Port:
 
     def get_link(self) -> Link | None:
         return self.link
-

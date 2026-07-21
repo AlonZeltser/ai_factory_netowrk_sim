@@ -31,21 +31,36 @@ def _require_param(params: dict[str, Any], key: str) -> Any:
     return params[key]
 
 
-def _build_mice(params: dict[str, object], *, default_seed: int, mtu_bytes: int) -> MiceConfig | None:
+def _require_param_any(params: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in params:
+            return params[key]
+    aliases = " or ".join(f"'workload.params.{key}'" for key in keys)
+    raise ConfigError(f"Missing required key {aliases}")
+
+
+def _require_mice_param(mice: dict[str, object], key: str) -> Any:
+    if key not in mice:
+        raise ConfigError(f"Missing required key 'workload.params.mice.{key}'")
+    return mice[key]
+
+
+def _build_mice(params: dict[str, object], *, mtu_bytes: int) -> MiceConfig | None:
     mice = params.get("mice")
     if mice is None:
         return None
     if not isinstance(mice, dict):
         raise ConfigError("Expected mapping at 'workload.params.mice'")
     return MiceConfig(
-        enabled=bool(mice.get("enabled", False)),
-        seed=int(mice.get("seed", default_seed ^ 0xC0FFEE)),
-        start_delay_s=float(mice.get("start_delay_s", 0.0)),
-        interarrival_s=float(mice.get("interarrival_s", 0.001)),
-        min_packets=int(mice.get("min_packets", 1)),
-        max_packets=int(mice.get("max_packets", 4)),
+        enabled=bool(_require_mice_param(mice, "enabled")),
+        seed=int(_require_mice_param(mice, "seed")),
+        start_delay_s=float(_require_mice_param(mice, "start_delay_s")),
+        interarrival_s=float(_require_mice_param(mice, "interarrival_s")),
+        min_packets=int(_require_mice_param(mice, "min_packets")),
+        max_packets=int(_require_mice_param(mice, "max_packets")),
+        # mtu_bytes is derived from topology params; optionally overridable in the mice config
         mtu_bytes=int(mice.get("mtu_bytes", mtu_bytes)),
-        force_cross_rack=bool(mice.get("force_cross_rack", True)),
+        force_cross_rack=bool(_require_mice_param(mice, "force_cross_rack")),
     )
 def _build_none(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
     return NoneScenario()
@@ -55,9 +70,9 @@ def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
     params = dict(workload.params)
     seed = int(_require_param(params, "seed"))
     mtu = int(topology.params.get("mtu", 4096))
-    mice = _build_mice(params, default_seed=seed, mtu_bytes=mtu)
+    mice = _build_mice(params, mtu_bytes=mtu)
     return AIFactorySUDpHeavyScenario(
-        steps=int(_require_param(params, "steps")),
+        collectives=int(_require_param_any(params, "collectives", "steps")),
         seed=seed,
         num_buckets=int(_require_param(params, "num_buckets")),
         bucket_bytes_per_participant=int(_require_param(params, "bucket_bytes_per_participant")),
@@ -66,7 +81,7 @@ def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
         optimizer_ms=float(_require_param(params, "optimizer_ms")),
         mtu=mtu,
         chunk_redundancy_extra_packets=int(_require_param(params, "chunk_redundancy_extra_packets")),
-        single_ring_only=bool(params.get("single_ring_only", False)),
+        single_ring_only=bool(_require_param(params, "single_ring_only")),
         mice=mice,
     )
 
@@ -91,8 +106,8 @@ def _build_mixed(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
     params = dict(workload.params)
     seed = int(_require_param(params, "seed"))
     mtu = int(topology.params.get("mtu", 4096))
-    mice = _build_mice(params, default_seed=seed, mtu_bytes=mtu)
-    jobs = params.get("jobs", {})
+    mice = _build_mice(params, mtu_bytes=mtu)
+    jobs = _require_param(params, "jobs")
     if jobs is None:
         jobs = {}
     if not isinstance(jobs, dict):
@@ -102,9 +117,9 @@ def _build_mixed(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
     if not isinstance(tp_cfg, dict) or not isinstance(pp_cfg, dict):
         raise ConfigError("Expected mappings at 'workload.params.jobs.tp_heavy' and 'workload.params.jobs.pp_dp'")
     return MixedScenario(
-        steps=int(_require_param(params, "steps")),
-        tp_heavy_steps=(int(tp_cfg["steps"]) if "steps" in tp_cfg else None),
-        pp_dp_steps=(int(pp_cfg["steps"]) if "steps" in pp_cfg else None),
+        collectives=int(_require_param_any(params, "collectives", "steps")),
+        tp_heavy_collectives=(int(tp_cfg["collectives"]) if "collectives" in tp_cfg else (int(tp_cfg["steps"]) if "steps" in tp_cfg else None)),
+        pp_dp_collectives=(int(pp_cfg["collectives"]) if "collectives" in pp_cfg else (int(pp_cfg["steps"]) if "steps" in pp_cfg else None)),
         seed=seed,
         traffic_scale=float(_require_param(params, "traffic_scale")),
         chunk_redundancy_extra_packets=int(_require_param(params, "chunk_redundancy_extra_packets")),
@@ -123,7 +138,7 @@ def _build_mixed(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
         pp_dp_grad_bytes_per_microbatch=int(_require_param(params, "pp_dp_grad_bytes_per_microbatch")),
         pp_dp_dp_sync_bytes_per_participant=int(_require_param(params, "pp_dp_dp_sync_bytes_per_participant")),
         pp_dp_tail_compute_ms=float(_require_param(params, "pp_dp_tail_compute_ms")),
-        record_first_step_flow_signatures=bool(_require_param(params, "record_first_step_flow_signatures")),
+        record_first_collective_flow_signatures=bool(_require_param_any(params, "record_first_collective_flow_signatures", "record_first_step_flow_signatures")),
         mice=mice,
     )
 _REGISTRY: dict[str, WorkloadRegistryItem] = {

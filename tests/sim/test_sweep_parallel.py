@@ -150,7 +150,7 @@ def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch) -> None:
     calls: dict[str, object] = {"comparison": 0, "heatmaps": 0}
 
     def _fake_run_sweep(**kwargs):
-        return [{"label": "ok", "ok": True, "step_traffic_matrices": []}]
+        return [{"label": "ok", "ok": True, "collective_traffic_matrices": []}]
 
     def _fake_compare(summary, *, out_dir, show):
         calls["comparison"] = int(calls["comparison"]) + 1
@@ -162,7 +162,7 @@ def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch) -> None:
 
     monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
     monkeypatch.setattr(sim_app, "visualize_sweep_time_comparison", _fake_compare)
-    monkeypatch.setattr(sim_app, "visualize_summary_step_traffic_matrices", _fake_heatmaps)
+    monkeypatch.setattr(sim_app, "visualize_summary_collective_traffic_matrices", _fake_heatmaps)
 
     exit_code = sim_app.main(
         [
@@ -236,7 +236,13 @@ def test_sweep_cli_writes_deep_flow_chain_logs(monkeypatch, tmp_path: Path) -> N
     generated = list(deep_root.rglob("*.txt"))
     assert generated
     content = generated[0].read_text(encoding="utf-8")
-    assert "header: net packets in flow, gross packets in flow, stall packets" in content
+    assert "header: net packets in flow, gross packets in flow" in content
+    assert "stall packets=" not in content
+    assert "# of packets stalled=1" in content
     assert "sending host=h1" in content
+    assert "sim start time=0.000000" in content
+    assert "sim end time=0.500000" in content
+    assert "N start time=0.200000" in content
+    assert "N end time=0.500000" in content
 
 

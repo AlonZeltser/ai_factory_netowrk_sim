@@ -31,14 +31,14 @@ def _mk_network(*, routing_mode: RoutingMode) -> AIFactorySUNetworkSimulator:
 def test_mixed_scenario_completes_and_metrics_lengths() -> None:
     network = _mk_network(routing_mode=RoutingMode.ECMP)
     scenario = MixedScenario(
-        steps=5,
+        collectives=5,
         seed=123,
         traffic_scale=0.01,
         allocation_mode="rack_balanced",
         stage_placement_mode="topology_aware",
         tp_heavy_micro_collectives=2,
         pp_dp_microbatch_count=1,
-        record_first_step_flow_signatures=True,
+        record_first_collective_flow_signatures=True,
     )
 
     network.create(False)
@@ -56,8 +56,8 @@ def test_mixed_scenario_completes_and_metrics_lengths() -> None:
     tp_heavy = metrics["tp_heavy"]
     pp_dp = metrics["pp_dp"]
 
-    assert len(tp_heavy.steps) == 5
-    assert len(pp_dp.steps) == 5
+    assert len(tp_heavy.collectives) == 5
+    assert len(pp_dp.collectives) == 5
 
 
 def test_mixed_scenario_deterministic_first_step_signature() -> None:
@@ -65,14 +65,14 @@ def test_mixed_scenario_deterministic_first_step_signature() -> None:
     network2 = _mk_network(routing_mode=RoutingMode.ECMP)
 
     scenario = MixedScenario(
-        steps=2,
+        collectives=2,
         seed=999,
         traffic_scale=0.01,
         allocation_mode="rack_balanced",
         stage_placement_mode="topology_unaware",
         tp_heavy_micro_collectives=2,
         pp_dp_microbatch_count=1,
-        record_first_step_flow_signatures=True,
+        record_first_collective_flow_signatures=True,
     )
 
     network1.create(False)
@@ -83,8 +83,8 @@ def test_mixed_scenario_deterministic_first_step_signature() -> None:
     network2.assign_scenario(scenario)
     network2.run()
 
-    sig1 = network1.entities.get("mixed_scenario_first_step_signature")
-    sig2 = network2.entities.get("mixed_scenario_first_step_signature")
+    sig1 = network1.entities.get("mixed_scenario_first_collective_signature")
+    sig2 = network2.entities.get("mixed_scenario_first_collective_signature")
 
     assert sig1 == sig2
 

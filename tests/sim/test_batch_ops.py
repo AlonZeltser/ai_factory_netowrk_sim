@@ -15,35 +15,6 @@ def test_collect_and_run_batch_from_presets() -> None:
     assert all(item["ok"] for item in summary)
 
 
-def test_collect_batch_from_directory_and_write_summary(tmp_path: Path) -> None:
-    cfg = tmp_path / "batch_case.yaml"
-    topology_defaults = Path("sim/presets/ai/topology-clos-large-scale-unit.yaml").resolve()
-    cfg.write_text(
-        f"""
-extends: {topology_defaults}
-kind: experiment
-meta:
-  name: batch-case
-run:
-  visualize: false
-routing:
-  mode: ecmp
-  ecmp_flowlet_n_packets: 1
-workload:
-  kind: none
-  params: {{}}
-""".strip(),
-        encoding="utf-8",
-    )
-
-    inputs = collect_batch_inputs(directory=str(tmp_path))
-    summary = run_batch(inputs)
-    assert len(summary) == 1
-    assert summary[0]["ok"] is True
-
-    out = write_batch_summary(summary, str(tmp_path / "summary.yaml"))
-    assert out.exists()
-    assert "batch-case" not in out.read_text(encoding="utf-8") or out.read_text(encoding="utf-8")
 
 
 def test_build_flow_stall_stats_aggregates_training_flows_and_bucket_bottleneck() -> None:

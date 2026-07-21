@@ -22,6 +22,13 @@ def _fmt_float(value: Any) -> str:
         return ""
 
 
+def _step_relative_float(value: Any, *, origin: float) -> str:
+    try:
+        return f"{float(value) - float(origin):.6f}"
+    except (TypeError, ValueError):
+        return ""
+
+
 def _build_chains_for_group(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     by_step_sender: dict[int, dict[str, dict[str, Any]]] = {}
     max_ring_step = -1
@@ -59,11 +66,16 @@ def _build_chains_for_group(records: list[dict[str, Any]]) -> dict[str, list[dic
 
 def _write_step_file(path: Path, records: list[dict[str, Any]]) -> None:
     lines: list[str] = []
-    lines.append("header: net packets in flow, gross packets in flow, stall packets")
+    lines.append("header: net packets in flow, gross packets in flow")
     lines.append(
-        "columns: sending host, receiving host, sim start time, sim end time, sim duration, # of packets stalled, max place in egress, average place in egress, latest arriving valuable packet to receiver (N): start time, end time, list of egress values, sum of egress"
+        "columns: sending host, receiving host, sim start time (step-relative), sim end time (step-relative), sim duration, # of packets stalled, max place in egress, average place in egress, latest arriving valuable packet to receiver (N): start time, end time, list of egress values, sum of egress"
     )
     lines.append("")
+
+    step_origin_time = min(
+        (float(record.get("sim_start_time")) for record in records if record.get("sim_start_time") is not None),
+        default=0.0,
+    )
 
     grouped: dict[tuple[Any, Any, Any, Any, Any], list[dict[str, Any]]] = {}
     for record in records:
@@ -95,17 +107,16 @@ def _write_step_file(path: Path, records: list[dict[str, Any]]) -> None:
                         [
                             f"net packets in flow={record.get('net_packets_in_flow', 0)}",
                             f"gross packets in flow={record.get('gross_packets_in_flow', 0)}",
-                            f"stall packets={int(record.get('packets_stalled', 0) or 0)}",
                             f"sending host={record.get('src_node_id', '')}",
                             f"receiving host={record.get('dst_node_id', '')}",
-                            f"sim start time={_fmt_float(record.get('sim_start_time'))}",
-                            f"sim end time={_fmt_float(record.get('sim_end_time'))}",
+                            f"sim start time={_step_relative_float(record.get('sim_start_time'), origin=step_origin_time)}",
+                            f"sim end time={_step_relative_float(record.get('sim_end_time'), origin=step_origin_time)}",
                             f"sim duration={_fmt_float(record.get('sim_duration'))}",
                             f"# of packets stalled={int(record.get('packets_stalled', 0) or 0)}",
                             f"max place in egress={int(record.get('max_place_in_egress', 0) or 0)}",
                             f"average place in egress={_fmt_float(record.get('avg_place_in_egress'))}",
-                            f"N start time={_fmt_float(record.get('latest_valuable_packet_start_time'))}",
-                            f"N end time={_fmt_float(record.get('latest_valuable_packet_end_time'))}",
+                            f"N start time={_step_relative_float(record.get('latest_valuable_packet_start_time'), origin=step_origin_time)}",
+                            f"N end time={_step_relative_float(record.get('latest_valuable_packet_end_time'), origin=step_origin_time)}",
                             f"N egress values={latest_egress_values}",
                             f"N egress sum={int(record.get('latest_valuable_packet_egress_sum', 0) or 0)}",
                         ]

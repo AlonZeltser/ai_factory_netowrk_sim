@@ -74,6 +74,7 @@ class PacketTrackingInfo:
     packet_stall_target_switch_hop: Optional[int] = None
     packet_stall_triggered: bool = False
     egress_queue_positions: list[int] = field(default_factory=list)
+    is_retransmit: bool = False  # True when packet has been reinjected from source host after a stall
 
 
 @dataclass(slots=True)

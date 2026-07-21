@@ -14,6 +14,12 @@ def _require_mapping(value: Any, path: str) -> dict[str, Any]:
     return dict(value)
 
 
+def _require_key(data: dict[str, Any], key: str, section: str) -> Any:
+    if key not in data:
+        raise ConfigError(f"Missing required key '{section}.{key}'")
+    return data[key]
+
+
 @dataclass(frozen=True)
 class MetaSpec:
     name: str = ""
@@ -55,26 +61,29 @@ class RunSpec:
     @staticmethod
     def from_mapping(value: Any) -> "RunSpec":
         if value is None:
-            return RunSpec()
+            raise ConfigError("Missing required section 'run'")
         data = _require_mapping(value, "run")
         seed = data.get("seed")
-        store_packets = bool(data.get("store_packets", False))
-        collect_packet_timeline = bool(data.get("collect_packet_timeline", False))
+        store_packets = bool(_require_key(data, "store_packets", "run"))
+        collect_packet_timeline = bool(_require_key(data, "collect_packet_timeline", "run"))
         if collect_packet_timeline:
             # Timeline extraction requires packet storage to be enabled.
             store_packets = True
+        # Support legacy alias 'debug' for 'file_debug'
+        if "file_debug" not in data and "debug" not in data:
+            raise ConfigError("Missing required key 'run.file_debug'")
         return RunSpec(
             seed=(int(seed) if seed is not None else None),
-            file_debug=bool(data.get("file_debug", data.get("debug", False))),
-            message_verbose=bool(data.get("message_verbose", False)),
-            verbose_route=bool(data.get("verbose_route", False)),
-            visualize=bool(data.get("visualize", False)),
-            show_visualization_window=bool(data.get("show_visualization_window", False)),
+            file_debug=bool(data.get("file_debug", data.get("debug"))),
+            message_verbose=bool(_require_key(data, "message_verbose", "run")),
+            verbose_route=bool(_require_key(data, "verbose_route", "run")),
+            visualize=bool(_require_key(data, "visualize", "run")),
+            show_visualization_window=bool(_require_key(data, "show_visualization_window", "run")),
             store_packets=store_packets,
             collect_packet_timeline=collect_packet_timeline,
-            deep_flow_chain_log=bool(data.get("deep_flow_chain_log", False)),
-            log_dir=str(data.get("log_dir", "results/logs")),
-            results_dir=str(data.get("results_dir", "results")),
+            deep_flow_chain_log=bool(_require_key(data, "deep_flow_chain_log", "run")),
+            log_dir=str(_require_key(data, "log_dir", "run")),
+            results_dir=str(_require_key(data, "results_dir", "run")),
         )
 
     def to_mapping(self) -> dict[str, Any]:
@@ -105,11 +114,14 @@ class RoutingSpec:
     @staticmethod
     def from_mapping(value: Any) -> "RoutingSpec":
         if value is None:
-            return RoutingSpec()
+            raise ConfigError("Missing required section 'routing'")
         data = _require_mapping(value, "routing")
+        # Support legacy alias 'flowlet_packets' for 'ecmp_flowlet_n_packets'
+        if "ecmp_flowlet_n_packets" not in data and "flowlet_packets" not in data:
+            raise ConfigError("Missing required key 'routing.ecmp_flowlet_n_packets'")
         return RoutingSpec(
-            mode=str(data.get("mode", "ecmp")),
-            ecmp_flowlet_n_packets=int(data.get("ecmp_flowlet_n_packets", data.get("flowlet_packets", 0))),
+            mode=str(_require_key(data, "mode", "routing")),
+            ecmp_flowlet_n_packets=int(data.get("ecmp_flowlet_n_packets", data.get("flowlet_packets"))),
         )
 
     def to_mapping(self) -> dict[str, Any]:

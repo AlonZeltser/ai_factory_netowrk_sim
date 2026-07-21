@@ -39,14 +39,10 @@ def _require_float_param(params: dict[str, Any], key: str) -> float:
     return float(params[key])
 
 
-def _optional_float_param(params: dict[str, Any], key: str, default: float) -> float:
-    value = params.get(key)
-    return float(default if value is None else value)
-
-
-def _optional_int_param(params: dict[str, Any], key: str, default: int) -> int:
-    value = params.get(key)
-    return int(default if value is None else value)
+def _require_bool_param(params: dict[str, Any], key: str) -> bool:
+    if key not in params:
+        raise ConfigError(f"Missing required key 'topology.params.{key}'")
+    return bool(params[key])
 
 
 def _bandwidth_profile_to_bps(profile: str) -> tuple[float, float]:
@@ -100,9 +96,10 @@ def _build_clos(topology: TopologySpec, routing: RoutingSpec, run: RunSpec) -> N
     return AIFactorySUNetworkSimulator(
         max_path=_require_int_param(params, "max_path"),
         link_failure_percent=_require_float_param(fabric, "link_failure_percent"),
-        packet_stall_percent=_optional_float_param(fabric, "packet_stall_percent", 0.0),
-        packet_stall_delay_ms=_optional_float_param(fabric, "packet_stall_delay_ms", 50.0),
-        packet_stall_max_switch_hop=_optional_int_param(fabric, "packet_stall_max_switch_hop", 2),
+        packet_stall_percent=_require_float_param(fabric, "packet_stall_percent"),
+        packet_stall_delay_ms=_require_float_param(fabric, "packet_stall_delay_ms"),
+        packet_stall_max_switch_hop=_require_int_param(fabric, "packet_stall_max_switch_hop"),
+        packet_stall_retransmit_priority=_require_bool_param(fabric, "packet_stall_retransmit_priority"),
         routing_mode=routing_mode,
         verbose=run.message_verbose,
         verbose_route=run.verbose_route,

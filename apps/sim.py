@@ -32,7 +32,7 @@ from sim.runners.deep_flow_log import write_sweep_deep_flow_logs
 from sim.runners.experiment_runner import run_experiment, validate_experiment
 from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 from visualization.experiment_visualizer import (
-    visualize_summary_step_traffic_matrices,
+    visualize_summary_collective_traffic_matrices,
     visualize_sweep_time_comparison,
     visualize_sweep_time_comparison_from_yaml,
 )
@@ -91,7 +91,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sweep_p.add_argument("--processes", type=int, help="Worker process count for sweep runs (default: auto-balanced)")
     sweep_p.add_argument("--visualize-summary", action="store_true", default=False, help="Generate aggregate comparison plots from the sweep summary")
     sweep_p.add_argument("--plot-topology-once", action="store_true", default=False, help="Render topology to file once using the first sweep combination")
-    sweep_p.add_argument("--plot-ring-heatmaps", action="store_true", default=False, help="Generate per-step ring traffic heatmaps from the sweep summary")
+    sweep_p.add_argument("--plot-ring-heatmaps", action="store_true", default=False, help="Generate per-collective ring traffic heatmaps from the sweep summary")
     sweep_p.add_argument("--show-visualization-window", action="store_true", default=False, help="Open aggregate comparison plots in an interactive window")
 
     list_p = sub.add_parser("list", help="List supported presets/workloads/routing")
@@ -185,7 +185,7 @@ def _cmd_batch(args: argparse.Namespace) -> int:
     if args.visualize_summary:
         out_dir = str(output_path.parent if output_path is not None else (_REPO_ROOT / "results").resolve())
         paths = visualize_sweep_time_comparison(summary, out_dir=out_dir, show=args.show_visualization_window)
-        paths.extend(visualize_summary_step_traffic_matrices(summary, out_dir=out_dir, show=args.show_visualization_window))
+        paths.extend(visualize_summary_collective_traffic_matrices(summary, out_dir=out_dir, show=args.show_visualization_window))
         for path in paths:
             print(f"Wrote comparison plot to {path}")
     return 0 if all(item.get("ok") for item in summary) else 1
@@ -232,7 +232,7 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
         if args.visualize_summary:
             paths.extend(visualize_sweep_time_comparison(summary, out_dir=out_dir, show=args.show_visualization_window))
         if args.plot_ring_heatmaps:
-            paths.extend(visualize_summary_step_traffic_matrices(summary, out_dir=out_dir, show=args.show_visualization_window))
+            paths.extend(visualize_summary_collective_traffic_matrices(summary, out_dir=out_dir, show=args.show_visualization_window))
         for path in paths:
             print(f"Wrote comparison plot to {path}")
     return 0 if all(item.get("ok") for item in summary) else 1

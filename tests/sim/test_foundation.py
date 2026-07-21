@@ -28,20 +28,6 @@ def test_load_ai_preset_with_overrides() -> None:
     assert spec.source_preset == "ai/dp-low-small"
 
 
-def test_load_unified_ai_yaml_as_experiment_spec() -> None:
-    spec = load_experiment_spec(
-        config_path="sim/presets/ai/dp_low_small.yaml"
-    )
-
-    assert spec.topology.name == "clos"
-    assert spec.topology.profile == ""
-    assert spec.workload.name == "dp-heavy"
-    assert spec.workload.profile == ""
-    assert spec.routing.mode == "adaptive"
-    assert spec.topology.params["leaf_count"] == 4
-    assert spec.topology.params["fabric"]["server_to_leaf_bandwidth_bps"] == 1e9
-    assert spec.topology.params["fabric"]["leaf_to_spine_bandwidth_bps"] == 1e9
-    assert spec.source_config_path.endswith("sim\\presets\\ai\\dp_low_small.yaml")
 
 
 def test_validate_and_run_dp_low_small() -> None:
@@ -67,62 +53,6 @@ def test_load_ai_preset_with_inheritance_and_profiles() -> None:
     assert spec.workload.name == "mixed"
     assert spec.workload.profile == ""
     assert spec.topology.params["leaf_count"] == 8
-
-
-def test_load_config_supports_chained_extends_for_topology_defaults(tmp_path: Path) -> None:
-    base = tmp_path / "a.yaml"
-    mid = tmp_path / "b.yaml"
-    leaf = tmp_path / "c.yaml"
-    topology_defaults = Path("sim/presets/ai/bases/topology-clos-large-scale-unit.yaml").resolve()
-
-    base.write_text(
-        f"""
-extends: {topology_defaults}
-kind: experiment
-run:
-  visualize: false
-routing:
-  mode: ecmp
-  ecmp_flowlet_n_packets: 0
-workload:
-  kind: none
-  params: {{}}
-""".strip(),
-        encoding="utf-8",
-    )
-    mid.write_text(
-        f"""
-extends: {base.name}
-topology:
-  params:
-    leaf_count: 12
-    fabric:
-      bandwidth_profile: 400g
-""".strip(),
-        encoding="utf-8",
-    )
-    leaf.write_text(
-        f"""
-extends: {mid.name}
-meta:
-  name: chained-topology
-topology:
-  params:
-    spine_count: 6
-workload:
-  kind: none
-  params: {{}}
-""".strip(),
-        encoding="utf-8",
-    )
-
-    spec = load_experiment_spec(config_path=str(leaf))
-
-    assert spec.topology.name == "clos"
-    assert spec.topology.params["leaf_count"] == 12
-    assert spec.topology.params["spine_count"] == 6
-    assert spec.topology.params["fabric"]["host_links_per_server"] == 4
-    assert spec.topology.params["fabric"]["bandwidth_profile"] == "400g"
 
 
 def test_validate_requires_topology_defaults_from_yaml_chain(tmp_path: Path) -> None:

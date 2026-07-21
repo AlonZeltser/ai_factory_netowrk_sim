@@ -1,11 +1,17 @@
 import datetime
 import logging
 import os
+import re
 from typing import Optional, Dict, Any
 
 
-def visualize_topology(topop_name: str, entities: Dict[Any, Any], spacing: float = 2.0, show: bool = True) -> Optional[
-    str]:
+def visualize_topology(
+    topop_name: str,
+    entities: Dict[Any, Any],
+    spacing: float = 2.0,
+    show: bool = True,
+    show_link_status_legend: bool = False,
+) -> Optional[str]:
     """Create a visualization of the topology using networkx + matplotlib if available.
 
     If `show` is True the function will attempt to display the figure; if False the figure
@@ -109,31 +115,41 @@ def visualize_topology(topop_name: str, entities: Dict[Any, Any], spacing: float
         print("No nodes to visualize in the topology.")
         return None
 
-    # Prefer a layered tree-like layout when node naming follows common conventions.
+    def _node_sort_key(name: Any):
+        text = str(name)
+        parts = re.findall(r"\d+|\D+", text)
+        key = []
+        for part in parts:
+            key.append(int(part) if part.isdigit() else part)
+        return key
+
+    def _classify_node_type(node_name: Any, default_type: str = "switch") -> str:
+        n_str = str(node_name).lower()
+        if '_spine' in n_str or n_str.startswith('core_switch'):
+            return 'spine'
+        if ('_leaf' in n_str and '_srv' not in n_str) or n_str.startswith('agg_switch') or n_str.startswith('edge_switch'):
+            return 'leaf'
+        if '_srv' in n_str or default_type == 'host' or n_str.startswith('host'):
+            return 'host'
+        if default_type == 'switch':
+            return 'spine'
+        return default_type
+
+    # Prefer a layered Clos/tree layout when node naming follows common conventions.
     # Otherwise fall back to graphviz or spring layout.
     layers = []  # initialize so it's available for sizing even if classification fails
     try:
-        # classify nodes by name prefixes commonly used in some hierarchical networks
-        cores = sorted([n for n in G.nodes() if str(n).startswith('core_switch')])
-        aggs = sorted([n for n in G.nodes() if str(n).startswith('agg_switch')])
-        edges = sorted([n for n in G.nodes() if str(n).startswith('edge_switch')])
-        hosts = sorted([n for n in G.nodes() if str(n).startswith('host')])
+        classified_layers = {'spine': [], 'leaf': [], 'host': []}
+        for node_name in G.nodes():
+            classified_layers[_classify_node_type(node_name, node_types.get(node_name, 'switch'))].append(node_name)
 
-        # Also support the AI-Factory scale-unit (SU) naming scheme:
-        #   spines: su<id>_spine<k>
-        #   leaves: su<id>_leaf<k>
-        #   servers: su<id>_leaf<k>_srv<k>
-        su_spines = sorted([n for n in G.nodes() if '_spine' in str(n) and str(n).startswith('su')])
-        su_leaves = sorted([n for n in G.nodes() if '_leaf' in str(n) and str(n).startswith('su') and '_srv' not in str(n)])
-        su_hosts = sorted([n for n in G.nodes() if '_srv' in str(n) and str(n).startswith('su')])
+        spines = sorted(classified_layers['spine'], key=_node_sort_key)
+        leaves = sorted(classified_layers['leaf'], key=_node_sort_key)
+        hosts = sorted(classified_layers['host'], key=_node_sort_key)
 
-        # If this looks like a scale-unit topology, prefer its 3-layer layout.
-        if su_spines and su_leaves and su_hosts:
-            layers = [su_spines, su_leaves, su_hosts]
-        else:
-            layers = [cores, aggs, edges, hosts]
-            # keep only non-empty layers, but preserve order
-            layers = [layer for layer in layers if layer]
+        # Preserve the common Clos / fat-tree look: spines on top, leaves in the middle,
+        # hosts/servers at the bottom.
+        layers = [layer for layer in [spines, leaves, hosts] if layer]
 
         if len(layers) >= 2:
             pos = {}
@@ -184,17 +200,40 @@ def visualize_topology(topop_name: str, entities: Dict[Any, Any], spacing: float
     if not layers:
         layers = [list(G.nodes())]
 
-    # Node styling
+    # Node styling with color-blindness friendly palette
+    # Colors chosen from ColorBrewer colorblind-safe palettes
+    # Leafs: Blue (#1b9e77 - teal/green-blue, safe for deuteranopia/protanopia)
+    # Spines: Orange (#d95f02 - orange, safe for all types of color blindness)
+    # Hosts: Purple (#7570b3 - muted purple, contrasts well)
+    COLOR_LEAF = "#1b9e77"      # Teal (safe for all colorblind types)
+    COLOR_SPINE = "#d95f02"     # Orange (safe and distinct)
+    COLOR_HOST = "#7570b3"      # Purple (high contrast)
+    
     colors = []
     sizes = []
+    node_type_color_map = {}  # Track for legend
+    
     for n in G.nodes():
         t = node_types.get(n, "switch")
-        if t == "host":
-            colors.append("lightblue")
+        n_str = str(n).lower()
+        classified_type = _classify_node_type(n, t)
+        if classified_type == "spine":
+            node_color = COLOR_SPINE
+            node_types[n] = "spine"
+        elif classified_type == "leaf":
+            node_color = COLOR_LEAF
+            node_types[n] = "leaf"
+        else:
+            node_color = COLOR_HOST
+            node_types[n] = "host"
+        
+        colors.append(node_color)
+        node_type_color_map[node_types[n]] = node_color
+        
+        if t == "host" or "_srv" in n_str:
             # make hosts slightly larger and scale with spacing so labels are more visible
             sizes.append(int(300 * max(1.0, spacing)))
         else:
-            colors.append("orange")
             sizes.append(int(900 * max(1.0, spacing)))
 
     # compute figure size: allow override, otherwise scale with widest layer and number of layers
@@ -338,14 +377,31 @@ def visualize_topology(topop_name: str, entities: Dict[Any, Any], spacing: float
 
     # NOTE: per-link edge labels intentionally disabled; we only show multiplicity.
 
-    # add a legend so the failed links are obvious to readers
+    # add a legend for node types; link status legend is opt-in to keep the diagram uncluttered
     try:
         from matplotlib.lines import Line2D
-        legend_handles = [
-            Line2D([0], [0], color='gray', lw=2, label='healthy link'),
-            Line2D([0], [0], color='red', lw=4, linestyle='--', label='failed link'),
-        ]
-        ax.legend(handles=legend_handles, loc='upper center', fontsize=max(8, int(base_font * 0.9)), frameon=True)
+        
+        legend_elements = []
+        
+        # Add node type legend entries
+        node_type_names = {"spine": "Spine Switch", "leaf": "Leaf Switch", "host": "Host/Server"}
+        for node_type in ["spine", "leaf", "host"]:
+            if any(node_types.get(n) == node_type for n in G.nodes()):
+                color = COLOR_SPINE if node_type == "spine" else (COLOR_LEAF if node_type == "leaf" else COLOR_HOST)
+                legend_elements.append(
+                    Line2D([0], [0], marker='o', color='w', markerfacecolor=color, 
+                           markersize=10, label=node_type_names.get(node_type, node_type))
+                )
+        
+        if show_link_status_legend:
+            legend_elements.append(Line2D([0], [0], color='gray', lw=2, label='Healthy link'))
+            legend_elements.append(Line2D([0], [0], color='red', lw=4, linestyle='--', label='Failed link'))
+        
+        # Add legend with multiple columns if needed
+        legend_ncol = 1 if len(legend_elements) <= 4 else 2
+        ax.legend(handles=legend_elements, loc='upper left', fontsize=max(8, int(base_font * 0.85)), 
+                 frameon=True, framealpha=0.95, ncol=legend_ncol, title="Network Elements", 
+                 title_fontsize=max(9, int(base_font * 0.9)))
     except Exception:
         pass
 

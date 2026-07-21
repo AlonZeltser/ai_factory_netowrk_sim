@@ -3,15 +3,15 @@
 from dataclasses import dataclass
 import secrets
 
-from ai_factory.core.entities import Bucket, CommPhase, ComputePhase, Job, JobStep
+from ai_factory.core.entities import Bucket, CommPhase, ComputePhase, Job, JobCollective
 from ai_factory.core.ids import IdGenerator
 from ai_factory.traffic.collective import CollectiveAlgorithm, CollectiveKind, expand_collective
 from ai_factory.traffic.flow import apply_chunk_redundancy
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class DPHeavyWorkloadConfig:
-    steps: int
+    collectives: int
     t_fwd_bwd_ms: float
     num_buckets: int
     bucket_bytes_per_participant: int
@@ -22,6 +22,37 @@ class DPHeavyWorkloadConfig:
     mtu: int = 4096
     chunk_redundancy_extra_packets: int = 0
     single_ring_only: bool = False
+
+    def __init__(
+        self,
+        *,
+        collectives: int | None = None,
+        steps: int | None = None,
+        t_fwd_bwd_ms: float,
+        num_buckets: int,
+        bucket_bytes_per_participant: int,
+        algorithm: CollectiveAlgorithm,
+        gap_us: float,
+        optimizer_ms: float,
+        seed: int,
+        mtu: int = 4096,
+        chunk_redundancy_extra_packets: int = 0,
+        single_ring_only: bool = False,
+    ) -> None:
+        resolved_collectives = collectives if collectives is not None else steps
+        if resolved_collectives is None:
+            raise TypeError("Provide collectives (preferred) or legacy steps")
+        object.__setattr__(self, "collectives", int(resolved_collectives))
+        object.__setattr__(self, "t_fwd_bwd_ms", float(t_fwd_bwd_ms))
+        object.__setattr__(self, "num_buckets", int(num_buckets))
+        object.__setattr__(self, "bucket_bytes_per_participant", int(bucket_bytes_per_participant))
+        object.__setattr__(self, "algorithm", algorithm)
+        object.__setattr__(self, "gap_us", float(gap_us))
+        object.__setattr__(self, "optimizer_ms", float(optimizer_ms))
+        object.__setattr__(self, "seed", int(seed))
+        object.__setattr__(self, "mtu", int(mtu))
+        object.__setattr__(self, "chunk_redundancy_extra_packets", int(chunk_redundancy_extra_packets))
+        object.__setattr__(self, "single_ring_only", bool(single_ring_only))
 
 
 def build_dp_heavy_workload_job(
@@ -38,10 +69,10 @@ def build_dp_heavy_workload_job(
     # Keep it deterministic-ish but collision-resistant.
     job_id = (ids.next_int() ^ secrets.randbits(31)) & 0x7FFFFFFF
 
-    steps: list[JobStep] = []
-    for step_idx in range(int(config.steps)):
+    collectives: list[JobCollective] = []
+    for collective_idx in range(int(config.collectives)):
         phases: list = []
-        step_ring_seed = ids.child(f"step{step_idx}/ring_order").seed
+        collective_ring_seed = ids.child(f"collective{collective_idx}/ring_order").seed
 
         phases.append(
             ComputePhase(
@@ -66,12 +97,12 @@ def build_dp_heavy_workload_job(
                 bytes_per_participant=int(config.bucket_bytes_per_participant),
                 start_time=start_time,
                 gap_us=float(config.gap_us),
-                ids=ids.child((step_idx, 1, bucket_id, "rs")),
+                ids=ids.child(f"collective{collective_idx}/phase1/bucket{bucket_id}/rs"),
                 job_id=job_id,
-                step_id=step_idx,
+                collective_id=collective_idx,
                 phase_id=1,
                 bucket_id=bucket_id,
-                ring_seed=step_ring_seed,
+                ring_seed=collective_ring_seed,
                 write_to_log=b==0
             )
             ag_flows = []
@@ -83,12 +114,12 @@ def build_dp_heavy_workload_job(
                     bytes_per_participant=int(config.bucket_bytes_per_participant),
                     start_time=start_time,
                     gap_us=float(config.gap_us),
-                    ids=ids.child((step_idx, 1, bucket_id, "ag")),
+                    ids=ids.child(f"collective{collective_idx}/phase1/bucket{bucket_id}/ag"),
                     job_id=job_id,
-                    step_id=step_idx,
+                    collective_id=collective_idx,
                     phase_id=1,
                     bucket_id=bucket_id,
-                    ring_seed=step_ring_seed,
+                    ring_seed=collective_ring_seed,
                     write_to_log=b == 0
                 )
                 ag_flows = ag.flows
@@ -114,6 +145,6 @@ def build_dp_heavy_workload_job(
             )
         )
 
-        steps.append(JobStep(step_id=step_idx, phases=phases))
+        collectives.append(JobCollective(collective_id=collective_idx, phases=phases))
 
-    return Job(job_id=job_id, name=job_name, steps=steps, participants=participants)
+    return Job(job_id=job_id, name=job_name, collectives=collectives, participants=participants)

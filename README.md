@@ -298,7 +298,7 @@ Preset YAML files can extend a base preset, and chained inheritance like `a -> b
 ```yaml
 extends:
   - presets-experiments-base.yaml
-  - workload-dp-heavy-low.yaml
+  - workload-dp-low.yaml
 meta:
   name: ai-su-dp-low-small
 ```

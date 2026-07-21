@@ -55,7 +55,11 @@ class NetworkFlowInjector(FlowInjector):
                     return
 
                 stat.delivered_packet_count += 1
-                if self._deep_flow_chain_log and stat.delivered_packet_count <= stat.useful_packet_count:
+                if (
+                    self._deep_flow_chain_log
+                    and stat.delivered_packet_count <= stat.useful_packet_count
+                    and not bool(packet.tracking_info.is_retransmit)
+                ):
                     egress_positions = list(packet.tracking_info.egress_queue_positions)
                     stat.all_observed_egress_positions.extend(egress_positions)
                     arrival_time = float(self._network.simulator.get_current_time())
