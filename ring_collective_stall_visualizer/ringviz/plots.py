@@ -126,7 +126,51 @@ def _make_gantt_figure(
         opacity=0.9,
     )
 
+    fig.update_layout(
+        title_font_size=12,
+        title_x=0.01,
+        title_xanchor="left",
+    )
+
     return fig
+
+
+def _add_missing_stall_bucket_legend(
+    fig: go.Figure,
+    *,
+    plot_frames: list[pd.DataFrame],
+    chain_lists: list[list[str]],
+    row: int = 1,
+    col: int = 1,
+) -> None:
+    present_by_frame = [
+        set(frame["stall_bucket"].dropna().astype(str).unique()) if not frame.empty else set()
+        for frame in plot_frames
+    ]
+    all_present = set().union(*present_by_frame) if present_by_frame else set()
+    first_present = present_by_frame[0] if present_by_frame else set()
+    anchor_chain = next((chains[0] for chains in chain_lists if chains), "")
+
+    for bucket in STALL_BUCKET_ORDER:
+        if bucket not in all_present or bucket in first_present:
+            continue
+        fig.add_trace(
+            go.Bar(
+                x=[0],
+                y=[anchor_chain],
+                name=bucket,
+                orientation="h",
+                marker=dict(
+                    color=STALL_COLOR_MAP[bucket],
+                    line=dict(color="black", width=0.8),
+                ),
+                visible="legendonly",
+                showlegend=True,
+                hoverinfo="skip",
+            ),
+            row=row,
+            col=col,
+        )
 
 
 def make_gantt(
@@ -176,120 +220,96 @@ def make_gantt(
     fig.update_layout(
         barmode="overlay",
         bargap=0.35,
-        height=max(450, 32 * len(chains)),
+        height=max(320, 24 * len(chains) + 40),
         xaxis_title="Simulation time [s]",
         yaxis_title="Chain start host",
         legend_title="Stalled packets" if color_by == "stall_bucket" else color_by,
         legend_traceorder="normal",
-        margin=dict(l=20, r=20, t=60, b=40),
+        margin=dict(l=20, r=20, t=40, b=32),
+        title_font_size=12,
     )
 
     return fig
 
 
 def make_gantt_comparison(
-    left_df: pd.DataFrame,
-    right_df: pd.DataFrame,
+    data_frames: list[pd.DataFrame],
     *,
-    left_label: str = "Scan 1",
-    right_label: str = "Scan 2",
+    labels: list[str] | None = None,
     color_by: str = "stall_bucket",
     chain_limit: int | None = None,
 ) -> go.Figure:
-    if left_df.empty and right_df.empty:
+    non_empty_frames = [df for df in data_frames if not df.empty]
+    if not non_empty_frames:
         return go.Figure()
 
-    left_plot, left_chains, _left_origin = _prepare_gantt_frame(
-        left_df,
-        chain_limit=chain_limit,
-        normalize_time=True,
-    )
-    right_plot, right_chains, _right_origin = _prepare_gantt_frame(
-        right_df,
-        chain_limit=chain_limit,
-        normalize_time=True,
-    )
+    prepared = [
+        _prepare_gantt_frame(df, chain_limit=chain_limit, normalize_time=True)
+        for df in non_empty_frames
+    ]
+    plot_frames = [plot_df for plot_df, _chains, _origin in prepared]
+    chain_lists = [chains for _plot_df, chains, _origin in prepared]
+    subplot_labels = labels or [f"Scan {idx + 1}" for idx in range(len(plot_frames))]
+    subplot_labels = [
+        subplot_labels[idx] if idx < len(subplot_labels) else f"Scan {idx + 1}"
+        for idx in range(len(plot_frames))
+    ]
 
-    left_fig = _make_gantt_figure(
-        left_plot,
-        chains=left_chains,
-        color_by=color_by,
-        title=left_label,
-        base_col="plot_start_s",
-        hover_start_col="plot_start_s",
-        hover_end_col="plot_end_s",
-        include_absolute_time=True,
-    ) if not left_plot.empty else go.Figure()
-    right_fig = _make_gantt_figure(
-        right_plot,
-        chains=right_chains,
-        color_by=color_by,
-        title=right_label,
-        base_col="plot_start_s",
-        hover_start_col="plot_start_s",
-        hover_end_col="plot_end_s",
-        include_absolute_time=True,
-    ) if not right_plot.empty else go.Figure()
+    subplot_figures = [
+        _make_gantt_figure(
+            plot_df,
+            chains=chains,
+            color_by=color_by,
+            title=label,
+            base_col="plot_start_s",
+            hover_start_col="plot_start_s",
+            hover_end_col="plot_end_s",
+            include_absolute_time=True,
+        )
+        for (plot_df, chains, _origin), label in zip(prepared, subplot_labels)
+    ]
 
     fig = make_subplots(
-        rows=2,
+        rows=len(subplot_figures),
         cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.08,
-        subplot_titles=(left_label, right_label),
+        vertical_spacing=0.03,
+        subplot_titles=tuple(subplot_labels),
     )
 
-    for trace in left_fig.data:
-        fig.add_trace(trace, row=1, col=1)
-    for trace in right_fig.data:
-        trace.showlegend = False
-        fig.add_trace(trace, row=2, col=1)
+    for row_idx, subplot_fig in enumerate(subplot_figures, start=1):
+        for trace in subplot_fig.data:
+            trace.showlegend = row_idx == 1 and trace.showlegend
+            fig.add_trace(trace, row=row_idx, col=1)
 
     if color_by == "stall_bucket":
-        left_present = set(left_plot["stall_bucket"].dropna().astype(str).unique()) if not left_plot.empty else set()
-        right_present = set(right_plot["stall_bucket"].dropna().astype(str).unique()) if not right_plot.empty else set()
-        all_present = left_present | right_present
-        anchor_chain = left_chains[0] if left_chains else (right_chains[0] if right_chains else "")
-        for bucket in STALL_BUCKET_ORDER:
-            if bucket not in all_present or bucket in left_present:
-                continue
-            fig.add_trace(
-                go.Bar(
-                    x=[0],
-                    y=[anchor_chain],
-                    name=bucket,
-                    orientation="h",
-                    marker=dict(
-                        color=STALL_COLOR_MAP[bucket],
-                        line=dict(color="black", width=0.8),
-                    ),
-                    visible="legendonly",
-                    showlegend=True,
-                    hoverinfo="skip",
-                ),
-                row=1,
-                col=1,
-            )
+        _add_missing_stall_bucket_legend(
+            fig,
+            plot_frames=plot_frames,
+            chain_lists=chain_lists,
+            row=1,
+            col=1,
+        )
 
-    max_end = 0.0
-    if not left_plot.empty:
-        max_end = max(max_end, float(left_plot["plot_end_s"].max()))
-    if not right_plot.empty:
-        max_end = max(max_end, float(right_plot["plot_end_s"].max()))
+    max_end = max(float(plot_df["plot_end_s"].max()) for plot_df in plot_frames if not plot_df.empty)
+    max_chains = max((len(chains) for chains in chain_lists), default=1)
+    panel_count = len(subplot_figures)
 
     fig.update_layout(
         barmode="overlay",
         bargap=0.35,
-        height=max(650, 120 + 28 * max(len(left_chains), len(right_chains)) * 2),
+        height=max(240 + 16 * panel_count, 36 + panel_count * (26 + 18 * max_chains)),
         xaxis_title="Aligned simulation time [s]",
         legend_title="Stalled packets" if color_by == "stall_bucket" else color_by,
         legend_traceorder="normal",
-        margin=dict(l=20, r=20, t=70, b=40),
+        margin=dict(l=20, r=20, t=36, b=28),
+        title_font_size=12,
     )
-    fig.update_yaxes(title_text="Chain start host", row=1, col=1)
-    fig.update_yaxes(title_text="Chain start host", row=2, col=1)
+    fig.update_annotations(font_size=11)
+    for row_idx in range(1, panel_count + 1):
+        fig.update_yaxes(title_text="Chain" if row_idx == 1 else "", row=row_idx, col=1)
     if max_end > 0.0:
-        fig.update_xaxes(range=[0.0, max_end * 1.02], row=1, col=1)
+        fig.update_xaxes(range=[0.0, max_end * 1.02])
 
     return fig
 
@@ -365,6 +385,7 @@ def make_heatmap(
         yaxis_title="Chain start host",
         height=max(450, 32 * len(pivot.index)),
         margin=dict(l=20, r=20, t=60, b=40),
+        title_font_size=12,
     )
 
     return fig

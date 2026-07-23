@@ -404,6 +404,28 @@ def _set_sweep_x_ticks(ax, series: list[tuple[float, list[dict[str, float]]]]) -
     ax.set_xticklabels([_format_sweep_x_tick(v) for v in ticks])
 
 
+def _lower_zoom_ylim(y_values: list[float], lower_percent: float) -> tuple[float, float] | None:
+    if not y_values:
+        return None
+    if lower_percent <= 0.0:
+        return None
+    clipped_percent = min(float(lower_percent), 100.0)
+    y_min = min(y_values)
+    y_max = max(y_values)
+    if y_max <= y_min:
+        pad = max(0.05, abs(y_min) * 0.02)
+        return y_min - pad, y_max + pad
+    span = y_max - y_min
+    # Match the visible full-plot range more closely by keeping a small margin,
+    # so the zoomed chart reflects the lower X% of the original graph rather than
+    # the lower X% of the raw data extent.
+    pad = max(0.05, span * 0.05)
+    visible_min = y_min - pad
+    visible_max = y_max + pad
+    visible_span = visible_max - visible_min
+    return visible_min, visible_min + visible_span * (clipped_percent / 100.0)
+
+
 def _natural_sort_key(value: str) -> tuple[Any, ...]:
     parts = re.split(r"(\d+)", str(value))
     return tuple(int(part) if part.isdigit() else part.lower() for part in parts)
@@ -995,6 +1017,7 @@ def visualize_sweep_time_comparison(
     *,
     out_dir: str = "results",
     show: bool = False,
+    collective_time_lower_zoom_percent: float = 15.0,
 ) -> list[str]:
     """Create aggregate and per-redundancy comparison plots across the varying impairment percentage."""
     rows = [row for row in summary if row.get("ok")]
@@ -1174,6 +1197,34 @@ def visualize_sweep_time_comparison(
         logging.info("Sweep comparison graph saved to: %s", filepath)
         saved_paths.append(filepath)
 
+        if metric["stem"] == "collective_time" and collective_time_lower_zoom_percent > 0.0:
+            fig_zoom, ax_zoom = plt.subplots(figsize=(11, 7))
+            spread_suffix_zoom = _plot_sweep_metric_series(ax_zoom, sorted_series, include_legend=True)
+            ax_zoom.set_title(
+                f"{metric['title'].replace('impairment', title_suffix)} (lower {collective_time_lower_zoom_percent:g}% zoom){spread_suffix_zoom}",
+                fontsize=14,
+                fontweight='bold',
+            )
+            ax_zoom.set_xlabel(x_label, fontsize=12)
+            ax_zoom.set_ylabel(metric["ylabel"], fontsize=12)
+            _apply_exponential_x_axis(ax_zoom, sorted_series)
+            _set_sweep_x_ticks(ax_zoom, sorted_series)
+            zoom_ylim = _lower_zoom_ylim(
+                [point["y"] for _, points in sorted_series for point in points],
+                collective_time_lower_zoom_percent,
+            )
+            if zoom_ylim is not None:
+                ax_zoom.set_ylim(*zoom_ylim)
+            ax_zoom.grid(alpha=0.3, linestyle='--', linewidth=0.7)
+
+            filepath_zoom = os.path.join(
+                out_dir,
+                f"{metric['stem']}_vs_{file_suffix}_lower_{int(round(collective_time_lower_zoom_percent))}pct_{timestamp}.png",
+            )
+            _save_or_show(fig_zoom, filepath_zoom, show=show)
+            logging.info("Sweep comparison (lower-zoom) graph saved to: %s", filepath_zoom)
+            saved_paths.append(filepath_zoom)
+
         for redundancy, points in sorted_series:
             fig_single, ax_single = plt.subplots(figsize=(11, 7))
             spread_suffix_single = _plot_sweep_metric_series(
@@ -1257,6 +1308,8 @@ def visualize_sweep_time_comparison_from_yaml(
     *,
     out_dir: str = "results",
     show: bool = False,
+    collective_time_lower_zoom_percent: float = 15.0,
+    include_collective_traffic_matrices: bool = True,
 ) -> list[str]:
     """Load a sweep summary YAML file and create aggregate comparison plots and collective traffic matrices."""
     path = Path(summary_yaml_path)
@@ -1271,7 +1324,15 @@ def visualize_sweep_time_comparison_from_yaml(
     if not all(isinstance(row, dict) for row in summary):
         raise ValueError("Sweep summary YAML list must contain mapping entries")
 
-    return visualize_sweep_time_comparison(summary, out_dir=out_dir, show=show) + visualize_summary_collective_traffic_matrices(summary, out_dir=out_dir, show=show)
+    sweep_paths = visualize_sweep_time_comparison(
+        summary,
+        out_dir=out_dir,
+        show=show,
+        collective_time_lower_zoom_percent=collective_time_lower_zoom_percent,
+    )
+    if not include_collective_traffic_matrices:
+        return sweep_paths
+    return sweep_paths + visualize_summary_collective_traffic_matrices(summary, out_dir=out_dir, show=show)
 
 
 def visualize_experiment_results(results: List[Dict[str, Dict[str, Any]]],

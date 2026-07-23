@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 
 from ringviz.parser import parse_log_text
 from ringviz.plots import make_gantt, make_gantt_comparison, make_heatmap
@@ -35,6 +36,18 @@ uploaded_compare = st.sidebar.file_uploader(
     key="comparison_log",
 )
 
+uploaded_compare_3 = st.sidebar.file_uploader(
+    "Upload third ring log for comparison",
+    type=["txt", "log"],
+    key="comparison_log_3",
+)
+
+uploaded_compare_4 = st.sidebar.file_uploader(
+    "Upload fourth ring log for comparison",
+    type=["txt", "log"],
+    key="comparison_log_4",
+)
+
 
 @st.cache_data
 def parse_uploaded_file(file_bytes: bytes) -> pd.DataFrame:
@@ -65,6 +78,23 @@ def _normalize_visualizer_df(df: pd.DataFrame | None) -> pd.DataFrame | None:
     return normalized
 
 
+def _png_export_button(fig, *, label: str, filename_prefix: str, key: str) -> None:
+    try:
+        png_bytes = fig.to_image(format="png", scale=2)
+    except Exception:
+        st.caption("PNG export unavailable. Install/upgrade kaleido to enable image export.")
+        return
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    st.download_button(
+        label=label,
+        data=png_bytes,
+        file_name=f"{filename_prefix}_{ts}.png",
+        mime="image/png",
+        key=key,
+    )
+
+
 if uploaded is None:
     st.info("Upload a ring log file to start.")
     st.stop()
@@ -72,6 +102,8 @@ if uploaded is None:
 
 df = _normalize_visualizer_df(parse_uploaded_file(uploaded.getvalue()))
 df_compare = _normalize_visualizer_df(parse_uploaded_file(uploaded_compare.getvalue())) if uploaded_compare is not None else None
+df_compare_3 = _normalize_visualizer_df(parse_uploaded_file(uploaded_compare_3.getvalue())) if uploaded_compare_3 is not None else None
+df_compare_4 = _normalize_visualizer_df(parse_uploaded_file(uploaded_compare_4.getvalue())) if uploaded_compare_4 is not None else None
 
 if df.empty:
     st.error("No flow records were parsed. Check the log format.")
@@ -80,6 +112,8 @@ if df.empty:
 
 filtered = df.copy()
 filtered_compare = df_compare.copy() if df_compare is not None else None
+filtered_compare_3 = df_compare_3.copy() if df_compare_3 is not None else None
+filtered_compare_4 = df_compare_4.copy() if df_compare_4 is not None else None
 
 
 st.sidebar.header("Filters")
@@ -106,6 +140,10 @@ for col in ["job", "step", "phase", "bucket", "op"]:
     filtered = filtered[filtered[col].isin(selected)]
     if filtered_compare is not None and col in filtered_compare.columns:
         filtered_compare = filtered_compare[filtered_compare[col].isin(selected)]
+    if filtered_compare_3 is not None and col in filtered_compare_3.columns:
+        filtered_compare_3 = filtered_compare_3[filtered_compare_3[col].isin(selected)]
+    if filtered_compare_4 is not None and col in filtered_compare_4.columns:
+        filtered_compare_4 = filtered_compare_4[filtered_compare_4[col].isin(selected)]
 
 
 if filtered.empty:
@@ -115,6 +153,14 @@ if filtered.empty:
 if filtered_compare is not None and filtered_compare.empty:
     st.warning("No rows left in the comparison log after filtering.")
     filtered_compare = None
+
+if filtered_compare_3 is not None and filtered_compare_3.empty:
+    st.warning("No rows left in the third comparison log after filtering.")
+    filtered_compare_3 = None
+
+if filtered_compare_4 is not None and filtered_compare_4.empty:
+    st.warning("No rows left in the fourth comparison log after filtering.")
+    filtered_compare_4 = None
 
 
 chains = list(filtered["chain"].drop_duplicates())
@@ -134,7 +180,13 @@ view = st.sidebar.radio(
     ["Gantt", "Heatmap", "Both"],
 )
 
-compare_mode = filtered_compare is not None and view in ["Gantt", "Both"]
+comparison_frames = [
+    frame
+    for frame in [filtered_compare, filtered_compare_3, filtered_compare_4]
+    if frame is not None
+]
+
+compare_mode = len(comparison_frames) > 0 and view in ["Gantt", "Both"]
 
 
 st.subheader("Run summary")
@@ -216,11 +268,11 @@ if view in ["Gantt", "Both"]:
     if compare_mode:
         compare_label_1 = st.sidebar.text_input("Comparison label 1", value="Scan 1")
         compare_label_2 = st.sidebar.text_input("Comparison label 2", value="Scan 2")
+        compare_label_3 = st.sidebar.text_input("Comparison label 3", value="Scan 3")
+        compare_label_4 = st.sidebar.text_input("Comparison label 4", value="Scan 4")
         gantt_fig = make_gantt_comparison(
-            filtered,
-            filtered_compare,
-            left_label=compare_label_1,
-            right_label=compare_label_2,
+            [filtered, *comparison_frames],
+            labels=[compare_label_1, compare_label_2, compare_label_3, compare_label_4],
             color_by=color_by,
             chain_limit=chain_limit,
         )
@@ -234,6 +286,12 @@ if view in ["Gantt", "Both"]:
     st.plotly_chart(
         gantt_fig,
         use_container_width=True,
+    )
+    _png_export_button(
+        gantt_fig,
+        label="Download Gantt as PNG",
+        filename_prefix="ring_gantt",
+        key="download_gantt_png",
     )
 
 
@@ -264,4 +322,10 @@ if view in ["Heatmap", "Both"]:
     st.plotly_chart(
         heatmap_fig,
         use_container_width=True,
+    )
+    _png_export_button(
+        heatmap_fig,
+        label="Download Heatmap as PNG",
+        filename_prefix="ring_heatmap",
+        key="download_heatmap_png",
     )
