@@ -63,7 +63,7 @@ After startup, Streamlit opens the dashboard in your browser.
 4. Filter the dataset if needed
 5. Adjust chain display count
 6. Inspect the graph interactively
-7. Use the PNG download button under each chart when you want an image export
+7. Use the PNG/PDF download buttons under each chart when you want an export
 
 If a second log is uploaded, you can visually compare two runs in Gantt mode.
 
@@ -104,12 +104,43 @@ Controls whether the dashboard shows:
 
 This is the control used to show or hide the heatmap.
 
-### 6) PNG export
-After each rendered chart, the UI provides a download button:
+### 6) PNG / PDF export
+After each rendered chart, the UI provides download buttons:
 - **Download Gantt as PNG**
+- **Download Gantt as PDF**
 - **Download Heatmap as PNG**
+- **Download Heatmap as PDF**
 
 The exported filename includes a timestamp so repeated exports do not overwrite each other.
+
+---
+
+## Direct PDF export script (without Streamlit)
+
+If you want deterministic, scriptable PDF generation (for reports/CI), use:
+
+`ring_collective_stall_visualizer/export_gantt_pdf.py`
+
+This script reads one to four ring logs, applies optional filters, builds the same Gantt chart, and writes a presentation-sized PDF directly.
+
+Example from repository root:
+
+```powershell
+python ring_collective_stall_visualizer\export_gantt_pdf.py `
+  results\_tmp_ringviz_pdf_script_test\scan_1.log `
+  results\_tmp_ringviz_pdf_script_test\scan_2.log `
+  results\_tmp_ringviz_pdf_script_test\scan_3.log `
+  results\_tmp_ringviz_pdf_script_test\scan_4.log `
+  --labels "Scan 1,Scan 2,Scan 3,Scan 4" `
+  --color-by stalled_packets `
+  --chain-limit 16 `
+  --out results\_tmp_ringviz_pdf_script_test\gantt_stalled_packets.pdf
+```
+
+Common options:
+- `--color-by` one of: `stall_bucket`, `stalled_packets`, `duration_ms`, `max_egress`, `avg_egress`
+- `--filter key=v1,v2,...` repeatable (for example `--filter step=0 --filter phase=1`)
+- `--chain-limit N`
 
 ---
 

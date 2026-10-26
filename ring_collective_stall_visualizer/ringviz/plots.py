@@ -15,7 +15,6 @@ STALL_COLOR_MAP = {
     "5+": "#D55E00",  # vermillion
 }
 
-
 def _row_value(row: pd.Series, key: str, default: object = "") -> object:
     return row.get(key, default)
 
@@ -85,6 +84,12 @@ def _make_gantt_figure(
         category_orders["stall_bucket"] = STALL_BUCKET_ORDER
         color_discrete_map = STALL_COLOR_MAP
 
+    color_continuous_scale = None
+    if color_by in {"stalled_packets", "duration_ms", "max_egress", "avg_egress"}:
+        # Mirror the Streamlit interactive view: a sequential Blue scale where
+        # 0 / low values are white/very-light-blue and high values are dark navy.
+        color_continuous_scale = px.colors.sequential.Blues
+
     plot_df = plot_df.copy()
     plot_df["hover"] = plot_df.apply(
         lambda row: _build_gantt_hover(
@@ -107,6 +112,7 @@ def _make_gantt_figure(
         custom_data=["hover"],
         category_orders=category_orders,
         color_discrete_map=color_discrete_map,
+        color_continuous_scale=color_continuous_scale,
         labels={
             "duration_s": "Duration [s]",
             "chain": "Ring chain",
@@ -127,9 +133,9 @@ def _make_gantt_figure(
     )
 
     fig.update_layout(
-        title_font_size=12,
-        title_x=0.01,
-        title_xanchor="left",
+        title_font_size=14,
+        title_x=0.5,
+        title_xanchor="center",
     )
 
     return fig
@@ -220,14 +226,14 @@ def make_gantt(
     fig.update_layout(
         barmode="overlay",
         bargap=0.35,
-        height=max(320, 24 * len(chains) + 40),
-        xaxis_title="Simulation time [s]",
-        yaxis_title="Chain start host",
+        height=max(420, 30 * len(chains) + 120),
         legend_title="Stalled packets" if color_by == "stall_bucket" else color_by,
         legend_traceorder="normal",
-        margin=dict(l=20, r=20, t=40, b=32),
-        title_font_size=12,
+        margin=dict(l=90, r=40, t=70, b=80),
+        title_font_size=14,
     )
+    fig.update_xaxes(title_text="Simulation time [s]", title_standoff=18, automargin=True)
+    fig.update_yaxes(title_text="Chain start host", title_standoff=16, automargin=True)
 
     return fig
 
@@ -282,6 +288,36 @@ def make_gantt_comparison(
             trace.showlegend = row_idx == 1 and trace.showlegend
             fig.add_trace(trace, row=row_idx, col=1)
 
+    # ── Transfer coloraxis for continuous color columns ───────────────────────
+    # When color_by is a numeric column, px.bar stores the colorscale in the
+    # subplot figure's layout as "coloraxis".  Traces reference it via
+    # marker.coloraxis="coloraxis".  Because make_subplots creates a fresh
+    # layout we must copy all coloraxis entries over, merging cmin/cmax ranges
+    # across panels so the color scale is consistent.
+    _all_cmin: list[float] = []
+    _all_cmax: list[float] = []
+    _coloraxis_patch: dict = {}
+    for _subfig in subplot_figures:
+        _sub_json = _subfig.layout.to_plotly_json()
+        for _key, _val in _sub_json.items():
+            if not _key.startswith("coloraxis"):
+                continue
+            if _key not in _coloraxis_patch:
+                _coloraxis_patch[_key] = dict(_val) if isinstance(_val, dict) else _val
+            if isinstance(_val, dict):
+                if "cmin" in _val:
+                    _all_cmin.append(float(_val["cmin"]))
+                if "cmax" in _val:
+                    _all_cmax.append(float(_val["cmax"]))
+    if _coloraxis_patch:
+        for _key in _coloraxis_patch:
+            if isinstance(_coloraxis_patch[_key], dict):
+                if _all_cmin:
+                    _coloraxis_patch[_key]["cmin"] = min(_all_cmin)
+                if _all_cmax:
+                    _coloraxis_patch[_key]["cmax"] = max(_all_cmax)
+        fig.update_layout(**_coloraxis_patch)
+
     if color_by == "stall_bucket":
         _add_missing_stall_bucket_legend(
             fig,
@@ -298,16 +334,28 @@ def make_gantt_comparison(
     fig.update_layout(
         barmode="overlay",
         bargap=0.35,
-        height=max(240 + 16 * panel_count, 36 + panel_count * (26 + 18 * max_chains)),
-        xaxis_title="Aligned simulation time [s]",
+        height=max(380 + 40 * panel_count, 100 + panel_count * (58 + 24 * max_chains)),
         legend_title="Stalled packets" if color_by == "stall_bucket" else color_by,
         legend_traceorder="normal",
-        margin=dict(l=20, r=20, t=36, b=28),
-        title_font_size=12,
+        margin=dict(l=90, r=50, t=80, b=95),
+        title_font_size=14,
     )
-    fig.update_annotations(font_size=11)
+    fig.update_annotations(font_size=13)
     for row_idx in range(1, panel_count + 1):
-        fig.update_yaxes(title_text="Chain" if row_idx == 1 else "", row=row_idx, col=1)
+        fig.update_yaxes(
+            title_text="Chain" if row_idx == 1 else "",
+            title_standoff=16,
+            automargin=True,
+            row=row_idx,
+            col=1,
+        )
+        fig.update_xaxes(
+            title_text="Aligned simulation time [s]" if row_idx == panel_count else "",
+            title_standoff=22,
+            automargin=True,
+            row=row_idx,
+            col=1,
+        )
     if max_end > 0.0:
         fig.update_xaxes(range=[0.0, max_end * 1.02])
 
@@ -381,11 +429,11 @@ def make_heatmap(
 
     fig.update_layout(
         title=f"Ring hop heatmap: {metric}",
-        xaxis_title="Hop index in chain",
-        yaxis_title="Chain start host",
-        height=max(450, 32 * len(pivot.index)),
-        margin=dict(l=20, r=20, t=60, b=40),
-        title_font_size=12,
+        height=max(520, 38 * len(pivot.index) + 80),
+        margin=dict(l=90, r=60, t=80, b=85),
+        title_font_size=14,
     )
+    fig.update_xaxes(title_text="Hop index in chain", title_standoff=18, automargin=True)
+    fig.update_yaxes(title_text="Chain start host", title_standoff=16, automargin=True)
 
     return fig

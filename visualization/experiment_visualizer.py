@@ -337,6 +337,13 @@ def _summary_spread(
 
 def _save_or_show(fig, filepath: str, *, show: bool) -> None:
     fig.savefig(filepath, dpi=150, bbox_inches='tight')
+    # Also save a vector PDF copy alongside the raster PNG.
+    pdf_filepath = os.path.splitext(filepath)[0] + ".pdf"
+    try:
+        fig.savefig(pdf_filepath, bbox_inches='tight')
+        logging.info("PDF copy saved to: %s", pdf_filepath)
+    except Exception as _pdf_exc:
+        logging.warning("Could not save PDF copy of %s: %s", filepath, _pdf_exc)
     if show:
         import matplotlib.pyplot as plt
         plt.show()

@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import plotly.graph_objects as go
 
 from ringviz.parser import parse_log_text
 from ringviz.plots import make_gantt, make_gantt_comparison, make_heatmap
@@ -79,8 +80,9 @@ def _normalize_visualizer_df(df: pd.DataFrame | None) -> pd.DataFrame | None:
 
 
 def _png_export_button(fig, *, label: str, filename_prefix: str, key: str) -> None:
+    export_fig, export_width, export_height = _build_export_figure(fig)
     try:
-        png_bytes = fig.to_image(format="png", scale=2)
+        png_bytes = export_fig.to_image(format="png", width=export_width, height=export_height, scale=2)
     except Exception:
         st.caption("PNG export unavailable. Install/upgrade kaleido to enable image export.")
         return
@@ -93,6 +95,111 @@ def _png_export_button(fig, *, label: str, filename_prefix: str, key: str) -> No
         mime="image/png",
         key=key,
     )
+
+
+def _pdf_export_button(fig, *, label: str, filename_prefix: str, key: str) -> None:
+    """Render a download button for the given Plotly figure as a PDF file.
+
+    Requires kaleido (same dependency as PNG export).
+    """
+    export_fig, export_width, export_height = _build_export_figure(fig)
+    try:
+        pdf_bytes = export_fig.to_image(format="pdf", width=export_width, height=export_height)
+    except Exception:
+        st.caption("PDF export unavailable. Install/upgrade kaleido to enable image export.")
+        return
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    st.download_button(
+        label=label,
+        data=pdf_bytes,
+        file_name=f"{filename_prefix}_{ts}.pdf",
+        mime="application/pdf",
+        key=key,
+    )
+
+
+def _build_export_figure(fig) -> tuple[go.Figure, int, int]:
+    """Create a presentation-quality copy of *fig* sized for static PDF/PNG export.
+
+    The figure height is derived from the actual number of subplot panels and
+    unique chain rows so the export is never clipped regardless of how large
+    the comparison Gantt is.
+    """
+    export_fig = go.Figure(fig)
+
+    # ── Count subplot panels ─────────────────────────────────────────────────
+    # make_subplots() places subplot-title annotations with showarrow=False.
+    annotations = list(export_fig.layout.annotations or [])
+    subtitle_annotations = [
+        a for a in annotations
+        if not getattr(a, "showarrow", True) and str(getattr(a, "text", "")).strip()
+    ]
+    n_panels = max(1, len(subtitle_annotations))
+
+    # Fallback: count numbered xaxis entries in the layout dict.
+    if n_panels == 1:
+        try:
+            layout_json = export_fig.layout.to_plotly_json()
+            n_xaxes = sum(1 for k in layout_json if k.startswith("xaxis"))
+            n_panels = max(n_panels, n_xaxes)
+        except Exception:
+            pass
+
+    # ── Count unique chain rows (y-axis values) across all traces ───────────
+    # In a comparison Gantt every panel shows the same chain names, so the
+    # set of unique y-values equals chains-per-panel.
+    y_values: set[str] = set()
+    for trace in export_fig.data:
+        y_arr = getattr(trace, "y", None)
+        if y_arr is not None:
+            y_values.update(str(v) for v in y_arr if v is not None)
+    chains_per_panel = max(1, len(y_values))
+
+    # ── Compute required export dimensions ───────────────────────────────────
+    # 44 px per chain row · generous panel header (110 px) · top+bottom margin
+    _PX_PER_CHAIN   = 44
+    _PX_PER_HEADER  = 110   # per-panel title + spacing
+    _PX_MARGINS     = 260   # top + bottom total
+    export_height = max(
+        900,
+        _PX_MARGINS + n_panels * (chains_per_panel * _PX_PER_CHAIN + _PX_PER_HEADER),
+    )
+    is_comparison = n_panels > 1
+    export_width = 2200 if is_comparison else 1600
+
+    # ── Apply presentation-quality layout overrides ──────────────────────────
+    # Preserve any coloraxis already in the figure layout before update_layout
+    # merges the new settings (go.Figure copies layout so it should be there,
+    # but we re-assert it explicitly for safety).
+    _existing_layout = export_fig.layout.to_plotly_json()
+    _coloraxis_preserve = {k: v for k, v in _existing_layout.items() if k.startswith("coloraxis")}
+
+    export_fig.update_layout(
+        width=export_width,
+        height=export_height,
+        font=dict(size=16),
+        title=dict(font=dict(size=20), x=0.5, xanchor="center"),
+        margin=dict(l=145, r=135, t=115, b=135),
+        bargap=0.28,
+    )
+    # Re-apply coloraxis in case update_layout removed it
+    if _coloraxis_preserve:
+        export_fig.update_layout(**_coloraxis_preserve)
+    export_fig.update_xaxes(
+        automargin=True,
+        title_standoff=26,
+        tickfont=dict(size=14),
+        title_font=dict(size=16),
+    )
+    export_fig.update_yaxes(
+        automargin=True,
+        title_standoff=22,
+        tickfont=dict(size=13),
+        title_font=dict(size=16),
+    )
+    export_fig.update_annotations(font=dict(size=16))
+    return export_fig, export_width, export_height
 
 
 if uploaded is None:
@@ -286,12 +393,26 @@ if view in ["Gantt", "Both"]:
     st.plotly_chart(
         gantt_fig,
         use_container_width=True,
+        config={
+            "toImageButtonOptions": {
+                "format": "png",
+                "filename": "ring_gantt",
+                "scale": 3,   # 3× = high-res PNG from the toolbar camera button
+            },
+            "displaylogo": False,
+        },
     )
     _png_export_button(
         gantt_fig,
         label="Download Gantt as PNG",
         filename_prefix="ring_gantt",
         key="download_gantt_png",
+    )
+    _pdf_export_button(
+        gantt_fig,
+        label="Download Gantt as PDF",
+        filename_prefix="ring_gantt",
+        key="download_gantt_pdf",
     )
 
 
@@ -322,10 +443,24 @@ if view in ["Heatmap", "Both"]:
     st.plotly_chart(
         heatmap_fig,
         use_container_width=True,
+        config={
+            "toImageButtonOptions": {
+                "format": "png",
+                "filename": "ring_heatmap",
+                "scale": 3,
+            },
+            "displaylogo": False,
+        },
     )
     _png_export_button(
         heatmap_fig,
         label="Download Heatmap as PNG",
         filename_prefix="ring_heatmap",
         key="download_heatmap_png",
+    )
+    _pdf_export_button(
+        heatmap_fig,
+        label="Download Heatmap as PDF",
+        filename_prefix="ring_heatmap",
+        key="download_heatmap_pdf",
     )

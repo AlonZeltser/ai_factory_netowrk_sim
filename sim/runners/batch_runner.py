@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+import logging
 import math
 import multiprocessing
 import os
@@ -14,6 +15,8 @@ import yaml
 from sim.config.loader import load_experiment_spec
 from sim.config.models import ConfigError
 from sim.runners.experiment_runner import run_experiment
+
+_log = logging.getLogger(__name__)
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -474,21 +477,53 @@ def run_batch(
     if should_parallelize:
         process_count = max_processes or _default_process_count(len(inputs))
         process_count = max(1, min(process_count, len(inputs)))
+        _log.info(
+            "Sweep/batch dispatcher: launching %d simulation tasks across %d worker process(es) [spawn context]",
+            len(inputs),
+            process_count,
+        )
+        for idx, item in enumerate(inputs):
+            _log.info("  Queued task [%d/%d]: %s", idx + 1, len(inputs), item.label)
         mp_ctx = multiprocessing.get_context("spawn")
         with ProcessPoolExecutor(max_workers=process_count, mp_context=mp_ctx) as executor:
-            for result in executor.map(_run_batch_item_safe, inputs):
+            for idx, result in enumerate(executor.map(_run_batch_item_safe, inputs)):
+                ok = result.get("ok", False)
+                label = result.get("label", "?")
+                status = "OK" if ok else "FAILED"
+                _log.info("  Completed task [%d/%d] %s: %s", idx + 1, len(inputs), status, label)
+                if not ok:
+                    _log.warning("  Error in task %r: %s", label, result.get("error", "<no error message>"))
                 summary.append(result)
-                if stop_on_error and not result.get("ok", False):
+                if stop_on_error and not ok:
                     raise RuntimeError(result.get("error", "Unknown batch worker error"))
+        ok_count = sum(1 for r in summary if r.get("ok"))
+        _log.info(
+            "Sweep/batch dispatcher: all tasks complete — %d/%d succeeded, %d failed",
+            ok_count,
+            len(inputs),
+            len(inputs) - ok_count,
+        )
         return summary
 
-    for item in inputs:
+    _log.info("Batch: running %d task(s) sequentially (no parallel processes)", len(inputs))
+    for idx, item in enumerate(inputs):
+        _log.info("  Starting task [%d/%d]: %s", idx + 1, len(inputs), item.label)
         try:
-            summary.append(_run_batch_item(item))
+            result = _run_batch_item(item)
+            _log.info("  Finished task [%d/%d] OK: %s", idx + 1, len(inputs), item.label)
+            summary.append(result)
         except Exception as exc:
+            _log.warning("  Failed task [%d/%d] %r: %s", idx + 1, len(inputs), item.label, exc)
             summary.append({"label": item.label, "ok": False, "error": str(exc)})
             if stop_on_error:
                 raise
+    ok_count = sum(1 for r in summary if r.get("ok"))
+    _log.info(
+        "Batch complete: %d/%d succeeded, %d failed",
+        ok_count,
+        len(inputs),
+        len(inputs) - ok_count,
+    )
     return summary
 
 
