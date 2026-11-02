@@ -7,7 +7,6 @@ from typing import Any, Mapping
 import yaml
 
 from .models import ConfigError, ExperimentSpec
-from ..registry.presets import get_preset_item
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -102,33 +101,20 @@ def _normalize_loaded_mapping(data: dict[str, Any], *, source_name: str | None =
 
 def load_experiment_spec(
     *,
-    preset_name: str | None = None,
-    config_path: str | None = None,
+    config_path: str,
     overrides: list[str] | None = None,
 ) -> ExperimentSpec:
-    if not preset_name and not config_path:
-        raise ConfigError("Provide at least one of preset_name or config_path")
+    if not config_path:
+        raise ConfigError("A config file path is required")
 
-    merged: dict[str, Any] = {}
-    preset_file_path = ""
-    loaded_config_path = ""
-    if preset_name:
-        preset_item = get_preset_item(preset_name)
-        preset_data = _load_yaml_with_extends(preset_item.file_path)
-        preset_data["__source__"] = str(preset_item.file_path)
-        merged = _normalize_loaded_mapping(preset_data, source_name=preset_item.name.replace("/", "-"))
-        preset_file_path = str(preset_item.file_path)
-
-    if config_path:
-        config_file = Path(config_path)
-        if not config_file.is_absolute():
-            config_file = (_REPO_ROOT / config_file).resolve()
-        if not config_file.exists():
-            raise FileNotFoundError(f"Config file not found: {config_file}")
-        config_data = _load_yaml_with_extends(config_file)
-        config_data["__source__"] = str(config_file)
-        merged = _deep_merge(merged, _normalize_loaded_mapping(config_data, source_name=config_file.stem))
-        loaded_config_path = str(config_file)
+    config_file = Path(config_path)
+    if not config_file.is_absolute():
+        config_file = (_REPO_ROOT / config_file).resolve()
+    if not config_file.exists():
+        raise FileNotFoundError(f"Config file not found: {config_file}")
+    config_data = _load_yaml_with_extends(config_file)
+    config_data["__source__"] = str(config_file)
+    merged = _normalize_loaded_mapping(config_data, source_name=config_file.stem)
 
     for override in overrides or []:
         _apply_override(merged, override)
@@ -141,9 +127,7 @@ def load_experiment_spec(
         topology=spec.topology,
         routing=spec.routing,
         workload=spec.workload,
-        source_preset=(preset_name or ""),
-        source_preset_path=preset_file_path,
-        source_config_path=loaded_config_path,
+        source_config_path=str(config_file),
     )
 
 

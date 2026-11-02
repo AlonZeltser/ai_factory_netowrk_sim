@@ -9,14 +9,14 @@ This script makes it easy to visualize network topologies without running a full
 # BASIC USAGE
 # ============================================================================
 
-# Generate visualization for a preset
-# python visualization/build_topology_viz.py --preset ai/su-dp-low-small
+# Generate visualization for an experiment config
+# python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml
 
 # Generate with custom parameter
-# python visualization/build_topology_viz.py --preset ai/su-dp-low-small --set topology.params.leaf_count=8
+# python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml --set topology.params.leaf_count=8
 
 # Generate with better spacing for large topologies
-# python visualization/build_topology_viz.py --preset ai/su-dp-low-small --spacing 3.0
+# python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml --spacing 3.0
 
 
 # ============================================================================
@@ -25,27 +25,25 @@ This script makes it easy to visualize network topologies without running a full
 
 """
 1. View a small topology:
-   python visualization/build_topology_viz.py --preset ai/su-dp-tiny
+   python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml \\
+     --set topology.params.leaf_count=2
 
 2. View and customize:
-   python visualization/build_topology_viz.py --preset ai/su-dp-low-small \\
+   python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml \\
      --set topology.params.leaf_count=8 \\
      --set topology.params.spine_count=8
 
 3. Show link failures:
-   python visualization/build_topology_viz.py --preset ai/su-dp-low-small \\
+   python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml \\
      --set topology.params.fabric.link_failure_percent=20
 
 4. Large topology with good readability:
-   python visualization/build_topology_viz.py --preset ai/su-dp-low-small \\
+   python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml \\
      --set topology.params.leaf_count=16 \\
      --spacing 4.0
 
-5. Using custom config file:
-   python visualization/build_topology_viz.py --config my-config.yaml
-
-6. List all available presets:
-   python -m apps.sim list presets
+5. Using your own experiment file:
+   python visualization/build_topology_viz.py --config experiments/my-experiment.yaml
 """
 
 
@@ -106,16 +104,16 @@ Visualization Parameters:
 
 
 # ============================================================================
-# AVAILABLE PRESETS
+# EXPERIMENT FILES
 # ============================================================================
 
-PRESETS = """
-Available Presets:
-  - ai/su-dp-tiny         : Tiny (minimal nodes)
-  - ai/su-dp-low-small    : Small (4 leaf, 4 spine, 16 hosts)
-  - ai/dp-low-small       : Alternative small topology
-
-Run: python -m apps.sim list presets
+EXPERIMENTS = """
+Experiment configs live in experiments/ (one YAML file per experiment).
+Shared fragments live in experiments/base/:
+  - run-defaults.yaml        : run, routing and logging defaults
+  - topology-clos-small.yaml : 4 leaf, 4 spine, 16 hosts
+  - topology-clos-large.yaml : 8 leaf, 4 spine, 32 hosts
+  - workload-dp.yaml         : DP-heavy workload defaults
 """
 
 
@@ -144,7 +142,7 @@ Console Output Example:
 
 TROUBLESHOOTING = """
 ❌ "No nodes to visualize"
-   → Check that preset/config is valid
+   → Check that the config file is valid
    → Verify topology configuration
 
 ❌ Visualization too crowded
@@ -155,9 +153,8 @@ TROUBLESHOOTING = """
    → pip install matplotlib networkx
    → Set MPLBACKEND=Agg
 
-❌ "Unknown preset"
-   → Run: python -m apps.sim list presets
-   → Use correct preset name
+❌ "Config file not found"
+   → Paths are relative to the repo root, e.g. experiments/dp_single_bucket.yaml
 """
 
 
@@ -168,9 +165,9 @@ if __name__ == "__main__":
     print("="*70)
     print(PARAMETERS)
     print("\n" + "="*70)
-    print("AVAILABLE PRESETS")
+    print("EXPERIMENT FILES")
     print("="*70)
-    print(PRESETS)
+    print(EXPERIMENTS)
     print("\n" + "="*70)
     print("OUTPUT")
     print("="*70)

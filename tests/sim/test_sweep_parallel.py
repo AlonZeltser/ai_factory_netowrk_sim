@@ -6,6 +6,8 @@ import apps.sim as sim_app
 from sim.runners.batch_runner import BatchInput
 from sim.runners import batch_runner, sweep_runner
 
+DP_SMALL = "tests/fixtures/dp_small.yaml"
+
 
 def test_default_process_count_balances_tasks(monkeypatch) -> None:
     monkeypatch.setattr(batch_runner.os, "cpu_count", lambda: 8)
@@ -29,7 +31,7 @@ def test_run_sweep_enables_process_workers(monkeypatch) -> None:
     monkeypatch.setattr(sweep_runner, "run_batch", _fake_run_batch)
 
     summary = sweep_runner.run_sweep(
-        preset_name="ai/dp-low-small",
+        config_path=DP_SMALL,
         vary_specs=["routing.mode=ecmp,adaptive"],
         max_processes=3,
     )
@@ -55,8 +57,8 @@ def test_sweep_cli_forwards_process_count(monkeypatch) -> None:
     exit_code = sim_app.main(
         [
             "sweep",
-            "--preset",
-            "ai/dp-low-small",
+            "--config",
+            DP_SMALL,
             "--vary",
             "routing.mode=ecmp,adaptive",
             "--processes",
@@ -66,7 +68,7 @@ def test_sweep_cli_forwards_process_count(monkeypatch) -> None:
 
     assert exit_code == 0
     assert captured["max_processes"] == 4
-    assert captured["preset_name"] == "ai/dp-low-small"
+    assert captured["config_path"] == DP_SMALL
     assert captured["vary_specs"] == ["routing.mode=ecmp,adaptive"]
 
 
@@ -82,8 +84,8 @@ def test_sweep_cli_maps_packet_memory_flags_to_overrides(monkeypatch) -> None:
     exit_code = sim_app.main(
         [
             "sweep",
-            "--preset",
-            "ai/dp-low-small",
+            "--config",
+            DP_SMALL,
             "--vary",
             "routing.mode=ecmp,adaptive",
             "--store-packets",
@@ -103,7 +105,7 @@ def test_sweep_cli_plot_topology_once_uses_first_combo(monkeypatch) -> None:
 
     def _fake_build_inputs(**kwargs):
         calls["build_inputs"] = kwargs
-        return [BatchInput(label="first", preset_name="ai/dp-low-small", overrides=("routing.mode=ecmp",))]
+        return [BatchInput(label="first", config_path=DP_SMALL, overrides=("routing.mode=ecmp",))]
 
     def _fake_load_spec(**kwargs):
         calls["load_spec"] = kwargs
@@ -129,8 +131,8 @@ def test_sweep_cli_plot_topology_once_uses_first_combo(monkeypatch) -> None:
     exit_code = sim_app.main(
         [
             "sweep",
-            "--preset",
-            "ai/dp-low-small",
+            "--config",
+            DP_SMALL,
             "--vary",
             "routing.mode=ecmp,adaptive",
             "--plot-topology-once",
@@ -140,8 +142,7 @@ def test_sweep_cli_plot_topology_once_uses_first_combo(monkeypatch) -> None:
     assert exit_code == 0
     assert calls["topology_create"] is True
     assert calls["load_spec"] == {
-        "preset_name": "ai/dp-low-small",
-        "config_path": None,
+        "config_path": DP_SMALL,
         "overrides": ["routing.mode=ecmp"],
     }
 
@@ -167,8 +168,8 @@ def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch) -> None:
     exit_code = sim_app.main(
         [
             "sweep",
-            "--preset",
-            "ai/dp-low-small",
+            "--config",
+            DP_SMALL,
             "--vary",
             "routing.mode=ecmp,adaptive",
             "--plot-ring-heatmaps",
@@ -186,7 +187,7 @@ def test_sweep_cli_writes_deep_flow_chain_logs(monkeypatch, tmp_path: Path) -> N
     def _fake_run_sweep(**_kwargs):
         return [
             {
-                "label": "preset:ai/dp-low-small | routing.mode=adaptive",
+                "label": "dp_small.yaml | routing.mode=adaptive",
                 "ok": True,
                 "deep_flow_chain_log_enabled": True,
                 "deep_flow_chain_diagnostics": [
@@ -222,8 +223,8 @@ def test_sweep_cli_writes_deep_flow_chain_logs(monkeypatch, tmp_path: Path) -> N
     exit_code = sim_app.main(
         [
             "sweep",
-            "--preset",
-            "ai/dp-low-small",
+            "--config",
+            DP_SMALL,
             "--vary",
             "routing.mode=ecmp,adaptive",
             "--summary-out",

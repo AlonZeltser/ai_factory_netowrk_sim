@@ -28,7 +28,8 @@ network_sim/
 ├── project.pdf                        # Main paper that describes the research and results
 ├── apps/
 │   └── sim.py                         # Main unified CLI entry point
-├── sim/                               # Unified config, registries, presets, runners
+├── sim/                               # Config loading, registries, runners
+├── experiments/                       # Experiment YAML files (base/ holds shared fragments)
 ├── requirements.txt                    # Python dependencies
 │
 ├── ai_factory_simulation/              # AI workload modeling
@@ -125,35 +126,36 @@ Use `apps/sim.py` as the main interface for both simple network runs and AI work
 python -m apps.sim <command> [options]
 ```
 
+Every command takes an experiment YAML file via `--config`. Paths are relative to the repo root.
+
 #### Discover what is available
 
 ```bash
-python -m apps.sim list presets
 python -m apps.sim list workloads
 python -m apps.sim list routing
 ```
 
-#### Quick runs from presets
+#### Run one experiment
 
 ```bash
-python -m apps.sim run --preset ai/su-dp-low-small
-python -m apps.sim run --preset ai/dp-single-bucket
+python -m apps.sim run --config experiments/dp_single_bucket.yaml
 ```
 
 #### Override a few parameters without copying YAML files
 
 ```bash
-python -m apps.sim run --preset ai/su-dp-low-small --set routing.mode=adaptive
-python -m apps.sim run --preset ai/su-dp-low-small --set topology.params.leaf_count=12
-python -m apps.sim run --preset ai/su-dp-low-small --set topology.params.fabric.link_failure_percent=5
+python -m apps.sim run --config experiments/dp_single_bucket.yaml --set routing.mode=adaptive
+python -m apps.sim run --config experiments/dp_single_bucket.yaml --set topology.params.leaf_count=12
+python -m apps.sim run --config experiments/dp_single_bucket.yaml --set topology.params.fabric.link_failure_percent=5
 ```
 
 #### Validate and inspect the resolved experiment
 
 ```bash
-python -m apps.sim validate --preset ai/su-dp-low-small
-python -m apps.sim validate --config experiments/custom.yaml
+python -m apps.sim validate --config experiments/dp_single_bucket.yaml
 ```
+
+`validate` prints the fully resolved config (after `extends` and `--set` are applied).
 
 To save communication-distribution plots and open them in a window after a run:
 
@@ -163,97 +165,69 @@ run:
   show_visualization_window: true
 ```
 
-#### Generate a starter config from a preset
-
-```bash
-python -m apps.sim init --preset ai/su-dp-low-small --out experiments/dp-low-small.yaml
-```
-
 ### 2. Batch Execution
 
-For running multiple experiments sequentially, use the built-in Python batch command instead of a PowerShell script.
-
-#### Batch from presets or config files
+Run several experiment files one after another:
 
 ```bash
-python -m apps.sim batch --preset ai/su-dp-low-small --preset ai/dp-single-bucket
 python -m apps.sim batch --config experiments/run1.yaml --config experiments/run2.yaml
-python -m apps.sim batch --directory experiments/
-```
-
-#### Batch output summary
-
-```bash
-python -m apps.sim batch --preset ai/su-dp-low-small --preset ai/dp-single-bucket --summary-out results/batch-summary.yaml
-```
-
-#### Stop on first failure
-
-```bash
+python -m apps.sim batch --directory experiments/ --summary-out results/batch-summary.yaml
 python -m apps.sim batch --directory experiments/ --stop-on-error
 ```
+
+`--directory` picks up every `.yaml` / `.yml` file under that folder, including `experiments/base/`, so point it at a folder that holds only complete experiments.
 
 ---
 
 ### 3. Sweep Execution
 
-For cartesian parameter sweeps, use the built-in sweep command.
+Run every combination of the `--vary` values on top of one experiment file, in parallel:
 
 ```bash
-python -m apps.sim sweep --preset ai/su-dp-low-small --vary routing.mode=ecmp,adaptive --vary topology.params.leaf_count=8,16
-python -m apps.sim sweep --preset ai/su-dp-low-small --vary topology.params.fabric.link_failure_percent=0,5 --summary-out results/sweep.yaml
+python -m apps.sim sweep --config experiments/dp_single_bucket.yaml --vary routing.mode=ecmp,adaptive --vary topology.params.leaf_count=8,16
+python -m apps.sim sweep --config experiments/dp_single_bucket.yaml --vary topology.params.fabric.link_failure_percent=0,5 --summary-out results/sweep.yaml
 ```
-
-This replaces the old shell-driven workflow for selecting many scenario combinations manually.
 
 ---
 
-## Unified Configuration Structure
+## Experiment Configuration
 
-The new config model is centered on one concept: an **experiment**.
+Each experiment is one YAML file under `experiments/`. Shared defaults live in `experiments/base/` and are pulled in with `extends`:
+
+```
+experiments/
+  base/
+    run-defaults.yaml          # run, routing and logging defaults
+    topology-clos-small.yaml   # 4 leaf, 4 spine, 16 hosts
+    topology-clos-large.yaml   # 8 leaf, 4 spine, 32 hosts
+    workload-dp.yaml           # DP-heavy workload defaults
+  dp_single_bucket.yaml        # a concrete experiment
+```
+
+A concrete experiment lists its fragments and overrides only what it changes:
 
 ```yaml
-kind: experiment
-
+extends:
+  - base/run-defaults.yaml
+  - base/topology-clos-small.yaml
+  - base/workload-dp.yaml
 meta:
-  name: ai-su-dp-low-small
-  description: Example DP-heavy workload on the AI scale-unit clos preset
-
-run:
-  file_debug: false
-  message_verbose: false
-  verbose_route: false
-  visualize: false
-
+  name: dp-single-bucket
 topology:
   params:
-    leaf_count: 8
-    spine_count: 4
-    fabric:
-      bandwidth_profile: 4g
-      link_failure_percent: 0.0
-
-routing:
-  mode: ecmp
-  ecmp_flowlet_n_packets: 0
-
+    mtu: 4096
 workload:
-  kind: dp-heavy
-  params: {}
+  params:
+    steps: 30
+    num_buckets: 1
+    single_ring_only: true
 ```
+
+`extends` paths are relative to the file that contains them. Later entries override earlier ones, the file's own values override everything it extends, and `--set` overrides are applied last. Inheritance can be chained (`a -> b -> c`). Every option is documented with its allowed range in the `experiments/base/` fragments.
 
 ### Topology model
 
-Topology defaults now live in YAML preset fragments under `sim/presets/ai/`, and concrete presets usually override only `topology.params`.
-
-- the default AI scale-unit clos shape is described in `sim/presets/ai/topology-clos-scale-unit.yaml`
-- `topology.params` lets you override only the knobs you care about in the concrete preset
-
-AI presets inherit their topology shape from that YAML fragment, so most configs only need to edit `topology.params`. Topology shape is now primarily exposed through the YAML preset chain rather than a dedicated listing command.
-
-There are no longer in-code topology defaults for `clos`: if you create a standalone config, inherit the topology fragment (or provide the full required `topology.params` block yourself).
-
-Example overrides:
+There are no in-code topology defaults for `clos`: an experiment must extend a topology fragment (or provide the full `topology.params` block itself). Example overrides:
 
 ```yaml
 topology:
@@ -268,11 +242,8 @@ topology:
 
 ### Workload model
 
-Workload defaults now live in YAML preset fragments under `sim/presets/ai/`, and concrete presets usually override only `workload.params`.
-
 - `kind: dp-heavy` selects the DP-heavy training-step model
 - `kind: none` runs the topology with no traffic workload
-- built-in presets like `dp_single_bucket.yaml` inherit documented workload fragments for their common defaults
 
 Example:
 
@@ -285,26 +256,6 @@ workload:
 ```
 
 `chunk_redundancy_extra_packets` adds a fixed number of redundant packets to each communication flow on top of the useful payload. Redundancy is packet-based now, and the simulator validates that each useful flow payload is already an exact whole number of MTU-sized packets before adding those extras. If a flow has `N` useful packets and `R` redundant packets, it transmits `N + R` packets and completes when any `N` of those packets arrive at the receiver; late redundant/stalled packets may still add network load after the flow has completed.
-
-### Preset inheritance
-
-Preset YAML files can extend a base preset, and chained inheritance like `a -> b -> c` is supported.
-
-```yaml
-extends:
-  - presets-experiments-base.yaml
-  - workload-dp-low.yaml
-meta:
-  name: ai-su-dp-low-small
-```
-
-The AI preset stack now works roughly like:
-
-- `su-dp-low-small.yaml` inherits from `base-ai-su.yaml` and `workload-dp-heavy-low.yaml`
-- `base-ai-su.yaml` inherits from `topology-clos-scale-unit.yaml`
-- `workload-dp-heavy-low.yaml` inherits from `workload-dp-heavy-base.yaml`
-
-This keeps the preset library compact and avoids duplicating nearly identical experiment files while keeping topology, routing, and workload defaults visible in YAML.
 
 ---
 
@@ -430,8 +381,8 @@ run:
 
 1. Create the scenario/workload implementation in `network/scenarios/` or `ai_factory/scenarios/`
 2. Register it in `sim/registry/workloads.py`
-3. Add or update presets under `sim/presets/`
-4. Validate it with `python -m apps.sim validate ...`
+3. Add an experiment file under `experiments/` that uses it
+4. Validate it with `python -m apps.sim validate --config experiments/<file>.yaml`
 
 ### Adding New Routing Algorithms
 

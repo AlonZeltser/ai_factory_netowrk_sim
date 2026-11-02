@@ -201,8 +201,6 @@ class ExperimentSpec:
     topology: TopologySpec
     routing: RoutingSpec
     workload: WorkloadSpec
-    source_preset: str = ""
-    source_preset_path: str = ""
     source_config_path: str = ""
 
     @staticmethod

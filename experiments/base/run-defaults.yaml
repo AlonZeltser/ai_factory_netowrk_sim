@@ -1,8 +1,8 @@
 # Unified experiment config kind. Allowed values: `experiment` only.
 kind: experiment
 meta:
-  # Human-readable description inherited by presets that do not override it.
-  description: Base preset for AI workloads on the two-layer clos AI scale-unit fabric
+  # Human-readable description inherited by experiments that do not override it.
+  description: Base defaults for AI workloads on the two-layer clos AI scale-unit fabric
 run:
   # Whether to log DEBUG-level details to the run log file. Allowed values: true | false.
   file_debug: false

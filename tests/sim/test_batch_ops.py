@@ -6,9 +6,11 @@ from ai_factory.core.entities import FlowMetrics
 from sim.runners.batch_runner import _build_flow_stall_stats, collect_batch_inputs, run_batch, write_batch_summary
 from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 
+DP_SMALL = "tests/fixtures/dp_small.yaml"
 
-def test_collect_and_run_batch_from_presets() -> None:
-    inputs = collect_batch_inputs(presets=["ai/su-dp-low-small"])
+
+def test_collect_and_run_batch_from_configs() -> None:
+    inputs = collect_batch_inputs(configs=[DP_SMALL])
     summary = run_batch(inputs)
 
     assert len(summary) == 1
@@ -97,13 +99,13 @@ def test_build_flow_stall_stats_aggregates_training_flows_and_bucket_bottleneck(
 
 def test_build_and_run_sweep() -> None:
     inputs = build_sweep_inputs(
-        preset_name="ai/su-dp-low-small",
+        config_path=DP_SMALL,
         vary_specs=["workload.kind=dp-heavy,none", "topology.params.leaf_count=8,16"],
     )
     assert len(inputs) == 4
 
     summary = run_sweep(
-        preset_name="ai/su-dp-low-small",
+        config_path=DP_SMALL,
         vary_specs=["workload.kind=dp-heavy,none", "topology.params.leaf_count=8,16"],
     )
     assert len(summary) == 4

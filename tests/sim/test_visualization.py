@@ -146,7 +146,7 @@ def test_visualize_summary_collective_traffic_matrices_saves_one_file_per_collec
     summary = [
         {
             "ok": True,
-            "label": "preset:ai/dp-low-small | routing.mode=adaptive",
+            "label": "dp_small.yaml | routing.mode=adaptive",
             "routing_mode": "adaptive",
             "packet_stall_percent": 3.0,
             "chunk_redundancy_extra_packets": 2,

@@ -8,10 +8,12 @@ from sim.config.models import ConfigError
 from sim.config.loader import load_experiment_spec
 from sim.runners.experiment_runner import run_experiment, validate_experiment
 
+DP_SMALL = "tests/fixtures/dp_small.yaml"
 
-def test_load_ai_preset_with_overrides() -> None:
+
+def test_load_config_with_overrides() -> None:
     spec = load_experiment_spec(
-        preset_name="ai/dp-low-small",
+        config_path=DP_SMALL,
         overrides=[
             "routing.mode=adaptive",
             "topology.params.leaf_count=12",
@@ -25,18 +27,18 @@ def test_load_ai_preset_with_overrides() -> None:
     assert spec.topology.params["leaf_count"] == 12
     assert spec.topology.params["fabric"]["packet_stall_percent"] == 3
     assert spec.topology.params["fabric"]["packet_stall_delay_ms"] == 50
-    assert spec.source_preset == "ai/dp-low-small"
+    assert spec.source_config_path.endswith("dp_small.yaml")
 
 
 
 
 def test_validate_and_run_dp_low_small() -> None:
-    spec = load_experiment_spec(preset_name="ai/dp-low-small")
+    spec = load_experiment_spec(config_path=DP_SMALL)
 
     summary = validate_experiment(spec)
     assert summary["topology"] == "clos"
     assert summary["workload"] == "dp-heavy"
-    assert summary["source_preset"] == "ai/dp-low-small"
+    assert summary["source_config_path"].endswith("dp_small.yaml")
 
     results = run_experiment(spec)
     stats = results["run statistics"]
@@ -47,11 +49,11 @@ def test_validate_and_run_dp_low_small() -> None:
 
 def test_validate_requires_topology_defaults_from_yaml_chain(tmp_path: Path) -> None:
     cfg = tmp_path / "missing_topology_defaults.yaml"
+    run_defaults = (Path(__file__).resolve().parents[2] / "experiments" / "base" / "run-defaults.yaml").as_posix()
     cfg.write_text(
-        """
+        f"""
+extends: {run_defaults}
 kind: experiment
-run:
-  visualize: false
 topology:
   params:
 routing:
@@ -59,7 +61,7 @@ routing:
   ecmp_flowlet_n_packets: 0
 workload:
   kind: none
-  params: {}
+  params: {{}}
 """.strip(),
         encoding="utf-8",
     )
@@ -72,19 +74,19 @@ workload:
 
 def test_validate_clos_override() -> None:
     spec = load_experiment_spec(
-        preset_name="ai/dp-low-small",
+        config_path=DP_SMALL,
         overrides=["topology.params.leaf_count=10", "topology.params.fabric.bandwidth_profile=400g"],
     )
 
     summary = validate_experiment(spec)
     assert summary["topology"] == "clos"
     assert summary["workload"] == "dp-heavy"
-    assert summary["source_preset"] == "ai/dp-low-small"
+    assert summary["source_config_path"].endswith("dp_small.yaml")
 
 
 def test_run_collect_packet_timeline_implies_store_packets() -> None:
     spec = load_experiment_spec(
-        preset_name="ai/dp-low-small",
+        config_path=DP_SMALL,
         overrides=["run.collect_packet_timeline=true"],
     )
 
@@ -94,7 +96,7 @@ def test_run_collect_packet_timeline_implies_store_packets() -> None:
 
 def test_run_deep_flow_chain_log_flag_is_parsed() -> None:
     spec = load_experiment_spec(
-        preset_name="ai/dp-low-small",
+        config_path=DP_SMALL,
         overrides=["run.deep_flow_chain_log=true"],
     )
 

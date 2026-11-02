@@ -192,8 +192,7 @@ def _default_process_count(task_count: int) -> int:
 @dataclass(frozen=True)
 class BatchInput:
     label: str
-    preset_name: str | None = None
-    config_path: str | None = None
+    config_path: str
     overrides: tuple[str, ...] = ()
 
 
@@ -206,13 +205,10 @@ def _normalize_config_path(path: str) -> Path:
 
 def collect_batch_inputs(
     *,
-    presets: list[str] | None = None,
     configs: list[str] | None = None,
     directory: str | None = None,
 ) -> list[BatchInput]:
     inputs: list[BatchInput] = []
-    for preset in presets or []:
-        inputs.append(BatchInput(label=f"preset:{preset}", preset_name=preset))
     for config in configs or []:
         path = _normalize_config_path(config)
         if not path.exists():
@@ -225,7 +221,7 @@ def collect_batch_inputs(
         for path in sorted(root.rglob("*.yml")) + sorted(root.rglob("*.yaml")):
             inputs.append(BatchInput(label=str(path), config_path=str(path)))
     if not inputs:
-        raise ConfigError("Batch requires at least one preset, config, or directory input")
+        raise ConfigError("Batch requires at least one config or directory input")
     return inputs
 
 
@@ -243,7 +239,6 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
         }
 
     spec = load_experiment_spec(
-        preset_name=item.preset_name,
         config_path=item.config_path,
         overrides=list(item.overrides),
     )

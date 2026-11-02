@@ -47,10 +47,6 @@ def validate_experiment(spec: ExperimentSpec) -> dict[str, str]:
         "workload": workload_item,
         "routing_mode": spec.routing.mode,
     }
-    if spec.source_preset:
-        summary["source_preset"] = spec.source_preset
-    if spec.source_preset_path:
-        summary["source_preset_path"] = spec.source_preset_path
     if spec.source_config_path:
         summary["source_config_path"] = spec.source_config_path
     return summary

@@ -1,10 +1,10 @@
 extends:
-  - experiments/presets-experiments-base.yaml
-  - topologies/topology-clos-small-scale-unit.yaml
-  - dp_workloads/workload-dp-base.yaml
+  - base/run-defaults.yaml
+  - base/topology-clos-small.yaml
+  - base/workload-dp.yaml
 meta:
   name: dp-single-bucket
-  description: low-load DP-heavy preset on the AI scale-unit clos profile with reduce-scatter only
+  description: low-load DP-heavy experiment on the AI scale-unit clos profile with reduce-scatter only
 run:
   deep_flow_chain_log: true
 topology:

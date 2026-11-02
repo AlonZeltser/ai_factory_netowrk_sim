@@ -61,7 +61,7 @@ def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
 _REGISTRY: dict[str, WorkloadRegistryItem] = {
     "dp-heavy": WorkloadRegistryItem(
         name="dp-heavy",
-        description="AI-factory DP-heavy workload for the AI scale-unit clos presets",
+        description="AI-factory DP-heavy workload on the AI scale-unit clos topology",
         builder=_build_dp_heavy,
     ),
     "none": WorkloadRegistryItem(

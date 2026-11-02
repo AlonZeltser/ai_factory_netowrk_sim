@@ -24,7 +24,6 @@ if _loaded_sim is not None and not hasattr(_loaded_sim, "__path__"):
 
 from sim.config.loader import dump_experiment_yaml, load_experiment_spec
 from sim.config.models import ConfigError
-from sim.registry.presets import iter_preset_items
 from sim.registry.topologies import build_network
 from sim.registry.workloads import iter_workload_items
 from sim.runners.batch_runner import collect_batch_inputs, run_batch, write_batch_summary
@@ -58,8 +57,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     def add_config_options(p: argparse.ArgumentParser) -> None:
-        p.add_argument("--preset", help="Built-in preset name")
-        p.add_argument("--config", help="Path to a unified config file or legacy AI-factory YAML")
+        p.add_argument("--config", required=True, help="Path to an experiment YAML file, e.g. experiments/dp_single_bucket.yaml")
         p.add_argument("--set", dest="overrides", action="append", default=[], help="Override config values, e.g. routing.mode=adaptive")
         p.add_argument("--store-packets", action="store_true", default=False, help="Store packet objects for diagnostics (higher memory usage)")
         p.add_argument("--collect-packet-timeline", action="store_true", default=False, help="Collect packet timeline in results (implies --store-packets)")
@@ -70,12 +68,8 @@ def _build_parser() -> argparse.ArgumentParser:
     validate_p = sub.add_parser("validate", help="Validate and print the resolved experiment")
     add_config_options(validate_p)
 
-    init_p = sub.add_parser("init", help="Write a resolved preset/config to a YAML file")
-    add_config_options(init_p)
-    init_p.add_argument("--out", required=True, help="Output YAML path")
 
-    batch_p = sub.add_parser("batch", help="Run multiple presets/configs sequentially")
-    batch_p.add_argument("--preset", dest="presets", action="append", default=[], help="Preset to include in the batch (repeatable)")
+    batch_p = sub.add_parser("batch", help="Run multiple experiment configs sequentially")
     batch_p.add_argument("--config", dest="configs", action="append", default=[], help="Config file to include in the batch (repeatable)")
     batch_p.add_argument("--directory", help="Directory containing .yaml/.yml experiment files")
     batch_p.add_argument("--summary-out", help="Optional YAML path for the batch summary")
@@ -83,7 +77,7 @@ def _build_parser() -> argparse.ArgumentParser:
     batch_p.add_argument("--visualize-summary", action="store_true", default=False, help="Generate aggregate comparison plots from the batch summary")
     batch_p.add_argument("--show-visualization-window", action="store_true", default=False, help="Open aggregate comparison plots in an interactive window")
 
-    sweep_p = sub.add_parser("sweep", help="Run a cartesian sweep from one preset/config plus override dimensions in parallel")
+    sweep_p = sub.add_parser("sweep", help="Run a cartesian sweep from one config plus override dimensions in parallel")
     add_config_options(sweep_p)
     sweep_p.add_argument("--vary", dest="vary_specs", action="append", default=[], help="Sweep dimension in the form key=v1,v2,...")
     sweep_p.add_argument("--summary-out", help="Optional YAML path for the sweep summary")
@@ -94,8 +88,8 @@ def _build_parser() -> argparse.ArgumentParser:
     sweep_p.add_argument("--plot-ring-heatmaps", action="store_true", default=False, help="Generate per-collective ring traffic heatmaps from the sweep summary")
     sweep_p.add_argument("--show-visualization-window", action="store_true", default=False, help="Open aggregate comparison plots in an interactive window")
 
-    list_p = sub.add_parser("list", help="List supported presets/workloads/routing")
-    list_p.add_argument("target", choices=["presets", "workloads", "routing"])
+    list_p = sub.add_parser("list", help="List supported workloads/routing modes")
+    list_p.add_argument("target", choices=["workloads", "routing"])
 
     plot_summary_p = sub.add_parser("plot-summary", help="Generate aggregate comparison plots from an existing sweep/batch summary YAML")
     plot_summary_p.add_argument("--summary", required=True, help="Path to a sweep/batch summary YAML file")
@@ -104,14 +98,8 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _require_input(args: argparse.Namespace) -> None:
-    if not getattr(args, "preset", None) and not getattr(args, "config", None):
-        raise ConfigError("Provide at least one of --preset or --config")
-
-
 def _load_from_args(args: argparse.Namespace):
-    _require_input(args)
-    return load_experiment_spec(preset_name=args.preset, config_path=args.config, overrides=_effective_overrides(args))
+    return load_experiment_spec(config_path=args.config, overrides=_effective_overrides(args))
 
 
 def _effective_overrides(args: argparse.Namespace) -> list[str]:
@@ -125,10 +113,6 @@ def _effective_overrides(args: argparse.Namespace) -> list[str]:
 
 
 def _cmd_list(target: str) -> int:
-    if target == "presets":
-        for item in iter_preset_items():
-            print(f"{item.name:30} {item.description}")
-        return 0
     if target == "workloads":
         for item in iter_workload_items():
             print(f"{item.name:16} {item.description}")
@@ -150,17 +134,6 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_init(args: argparse.Namespace) -> int:
-    spec = _load_from_args(args)
-    out_path = Path(args.out)
-    if not out_path.is_absolute():
-        out_path = (_REPO_ROOT / out_path).resolve()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(dump_experiment_yaml(spec), encoding="utf-8")
-    print(f"Wrote config to {out_path}")
-    return 0
-
-
 def _cmd_run(args: argparse.Namespace) -> int:
     spec = _load_from_args(args)
     results = run_experiment(spec)
@@ -174,7 +147,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
 def _cmd_batch(args: argparse.Namespace) -> int:
     summary = run_batch(
-        collect_batch_inputs(presets=args.presets, configs=args.configs, directory=args.directory),
+        collect_batch_inputs(configs=args.configs, directory=args.directory),
         stop_on_error=args.stop_on_error,
     )
     print(yaml.safe_dump(_sanitize_for_console(summary), sort_keys=False))
@@ -192,17 +165,14 @@ def _cmd_batch(args: argparse.Namespace) -> int:
 
 
 def _cmd_sweep(args: argparse.Namespace) -> int:
-    _require_input(args)
     effective_overrides = _effective_overrides(args)
     if args.plot_topology_once:
         first_input = build_sweep_inputs(
-            preset_name=args.preset,
             config_path=args.config,
             base_overrides=effective_overrides,
             vary_specs=args.vary_specs,
         )[0]
         topo_spec = load_experiment_spec(
-            preset_name=first_input.preset_name,
             config_path=first_input.config_path,
             overrides=list(first_input.overrides),
         )
@@ -210,7 +180,6 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
         topo_network.create(True)
 
     summary = run_sweep(
-        preset_name=args.preset,
         config_path=args.config,
         base_overrides=effective_overrides,
         vary_specs=args.vary_specs,
@@ -265,8 +234,6 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_list(args.target)
         if args.command == "validate":
             return _cmd_validate(args)
-        if args.command == "init":
-            return _cmd_init(args)
         if args.command == "run":
             return _cmd_run(args)
         if args.command == "batch":
