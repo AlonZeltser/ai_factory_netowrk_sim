@@ -11,7 +11,6 @@ This document focus on  instructions for running simulations, analyzing results,
 - **Multiple Routing Algorithms**: ECMP (Equal-Cost Multi-Path), Flowlet-based routing, and Adaptive routing
 - **AI Workload Modeling**: Simulates realistic AI training patterns including:
   - DP (Data Parallel) heavy workloads with AllReduce collectives
-  - Mixed workloads combining TP (Tensor Parallel) and PP+DP (Pipeline + Data Parallel)
   - Mice flow injection for latency sensitivity analysis
 - **Fabric Topologies**: Clos/Leaf-Spine architectures with configurable counts and fabric parameters
 - **Failure Scenarios**: Link failure injection to test resilience
@@ -139,21 +138,21 @@ python -m apps.sim list routing
 
 ```bash
 python -m apps.sim run --preset ai/su-dp-low-small
-python -m apps.sim run --preset ai/su-mixed-light
+python -m apps.sim run --preset ai/dp-single-bucket
 ```
 
 #### Override a few parameters without copying YAML files
 
 ```bash
 python -m apps.sim run --preset ai/su-dp-low-small --set routing.mode=adaptive
-python -m apps.sim run --preset ai/su-mixed-light --set topology.params.leaf_count=12
-python -m apps.sim run --preset ai/su-mixed-light --set topology.params.fabric.link_failure_percent=5
+python -m apps.sim run --preset ai/su-dp-low-small --set topology.params.leaf_count=12
+python -m apps.sim run --preset ai/su-dp-low-small --set topology.params.fabric.link_failure_percent=5
 ```
 
 #### Validate and inspect the resolved experiment
 
 ```bash
-python -m apps.sim validate --preset ai/su-mixed-light
+python -m apps.sim validate --preset ai/su-dp-low-small
 python -m apps.sim validate --config experiments/custom.yaml
 ```
 
@@ -168,7 +167,6 @@ run:
 #### Generate a starter config from a preset
 
 ```bash
-python -m apps.sim init --preset ai/su-mixed-light --out experiments/mixed_light.yaml
 python -m apps.sim init --preset ai/su-dp-low-small --out experiments/dp-low-small.yaml
 ```
 
@@ -179,7 +177,7 @@ For running multiple experiments sequentially, use the built-in Python batch com
 #### Batch from presets or config files
 
 ```bash
-python -m apps.sim batch --preset ai/su-dp-low-small --preset ai/su-mixed-light
+python -m apps.sim batch --preset ai/su-dp-low-small --preset ai/dp-single-bucket
 python -m apps.sim batch --config experiments/run1.yaml --config experiments/run2.yaml
 python -m apps.sim batch --directory experiments/
 ```
@@ -187,7 +185,7 @@ python -m apps.sim batch --directory experiments/
 #### Batch output summary
 
 ```bash
-python -m apps.sim batch --preset ai/su-dp-low-small --preset ai/su-mixed-light --summary-out results/batch-summary.yaml
+python -m apps.sim batch --preset ai/su-dp-low-small --preset ai/dp-single-bucket --summary-out results/batch-summary.yaml
 ```
 
 #### Stop on first failure
@@ -204,7 +202,7 @@ For cartesian parameter sweeps, use the built-in sweep command.
 
 ```bash
 python -m apps.sim sweep --preset ai/su-dp-low-small --vary routing.mode=ecmp,adaptive --vary topology.params.leaf_count=8,16
-python -m apps.sim sweep --preset ai/su-mixed-light --vary topology.params.fabric.link_failure_percent=0,5 --summary-out results/sweep.yaml
+python -m apps.sim sweep --preset ai/su-dp-low-small --vary topology.params.fabric.link_failure_percent=0,5 --summary-out results/sweep.yaml
 ```
 
 This replaces the old shell-driven workflow for selecting many scenario combinations manually.
@@ -219,8 +217,8 @@ The new config model is centered on one concept: an **experiment**.
 kind: experiment
 
 meta:
-  name: ai-su-mixed-light
-  description: Example mixed workload on the AI scale-unit clos preset
+  name: ai-su-dp-low-small
+  description: Example DP-heavy workload on the AI scale-unit clos preset
 
 run:
   file_debug: false
@@ -241,7 +239,7 @@ routing:
   ecmp_flowlet_n_packets: 0
 
 workload:
-  kind: mixed
+  kind: dp-heavy
   params: {}
 ```
 
@@ -274,8 +272,8 @@ topology:
 Workload defaults now live in YAML preset fragments under `sim/presets/ai/`, and concrete presets usually override only `workload.params`.
 
 - `kind: dp-heavy` selects the DP-heavy training-step model
-- `kind: mixed` selects the concurrent TP-heavy + PP+DP model
-- built-in presets like `su-dp-low-small.yaml` and `su-mixed-light.yaml` inherit documented workload fragments for their common defaults
+- `kind: none` runs the topology with no traffic workload
+- built-in presets like `dp_single_bucket.yaml` inherit documented workload fragments for their common defaults
 
 Example:
 
@@ -387,13 +385,6 @@ python -m pytest tests/ai_factory/ -v
    - Single data-parallel job
    - AllReduce collectives across all workers
    - Highly synchronized, bandwidth-intensive
-
-2. **Mixed**
-   - Two concurrent jobs:
-     - **TP-Heavy**: Tensor parallel with many micro-collectives
-     - **PP+DP**: Pipeline parallel with data parallel synchronization
-   - Diverse message sizes and patterns
-   - Tests routing under heterogeneous traffic
 
 ### Mice Flows
 

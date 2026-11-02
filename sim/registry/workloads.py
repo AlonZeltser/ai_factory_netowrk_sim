@@ -1,9 +1,8 @@
 ﻿from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, cast
+from typing import Any, Callable, Iterable
 from ai_factory.scenarios.ai_factory_su_dp_heavy_scenario import AIFactorySUDpHeavyScenario
 from ai_factory.scenarios.mice_flow_injector import MiceConfig
-from ai_factory.scenarios.mixed_scenario import AllocationMode, MixedScenario, StagePlacementMode
 from network.scenarios.base import Scenario
 from network.scenarios.none_scenario import NoneScenario
 from ..config.models import ConfigError, ExperimentSpec, TopologySpec, WorkloadSpec
@@ -85,72 +84,11 @@ def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
         mice=mice,
     )
 
-
-def _allocation_mode(params: dict[str, object]) -> AllocationMode:
-    raw = str(_require_param(params, "allocation_mode"))
-    if raw not in {"rack_balanced", "contiguous"}:
-        raise ConfigError("workload.params.allocation_mode must be 'rack_balanced' or 'contiguous'")
-    return cast(AllocationMode, raw)
-
-
-def _stage_placement_mode(params: dict[str, object]) -> StagePlacementMode:
-    raw = str(_require_param(params, "stage_placement_mode"))
-    if raw not in {"topology_aware", "topology_unaware"}:
-        raise ConfigError("workload.params.stage_placement_mode must be 'topology_aware' or 'topology_unaware'")
-    return cast(StagePlacementMode, raw)
-
-
-def _build_mixed(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
-    _require_topology(topology, "clos")
-    _require_no_profile(workload)
-    params = dict(workload.params)
-    seed = int(_require_param(params, "seed"))
-    mtu = int(topology.params.get("mtu", 4096))
-    mice = _build_mice(params, mtu_bytes=mtu)
-    jobs = _require_param(params, "jobs")
-    if jobs is None:
-        jobs = {}
-    if not isinstance(jobs, dict):
-        raise ConfigError("Expected mapping at 'workload.params.jobs'")
-    tp_cfg = jobs.get("tp_heavy", {}) or {}
-    pp_cfg = jobs.get("pp_dp", {}) or {}
-    if not isinstance(tp_cfg, dict) or not isinstance(pp_cfg, dict):
-        raise ConfigError("Expected mappings at 'workload.params.jobs.tp_heavy' and 'workload.params.jobs.pp_dp'")
-    return MixedScenario(
-        collectives=int(_require_param_any(params, "collectives", "steps")),
-        tp_heavy_collectives=(int(tp_cfg["collectives"]) if "collectives" in tp_cfg else (int(tp_cfg["steps"]) if "steps" in tp_cfg else None)),
-        pp_dp_collectives=(int(pp_cfg["collectives"]) if "collectives" in pp_cfg else (int(pp_cfg["steps"]) if "steps" in pp_cfg else None)),
-        seed=seed,
-        traffic_scale=float(_require_param(params, "traffic_scale")),
-        chunk_redundancy_extra_packets=int(_require_param(params, "chunk_redundancy_extra_packets")),
-        allocation_mode=_allocation_mode(params),
-        stage_placement_mode=_stage_placement_mode(params),
-        tp_heavy_fwd_compute_ms=float(_require_param(params, "tp_heavy_fwd_compute_ms")),
-        tp_heavy_micro_collectives=int(_require_param(params, "tp_heavy_micro_collectives")),
-        tp_heavy_micro_collective_bytes_per_participant=int(_require_param(params, "tp_heavy_micro_collective_bytes_per_participant")),
-        tp_heavy_micro_compute_gap_ms=float(_require_param(params, "tp_heavy_micro_compute_gap_ms")),
-        tp_heavy_final_sync_bytes_per_participant=int(_require_param(params, "tp_heavy_final_sync_bytes_per_participant")),
-        tp_heavy_tail_compute_ms=float(_require_param(params, "tp_heavy_tail_compute_ms")),
-        tp_heavy_gap_us=float(_require_param(params, "tp_heavy_gap_us")),
-        pp_dp_microbatch_count=int(_require_param(params, "pp_dp_microbatch_count")),
-        pp_dp_microbatch_gap_us=float(_require_param(params, "pp_dp_microbatch_gap_us")),
-        pp_dp_activation_bytes_per_microbatch=int(_require_param(params, "pp_dp_activation_bytes_per_microbatch")),
-        pp_dp_grad_bytes_per_microbatch=int(_require_param(params, "pp_dp_grad_bytes_per_microbatch")),
-        pp_dp_dp_sync_bytes_per_participant=int(_require_param(params, "pp_dp_dp_sync_bytes_per_participant")),
-        pp_dp_tail_compute_ms=float(_require_param(params, "pp_dp_tail_compute_ms")),
-        record_first_collective_flow_signatures=bool(_require_param_any(params, "record_first_collective_flow_signatures", "record_first_step_flow_signatures")),
-        mice=mice,
-    )
 _REGISTRY: dict[str, WorkloadRegistryItem] = {
     "dp-heavy": WorkloadRegistryItem(
         name="dp-heavy",
         description="AI-factory DP-heavy workload for the AI scale-unit clos presets",
         builder=_build_dp_heavy,
-    ),
-    "mixed": WorkloadRegistryItem(
-        name="mixed",
-        description="Concurrent TP-heavy and PP+DP workload for the AI scale-unit clos presets",
-        builder=_build_mixed,
     ),
     "none": WorkloadRegistryItem(
         name="none",

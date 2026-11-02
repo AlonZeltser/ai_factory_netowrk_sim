@@ -239,14 +239,7 @@ class Network(ABC):
             if job_metrics is not None:
                 per_job: dict[str, dict[str, float]] = {}
 
-                # Single-job scenarios store a JobMetrics object;
-                # mixed scenarios store a dict like {"jobA": JobMetrics, "jobB": JobMetrics}.
-                if isinstance(job_metrics, dict):
-                    items = job_metrics.items()
-                else:
-                    items = [("job", job_metrics)]
-
-                for name, jm in items:
+                for name, jm in [("job", job_metrics)]:
                     collectives = getattr(jm, "collectives", getattr(jm, "steps", None))
                     start_time = getattr(jm, "start_time", None)
                     end_time = getattr(jm, "end_time", None)
@@ -304,13 +297,7 @@ class Network(ABC):
         ai_factory_bucket_metrics = self.entities.get("ai_factory_bucket_metrics", [])
         job_metrics = self.entities.get("ai_factory_job_metrics")
         if not ai_factory_bucket_metrics and job_metrics is not None:
-            if isinstance(job_metrics, dict):
-                merged_bucket_metrics = []
-                for metrics in job_metrics.values():
-                    merged_bucket_metrics.extend(getattr(metrics, "bucket_metrics", []))
-                ai_factory_bucket_metrics = merged_bucket_metrics
-            else:
-                ai_factory_bucket_metrics = list(getattr(job_metrics, "bucket_metrics", []))
+            ai_factory_bucket_metrics = list(getattr(job_metrics, "bucket_metrics", []))
 
         ai_factory_flow_metrics = self.entities.get("ai_factory_flow_metrics", [])
         ai_factory_flow_chain_diagnostics = self.entities.get("ai_factory_flow_chain_diagnostics", [])

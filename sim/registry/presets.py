@@ -23,11 +23,6 @@ _REGISTRY: dict[str, PresetRegistryItem] = {
         description="AI scale-unit (SU) DP-heavy small-scale preset with reduce-scatter only (single ring)",
         file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "dp_single_bucket.yaml",
     ),
-    "ai/mixed-light": PresetRegistryItem(
-        name="ai/mixed-light",
-        description="AI scale-unit (SU) mixed lightweight preset on the unified clos family",
-        file_path=_REPO_ROOT / "sim" / "presets" / "ai" / "mixed_light.yaml",
-    ),
 }
 
 def iter_preset_items() -> Iterable[PresetRegistryItem]:

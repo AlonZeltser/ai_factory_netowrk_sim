@@ -45,16 +45,6 @@ def test_validate_and_run_dp_low_small() -> None:
     assert stats["dropped packets count"] == 0
 
 
-def test_load_ai_preset_with_inheritance_and_profiles() -> None:
-    spec = load_experiment_spec(preset_name="ai/mixed-light")
-
-    assert spec.topology.name == "clos"
-    assert spec.topology.profile == ""
-    assert spec.workload.name == "mixed"
-    assert spec.workload.profile == ""
-    assert spec.topology.params["leaf_count"] == 8
-
-
 def test_validate_requires_topology_defaults_from_yaml_chain(tmp_path: Path) -> None:
     cfg = tmp_path / "missing_topology_defaults.yaml"
     cfg.write_text(

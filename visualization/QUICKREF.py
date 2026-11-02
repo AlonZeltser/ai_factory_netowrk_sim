@@ -113,7 +113,6 @@ PRESETS = """
 Available Presets:
   - ai/su-dp-tiny         : Tiny (minimal nodes)
   - ai/su-dp-low-small    : Small (4 leaf, 4 spine, 16 hosts)
-  - ai/su-mixed-light     : Mixed workload on small topology
   - ai/dp-low-small       : Alternative small topology
 
 Run: python -m apps.sim list presets

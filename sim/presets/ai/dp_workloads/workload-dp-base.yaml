@@ -1,5 +1,5 @@
 workload:
-  # Allowed values: `dp-heavy`, `mixed`, `none`. This fragment is for the DP-heavy workload.
+  # Allowed values: `dp-heavy`, `none`. This fragment is for the DP-heavy workload.
   kind: dp-heavy
   params:
     # Number of training steps to simulate. Range: integer >= 1.

@@ -1,5 +1,4 @@
 ﻿from ai_factory.scenarios.ai_factory_su_dp_heavy_scenario import AIFactorySUDpHeavyScenario
-from ai_factory.scenarios.mixed_scenario import MixedScenario
 
-__all__ = ["AIFactorySUDpHeavyScenario", "MixedScenario"]
+__all__ = ["AIFactorySUDpHeavyScenario"]
 

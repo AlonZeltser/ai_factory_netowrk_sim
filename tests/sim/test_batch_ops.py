@@ -8,10 +8,10 @@ from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 
 
 def test_collect_and_run_batch_from_presets() -> None:
-    inputs = collect_batch_inputs(presets=["ai/su-dp-low-small", "ai/su-mixed-light"])
+    inputs = collect_batch_inputs(presets=["ai/su-dp-low-small"])
     summary = run_batch(inputs)
 
-    assert len(summary) == 2
+    assert len(summary) == 1
     assert all(item["ok"] for item in summary)
 
 
