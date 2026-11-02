@@ -6,7 +6,6 @@ from ai_factory.core.runner import JobRunner
 from ai_factory.scenarios.network_flow_injector import NetworkFlowInjector
 from ai_factory.traffic.collective import CollectiveAlgorithm
 from ai_factory.workloads.dp_heavy_workload import DPHeavyWorkloadConfig, build_dp_heavy_workload_job
-from ai_factory.scenarios.mice_flow_injector import MiceConfig, MiceFlowInjector
 
 
 class AIFactorySUDpHeavyScenario(Scenario):
@@ -26,7 +25,6 @@ class AIFactorySUDpHeavyScenario(Scenario):
         chunk_redundancy_extra_packets: int = 0,
         single_ring_only: bool = False,
         steps: int | None = None,
-        mice: MiceConfig | None = None,
     ):
         if collectives is None and steps is None:
             raise ValueError("Provide collectives (preferred) or legacy steps")
@@ -40,7 +38,6 @@ class AIFactorySUDpHeavyScenario(Scenario):
         self.mtu = mtu
         self.chunk_redundancy_extra_packets = chunk_redundancy_extra_packets
         self.single_ring_only = single_ring_only
-        self.mice = mice
 
     def install(self, network) -> None:
         participants = sorted(network.hosts.keys())
@@ -60,18 +57,6 @@ class AIFactorySUDpHeavyScenario(Scenario):
         job = build_dp_heavy_workload_job(participants=participants, config=cfg)
 
         injector = NetworkFlowInjector(network)
-
-        # Optional background mice traffic.
-        mice_injector = None
-        if self.mice is not None and self.mice.enabled:
-            mice_injector = MiceFlowInjector(
-                network=network,
-                injector=injector,
-                cfg=self.mice,
-                should_stop=lambda: bool(metrics.end_time is not None),
-            )
-            mice_injector.install()
-
         runner = JobRunner(sim=network.simulator, injector=injector, job=job)
         metrics = runner.run()
 
@@ -95,11 +80,6 @@ class AIFactorySUDpHeavyScenario(Scenario):
                 "single_ring_only": self.single_ring_only,
             }
         )
-        if self.mice is not None and self.mice.enabled:
-            out["mice_enabled"] = True
-            out["mice_interarrival_s"] = self.mice.interarrival_s
-            out["mice_packets_range"] = f"{self.mice.min_packets}-{self.mice.max_packets}"
-            out["mice_force_cross_rack"] = self.mice.force_cross_rack
         return out
 
     @property

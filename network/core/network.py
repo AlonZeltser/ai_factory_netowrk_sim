@@ -277,14 +277,6 @@ class Network(ABC):
             # Never break results collection because of optional AI-factory metrics.
             pass
 
-        # --- Mice flow metrics (if present) ---
-        try:
-            mice_summary = self.entities.get("mice_flow_summary")
-            if isinstance(mice_summary, dict) and mice_summary:
-                run_statistics.update(mice_summary)
-        except Exception:
-            pass
-
         # Collect packet timeline data for visualization (birth_time, size_bytes)
         # Only available when store_packets=True on the simulator
         packet_timeline = []

@@ -116,9 +116,6 @@ def _build_flow_stall_stats(flow_metrics: list[Any], stall_counts_by_flow_id: di
             flow_id = int(flow_id_raw)
         except (TypeError, ValueError):
             continue
-        if collective_id < 0:
-            # Exclude non-training traffic such as background mice flows.
-            continue
 
         training_flow_ids.add(flow_id)
 
@@ -306,7 +303,7 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
     stall_counts_by_flow_id = _normalize_flow_stall_counts(stats.get("packet_stall_triggered_count_by_flow_id", {}))
     flow_stall_stats = _build_flow_stall_stats(flow_metrics, stall_counts_by_flow_id)
     
-    # Calculate ring-flow redundancy/packetization metrics over training flows only (exclude mice/background traffic).
+    # Calculate ring-flow redundancy/packetization metrics over ring-step flows.
     mtu_bytes = _resolve_mtu_bytes(spec, params)
     total_redundant_packets = 0
     total_redundant_bytes = 0
@@ -322,9 +319,6 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
         try:
             collective_id = int(collective_id_raw)
         except (TypeError, ValueError):
-            continue
-        if collective_id < 0:
-            # Exclude non-training traffic such as background mice flows.
             continue
         tag = str(_metric_value(metric, "tag", "") or "")
         if "/ring_step_" not in tag:

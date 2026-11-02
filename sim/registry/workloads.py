@@ -2,7 +2,6 @@
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 from ai_factory.scenarios.ai_factory_su_dp_heavy_scenario import AIFactorySUDpHeavyScenario
-from ai_factory.scenarios.mice_flow_injector import MiceConfig
 from network.scenarios.base import Scenario
 from network.scenarios.none_scenario import NoneScenario
 from ..config.models import ConfigError, ExperimentSpec, TopologySpec, WorkloadSpec
@@ -38,29 +37,6 @@ def _require_param_any(params: dict[str, Any], *keys: str) -> Any:
     raise ConfigError(f"Missing required key {aliases}")
 
 
-def _require_mice_param(mice: dict[str, object], key: str) -> Any:
-    if key not in mice:
-        raise ConfigError(f"Missing required key 'workload.params.mice.{key}'")
-    return mice[key]
-
-
-def _build_mice(params: dict[str, object], *, mtu_bytes: int) -> MiceConfig | None:
-    mice = params.get("mice")
-    if mice is None:
-        return None
-    if not isinstance(mice, dict):
-        raise ConfigError("Expected mapping at 'workload.params.mice'")
-    return MiceConfig(
-        enabled=bool(_require_mice_param(mice, "enabled")),
-        seed=int(_require_mice_param(mice, "seed")),
-        start_delay_s=float(_require_mice_param(mice, "start_delay_s")),
-        interarrival_s=float(_require_mice_param(mice, "interarrival_s")),
-        min_packets=int(_require_mice_param(mice, "min_packets")),
-        max_packets=int(_require_mice_param(mice, "max_packets")),
-        # mtu_bytes is derived from topology params; optionally overridable in the mice config
-        mtu_bytes=int(mice.get("mtu_bytes", mtu_bytes)),
-        force_cross_rack=bool(_require_mice_param(mice, "force_cross_rack")),
-    )
 def _build_none(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
     return NoneScenario()
 def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
@@ -69,7 +45,6 @@ def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
     params = dict(workload.params)
     seed = int(_require_param(params, "seed"))
     mtu = int(topology.params.get("mtu", 4096))
-    mice = _build_mice(params, mtu_bytes=mtu)
     return AIFactorySUDpHeavyScenario(
         collectives=int(_require_param_any(params, "collectives", "steps")),
         seed=seed,
@@ -81,7 +56,6 @@ def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
         mtu=mtu,
         chunk_redundancy_extra_packets=int(_require_param(params, "chunk_redundancy_extra_packets")),
         single_ring_only=bool(_require_param(params, "single_ring_only")),
-        mice=mice,
     )
 
 _REGISTRY: dict[str, WorkloadRegistryItem] = {

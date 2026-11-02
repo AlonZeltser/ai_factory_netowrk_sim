@@ -11,7 +11,6 @@ This document focus on  instructions for running simulations, analyzing results,
 - **Multiple Routing Algorithms**: ECMP (Equal-Cost Multi-Path), Flowlet-based routing, and Adaptive routing
 - **AI Workload Modeling**: Simulates realistic AI training patterns including:
   - DP (Data Parallel) heavy workloads with AllReduce collectives
-  - Mice flow injection for latency sensitivity analysis
 - **Fabric Topologies**: Clos/Leaf-Spine architectures with configurable counts and fabric parameters
 - **Failure Scenarios**: Link failure injection to test resilience
 - **Performance Metrics**: Step completion time, FCT (Flow Completion Time), queue occupancy, congestion analysis
@@ -283,8 +282,6 @@ workload:
   params:
     bucket_bytes_per_participant: 4194304
     chunk_redundancy_extra_packets: 2
-    mice:
-      enabled: false
 ```
 
 `chunk_redundancy_extra_packets` adds a fixed number of redundant packets to each communication flow on top of the useful payload. Redundancy is packet-based now, and the simulator validates that each useful flow payload is already an exact whole number of MTU-sized packets before adding those extras. If a flow has `N` useful packets and `R` redundant packets, it transmits `N + R` packets and completes when any `N` of those packets arrive at the receiver; late redundant/stalled packets may still add network load after the flow has completed.
@@ -320,7 +317,6 @@ Each run generates a detailed log file containing:
 - Parameter summary (configuration)
 - Run statistics:
   - Step completion times (mean, p95, p99)
-  - Mice flow FCT statistics
   - Queue occupancy metrics
   - Total simulation time
 
@@ -385,12 +381,6 @@ python -m pytest tests/ai_factory/ -v
    - Single data-parallel job
    - AllReduce collectives across all workers
    - Highly synchronized, bandwidth-intensive
-
-### Mice Flows
-
-- Background short flows injected during training
-- Used to measure latency sensitivity under load
-- Configurable arrival rate, size distribution, cross-rack enforcement
 
 ---
 
