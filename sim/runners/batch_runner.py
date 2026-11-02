@@ -219,6 +219,9 @@ def collect_batch_inputs(
         if not root.exists() or not root.is_dir():
             raise FileNotFoundError(f"Batch directory not found: {root}")
         for path in sorted(root.rglob("*.yml")) + sorted(root.rglob("*.yaml")):
+            # Files under a `base/` folder are shared fragments, not complete experiments.
+            if "base" in path.relative_to(root).parts[:-1]:
+                continue
             inputs.append(BatchInput(label=str(path), config_path=str(path)))
     if not inputs:
         raise ConfigError("Batch requires at least one config or directory input")

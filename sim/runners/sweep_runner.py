@@ -3,6 +3,7 @@ from __future__ import annotations
 from itertools import product
 from typing import Any
 
+from sim.config.loader import load_sweep_spec
 from sim.config.models import ConfigError
 from sim.runners.batch_runner import BatchInput, run_batch
 
@@ -22,6 +23,31 @@ def parse_vary_spec(spec: str) -> tuple[str, list[str]]:
     return key, values
 
 
+def _format_override_value(value: Any) -> str:
+    # Overrides are parsed back with yaml.safe_load, so booleans must be lowercase.
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def merge_vary_dimensions(
+    *,
+    file_vary: tuple[tuple[str, tuple[Any, ...]], ...],
+    cli_vary: list[tuple[str, list[str]]],
+) -> list[tuple[str, list[str]]]:
+    """Combine `sweep.vary` from the config with CLI `--vary` dimensions.
+
+    File dimensions come first, in file order. A CLI dimension with the same key
+    replaces the file's values in place; new CLI keys are appended.
+    """
+    merged: dict[str, list[str]] = {
+        key: [_format_override_value(v) for v in values] for key, values in file_vary
+    }
+    for key, values in cli_vary:
+        merged[key] = list(values)
+    return list(merged.items())
+
+
 def build_sweep_inputs(
     *,
     config_path: str,
@@ -30,9 +56,14 @@ def build_sweep_inputs(
 ) -> list[BatchInput]:
     if not config_path:
         raise SweepConfigError("Sweep requires --config")
-    parsed = [parse_vary_spec(spec) for spec in (vary_specs or [])]
+    parsed = merge_vary_dimensions(
+        file_vary=load_sweep_spec(config_path).vary,
+        cli_vary=[parse_vary_spec(spec) for spec in (vary_specs or [])],
+    )
     if not parsed:
-        raise SweepConfigError("Sweep requires at least one --vary key=v1,v2 specification")
+        raise SweepConfigError(
+            "Sweep has no dimensions: add a 'sweep.vary' section to the config or pass --vary key=v1,v2"
+        )
 
     keys = [key for key, _ in parsed]
     values_product = list(product(*[values for _, values in parsed]))

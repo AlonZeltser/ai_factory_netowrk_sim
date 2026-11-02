@@ -235,4 +235,57 @@ class ExperimentSpec:
         return out
 
 
+_SWEEP_KEYS = ("vary", "summary_out", "visualize_summary", "plot_ring_heatmaps")
+_SCALAR_TYPES = (str, int, float, bool)
+
+
+@dataclass(frozen=True)
+class SweepSpec:
+    """Optional `sweep:` section of an experiment file.
+
+    `vary` maps a dotted config key to the list of values to try; the sweep runs
+    every combination. The other fields mirror the matching `sweep` CLI flags.
+    """
+
+    vary: tuple[tuple[str, tuple[Any, ...]], ...] = ()
+    summary_out: str = ""
+    visualize_summary: bool = False
+    plot_ring_heatmaps: bool = False
+
+    @staticmethod
+    def from_mapping(value: Any) -> "SweepSpec":
+        if value is None:
+            return SweepSpec()
+        data = _require_mapping(value, "sweep")
+        unknown = sorted(set(data) - set(_SWEEP_KEYS))
+        if unknown:
+            raise ConfigError(f"Unknown key(s) in 'sweep': {', '.join(unknown)}. Allowed: {', '.join(_SWEEP_KEYS)}")
+
+        vary_raw = data.get("vary") or {}
+        vary_map = _require_mapping(vary_raw, "sweep.vary")
+        vary: list[tuple[str, tuple[Any, ...]]] = []
+        for key, values in vary_map.items():
+            if not isinstance(key, str) or not key.strip():
+                raise ConfigError(f"Invalid key in 'sweep.vary': {key!r}")
+            if not isinstance(values, list) or not values:
+                raise ConfigError(f"'sweep.vary.{key}' must be a non-empty list of values")
+            for v in values:
+                if not isinstance(v, _SCALAR_TYPES):
+                    raise ConfigError(f"'sweep.vary.{key}' values must be plain scalars, got {v!r}")
+            vary.append((key.strip(), tuple(values)))
+
+        return SweepSpec(
+            vary=tuple(vary),
+            summary_out=str(data.get("summary_out") or ""),
+            visualize_summary=bool(data.get("visualize_summary", False)),
+            plot_ring_heatmaps=bool(data.get("plot_ring_heatmaps", False)),
+        )
+
+    def combination_count(self) -> int:
+        count = 1
+        for _, values in self.vary:
+            count *= len(values)
+        return count if self.vary else 0
+
+
 

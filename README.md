@@ -175,17 +175,42 @@ python -m apps.sim batch --directory experiments/ --summary-out results/batch-su
 python -m apps.sim batch --directory experiments/ --stop-on-error
 ```
 
-`--directory` picks up every `.yaml` / `.yml` file under that folder, including `experiments/base/`, so point it at a folder that holds only complete experiments.
+`--directory` picks up every `.yaml` / `.yml` file under that folder, skipping anything inside a `base/` folder (shared fragments, not complete experiments).
 
 ---
 
 ### 3. Sweep Execution
 
-Run every combination of the `--vary` values on top of one experiment file, in parallel:
+A sweep runs every combination of a set of parameter values on top of one experiment file, in parallel. The plan lives in the experiment file itself, so one command reproduces a whole result set:
+
+```yaml
+# experiments/my_sweep.yaml
+extends:
+  - base/run-defaults.yaml
+  - base/topology-clos-small.yaml
+  - base/workload-dp.yaml
+meta:
+  name: my-sweep
+sweep:
+  vary:                                         # dotted config key -> list of values
+    routing.mode: [ecmp, adaptive]
+    workload.params.chunk_redundancy_extra_packets: [0, 1, 2]
+  summary_out: results/my_sweep/summary.yaml    # optional
+  visualize_summary: true                       # optional: comparison plots
+  plot_ring_heatmaps: false                     # optional: per-collective traffic heatmaps
+```
+
+```bash
+python -m apps.sim validate --config experiments/my_sweep.yaml   # prints the sweep plan
+python -m apps.sim sweep --config experiments/my_sweep.yaml      # runs all 6 combinations
+```
+
+- `run` and `validate` ignore the `sweep` section and use the base values.
+- `--vary key=v1,v2` still works: it replaces the file's values for the same key, or adds a new dimension.
+- `--summary-out`, `--visualize-summary` and `--plot-ring-heatmaps` override the matching `sweep` settings.
 
 ```bash
 python -m apps.sim sweep --config experiments/dp_single_bucket.yaml --vary routing.mode=ecmp,adaptive --vary topology.params.leaf_count=8,16
-python -m apps.sim sweep --config experiments/dp_single_bucket.yaml --vary topology.params.fabric.link_failure_percent=0,5 --summary-out results/sweep.yaml
 ```
 
 ---

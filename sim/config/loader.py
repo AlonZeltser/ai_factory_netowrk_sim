@@ -6,7 +6,7 @@ from typing import Any, Mapping
 
 import yaml
 
-from .models import ConfigError, ExperimentSpec
+from .models import ConfigError, ExperimentSpec, SweepSpec
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -99,11 +99,7 @@ def _normalize_loaded_mapping(data: dict[str, Any], *, source_name: str | None =
     raise ConfigError("Unsupported config format. Expected a unified experiment config.")
 
 
-def load_experiment_spec(
-    *,
-    config_path: str,
-    overrides: list[str] | None = None,
-) -> ExperimentSpec:
+def _load_config_file(config_path: str) -> tuple[Path, dict[str, Any]]:
     if not config_path:
         raise ConfigError("A config file path is required")
 
@@ -113,13 +109,27 @@ def load_experiment_spec(
     if not config_file.exists():
         raise FileNotFoundError(f"Config file not found: {config_file}")
     config_data = _load_yaml_with_extends(config_file)
-    config_data["__source__"] = str(config_file)
-    merged = _normalize_loaded_mapping(config_data, source_name=config_file.stem)
+    return config_file, _normalize_loaded_mapping(config_data, source_name=config_file.stem)
+
+
+def load_sweep_spec(config_path: str) -> SweepSpec:
+    """Read the optional `sweep:` section of an experiment file (after `extends`)."""
+    _, data = _load_config_file(config_path)
+    return SweepSpec.from_mapping(data.get("sweep"))
+
+
+def load_experiment_spec(
+    *,
+    config_path: str,
+    overrides: list[str] | None = None,
+) -> ExperimentSpec:
+    config_file, merged = _load_config_file(config_path)
 
     for override in overrides or []:
         _apply_override(merged, override)
 
-    merged.pop("__source__", None)
+    # The sweep plan is read separately by load_sweep_spec; a single run ignores it.
+    merged.pop("sweep", None)
     spec = ExperimentSpec.from_mapping(merged)
     return ExperimentSpec(
         meta=spec.meta,

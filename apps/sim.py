@@ -22,7 +22,7 @@ _loaded_sim = sys.modules.get("sim")
 if _loaded_sim is not None and not hasattr(_loaded_sim, "__path__"):
     del sys.modules["sim"]
 
-from sim.config.loader import dump_experiment_yaml, load_experiment_spec
+from sim.config.loader import dump_experiment_yaml, load_experiment_spec, load_sweep_spec
 from sim.config.models import ConfigError
 from sim.registry.topologies import build_network
 from sim.registry.workloads import iter_workload_items
@@ -65,9 +65,8 @@ def _build_parser() -> argparse.ArgumentParser:
     run_p = sub.add_parser("run", help="Run one experiment")
     add_config_options(run_p)
 
-    validate_p = sub.add_parser("validate", help="Validate and print the resolved experiment")
+    validate_p = sub.add_parser("validate", help="Validate and print the resolved experiment and its sweep plan")
     add_config_options(validate_p)
-
 
     batch_p = sub.add_parser("batch", help="Run multiple experiment configs sequentially")
     batch_p.add_argument("--config", dest="configs", action="append", default=[], help="Config file to include in the batch (repeatable)")
@@ -77,10 +76,19 @@ def _build_parser() -> argparse.ArgumentParser:
     batch_p.add_argument("--visualize-summary", action="store_true", default=False, help="Generate aggregate comparison plots from the batch summary")
     batch_p.add_argument("--show-visualization-window", action="store_true", default=False, help="Open aggregate comparison plots in an interactive window")
 
-    sweep_p = sub.add_parser("sweep", help="Run a cartesian sweep from one config plus override dimensions in parallel")
+    sweep_p = sub.add_parser(
+        "sweep",
+        help="Run every combination of the config's sweep.vary values (plus any --vary) in parallel",
+    )
     add_config_options(sweep_p)
-    sweep_p.add_argument("--vary", dest="vary_specs", action="append", default=[], help="Sweep dimension in the form key=v1,v2,...")
-    sweep_p.add_argument("--summary-out", help="Optional YAML path for the sweep summary")
+    sweep_p.add_argument(
+        "--vary",
+        dest="vary_specs",
+        action="append",
+        default=[],
+        help="Extra sweep dimension key=v1,v2,...; replaces the config's sweep.vary entry for the same key",
+    )
+    sweep_p.add_argument("--summary-out", help="YAML path for the sweep summary (overrides sweep.summary_out)")
     sweep_p.add_argument("--stop-on-error", action="store_true", default=False, help="Stop immediately if any run fails")
     sweep_p.add_argument("--processes", type=int, help="Worker process count for sweep runs (default: auto-balanced)")
     sweep_p.add_argument("--visualize-summary", action="store_true", default=False, help="Generate aggregate comparison plots from the sweep summary")
@@ -131,6 +139,11 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     print("Validation OK")
     print(yaml.safe_dump(summary, sort_keys=False))
     print(dump_experiment_yaml(spec))
+    sweep = load_sweep_spec(args.config)
+    if sweep.vary:
+        print(f"Sweep plan: {sweep.combination_count()} combinations")
+        for key, values in sweep.vary:
+            print(f"  {key}: {list(values)}")
     return 0
 
 
@@ -166,6 +179,11 @@ def _cmd_batch(args: argparse.Namespace) -> int:
 
 def _cmd_sweep(args: argparse.Namespace) -> int:
     effective_overrides = _effective_overrides(args)
+    # Output settings come from the config's sweep section; CLI flags take precedence.
+    sweep_file = load_sweep_spec(args.config)
+    summary_out = args.summary_out or sweep_file.summary_out or None
+    visualize_summary = args.visualize_summary or sweep_file.visualize_summary
+    plot_ring_heatmaps = args.plot_ring_heatmaps or sweep_file.plot_ring_heatmaps
     if args.plot_topology_once:
         first_input = build_sweep_inputs(
             config_path=args.config,
@@ -188,19 +206,19 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
     )
     print(yaml.safe_dump(_sanitize_for_console(summary), sort_keys=False))
     output_path = None
-    if args.summary_out:
-        output_path = write_batch_summary(summary, args.summary_out)
+    if summary_out:
+        output_path = write_batch_summary(summary, summary_out)
         print(f"Wrote sweep summary to {output_path}")
     sweep_out_dir = output_path.parent if output_path is not None else (_REPO_ROOT / "results").resolve()
     deep_log_paths = write_sweep_deep_flow_logs(summary, out_dir=str(sweep_out_dir / "deep_flow_chain_logs"))
     for path in deep_log_paths:
         print(f"Wrote deep flow chain log to {path}")
-    if args.visualize_summary or args.plot_ring_heatmaps:
+    if visualize_summary or plot_ring_heatmaps:
         out_dir = str(sweep_out_dir)
         paths: list[str] = []
-        if args.visualize_summary:
+        if visualize_summary:
             paths.extend(visualize_sweep_time_comparison(summary, out_dir=out_dir, show=args.show_visualization_window))
-        if args.plot_ring_heatmaps:
+        if plot_ring_heatmaps:
             paths.extend(visualize_summary_collective_traffic_matrices(summary, out_dir=out_dir, show=args.show_visualization_window))
         for path in paths:
             print(f"Wrote comparison plot to {path}")

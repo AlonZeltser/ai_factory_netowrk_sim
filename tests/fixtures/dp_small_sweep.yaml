@@ -1,0 +1,8 @@
+# dp_small.yaml plus a sweep plan, used by the sweep-config tests.
+extends: dp_small.yaml
+meta:
+  name: test-dp-small-sweep
+sweep:
+  vary:
+    routing.mode: [ecmp, adaptive]
+    workload.params.chunk_redundancy_extra_packets: [0, 1]

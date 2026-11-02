@@ -94,9 +94,11 @@ def test_visualize_sweep_time_comparison_saves_aggregate_and_per_redundancy_file
 
     outputs = visualize_sweep_time_comparison(summary, out_dir=str(tmp_path), show=False)
 
-    assert len(outputs) == 16
+    assert len(outputs) == 17
     assert all(Path(output).exists() for output in outputs)
-    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name for output in outputs) == 5
+    # 6 aggregate plots: flow, bucket, collective, collective lower-15% zoom, best-collective, job.
+    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name for output in outputs) == 6
+    assert sum("collective_time_vs_packet_stall_lower_15pct_" in Path(output).name for output in outputs) == 1
     assert sum("_redundancy_0pkt_" in Path(output).name for output in outputs) == 4
     assert sum("_redundancy_2pkt_" in Path(output).name for output in outputs) == 4
     assert any("best_collective_time_vs_" in Path(output).name for output in outputs)
@@ -192,10 +194,11 @@ def test_visualize_sweep_time_comparison_from_yaml_saves_plots_and_step_heatmaps
 
     outputs = visualize_sweep_time_comparison_from_yaml(str(summary_path), out_dir=str(tmp_path), show=False)
 
-    assert len(outputs) == 18
+    assert len(outputs) == 19
     assert all(Path(output).exists() for output in outputs)
-    # 5 non-per-redundancy comparison plots (4 metric plots + best-step-time view).
-    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name and "collective_traffic_matrix_" not in Path(output).name for output in outputs) == 5
+    # 6 aggregate plots: 4 metric plots + collective lower-15% zoom + best-collective-time view.
+    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name and "collective_traffic_matrix_" not in Path(output).name for output in outputs) == 6
+    assert sum("collective_time_vs_packet_stall_lower_15pct_" in Path(output).name for output in outputs) == 1
     # 2 collective traffic matrix heatmaps (one per row that has collective_traffic_matrices data)
     assert sum("collective_traffic_matrix_" in Path(output).name for output in outputs) == 2
     # 2 CSVs: step-time points and full stall distribution
