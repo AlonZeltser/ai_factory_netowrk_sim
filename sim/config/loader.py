@@ -87,16 +87,6 @@ def _apply_override(data: dict[str, Any], override: str) -> None:
             cursor[key] = next_value
         cursor = next_value
     cursor[keys[-1]] = value
-def _normalize_loaded_mapping(data: dict[str, Any]) -> dict[str, Any]:
-    if data.get("kind") == "experiment":
-        return data
-
-    topology = data.get("topology")
-    workload = data.get("workload")
-    if isinstance(topology, Mapping) and isinstance(workload, Mapping):
-        return data
-
-    raise ConfigError("Unsupported config format. Expected a unified experiment config.")
 
 
 def _load_config_file(config_path: str) -> tuple[Path, dict[str, Any]]:
@@ -108,8 +98,7 @@ def _load_config_file(config_path: str) -> tuple[Path, dict[str, Any]]:
         config_file = (_REPO_ROOT / config_file).resolve()
     if not config_file.exists():
         raise FileNotFoundError(f"Config file not found: {config_file}")
-    config_data = _load_yaml_with_extends(config_file)
-    return config_file, _normalize_loaded_mapping(config_data)
+    return config_file, _load_yaml_with_extends(config_file)
 
 
 def load_sweep_spec(config_path: str) -> SweepSpec:
@@ -130,15 +119,7 @@ def load_experiment_spec(
 
     # The sweep plan is read separately by load_sweep_spec; a single run ignores it.
     merged.pop("sweep", None)
-    spec = ExperimentSpec.from_mapping(merged)
-    return ExperimentSpec(
-        meta=spec.meta,
-        run=spec.run,
-        topology=spec.topology,
-        routing=spec.routing,
-        workload=spec.workload,
-        source_config_path=str(config_file),
-    )
+    return ExperimentSpec.from_mapping(merged, source_config_path=str(config_file))
 
 
 def dump_experiment_yaml(spec: ExperimentSpec) -> str:

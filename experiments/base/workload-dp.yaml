@@ -12,8 +12,6 @@ workload:
     bucket_bytes_per_participant: 4194304
     # Gap between ring steps inside the collective in microseconds. Range: float >= 0.0.
     gap_us: 0.0
-    # Deprecated alias: t_fwd_bwd_ms: X means prolog_compute_ms = bucket_interval_ms = X with
-    # concurrent buckets. Cannot be combined with the three keys below.
     # Compute time from step start until the first gradient bucket is ready (forward pass plus the
     # backward part that produces bucket 0), in milliseconds. Range: float >= 0.0.
     prolog_compute_ms: 10.0

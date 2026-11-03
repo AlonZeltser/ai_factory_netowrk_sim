@@ -54,8 +54,11 @@ def test_validate_requires_topology_defaults_from_yaml_chain(tmp_path: Path) -> 
         f"""
 extends: {run_defaults}
 kind: experiment
+meta:
+  name: missing-topology-defaults
 topology:
-  params:
+  family: clos
+  params: {{}}
 routing:
   mode: ecmp
   ecmp_flowlet_n_packets: 0
@@ -75,7 +78,11 @@ workload:
 def test_validate_clos_override() -> None:
     spec = load_experiment_spec(
         config_path=DP_SMALL,
-        overrides=["topology.params.leaf_count=10", "topology.params.fabric.bandwidth_profile=400g"],
+        overrides=[
+            "topology.params.leaf_count=10",
+            "topology.params.fabric.server_to_leaf_bandwidth_bps=400000000000",
+            "topology.params.fabric.leaf_to_spine_bandwidth_bps=400000000000",
+        ],
     )
 
     summary = validate_experiment(spec)
@@ -84,12 +91,14 @@ def test_validate_clos_override() -> None:
     assert summary["source_config_path"].endswith("dp_small.yaml")
 
 
-def test_run_collect_packet_timeline_implies_store_packets() -> None:
+def test_run_collect_packet_timeline_requires_store_packets() -> None:
+    with pytest.raises(ConfigError, match="requires 'run.store_packets: true'"):
+        load_experiment_spec(config_path=DP_SMALL, overrides=["run.collect_packet_timeline=true"])
+
     spec = load_experiment_spec(
         config_path=DP_SMALL,
-        overrides=["run.collect_packet_timeline=true"],
+        overrides=["run.collect_packet_timeline=true", "run.store_packets=true"],
     )
-
     assert spec.run.collect_packet_timeline is True
     assert spec.run.store_packets is True
 

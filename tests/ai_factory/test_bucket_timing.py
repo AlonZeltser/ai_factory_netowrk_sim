@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import logging
-
 import pytest
 
-from ai_factory.core.entities import CommPhase, ComputePhase, TrainingJob
+from ai_factory.core.entities import CommPhase, ComputePhase
 from ai_factory.traffic.collective import CollectiveAlgorithm
 from ai_factory.workloads.dp_heavy_workload import DPHeavyWorkloadConfig, build_dp_heavy_workload_job
 from sim.config.loader import load_experiment_spec
 from sim.config.models import ConfigError
-from sim.registry.workloads import _resolve_bucket_timing, build_scenario
+from sim.registry.workloads import build_scenario
 from sim.runners.batch_runner import BatchInput, _run_batch_item
 from sim.runners.experiment_runner import run_experiment
 
@@ -43,50 +41,6 @@ def _config(**overrides) -> DPHeavyWorkloadConfig:
     )
     values.update(overrides)
     return DPHeavyWorkloadConfig(**values)
-
-
-def _job_structure(job: TrainingJob) -> list:
-    """Everything about a job that drives the simulation, except the random job_id."""
-    structure = []
-    for step in job.steps:
-        for phase in step.phases:
-            if isinstance(phase, ComputePhase):
-                structure.append((step.step_id, phase.name, phase.duration_s))
-            elif isinstance(phase, CommPhase):
-                structure.append((step.step_id, phase.name, phase.bucket_scheduling))
-                for bucket in phase.buckets:
-                    for flow in bucket.flows:
-                        structure.append(
-                            (
-                                bucket.bucket_id,
-                                flow.flow_id,
-                                flow.tag,
-                                flow.src_node_id,
-                                flow.dst_node_id,
-                                flow.start_time,
-                                flow.size_bytes,
-                                dict(flow.metadata),
-                            )
-                        )
-    return structure
-
-
-def test_legacy_t_fwd_bwd_alias_builds_the_same_job_as_the_new_params(caplog) -> None:
-    with caplog.at_level(logging.WARNING):
-        prolog, interval, scheduling = _resolve_bucket_timing({"t_fwd_bwd_ms": 2.5})
-    assert (prolog, interval, scheduling) == (2.5, 2.5, "concurrent")
-    assert any("deprecated" in rec.getMessage() for rec in caplog.records)
-
-    legacy_job = build_dp_heavy_workload_job(
-        participants=PARTICIPANTS,
-        config=_config(prolog_compute_ms=prolog, bucket_interval_ms=interval, bucket_scheduling=scheduling),
-    )
-    new_job = build_dp_heavy_workload_job(
-        participants=PARTICIPANTS,
-        config=_config(prolog_compute_ms=2.5, bucket_interval_ms=2.5, bucket_scheduling="concurrent"),
-    )
-
-    assert _job_structure(legacy_job) == _job_structure(new_job)
 
 
 def test_prolog_sets_phase_zero_and_interval_spaces_bucket_releases() -> None:
@@ -159,7 +113,8 @@ def test_concurrent_buckets_overlap_and_never_wait() -> None:
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
-        (["workload.params.t_fwd_bwd_ms=1.0"], "cannot be combined"),
+        # The old single timing key was removed; it must fail loudly, not be ignored.
+        (["workload.params.t_fwd_bwd_ms=1.0"], "Unknown key.*t_fwd_bwd_ms"),
         (["workload.params.prolog_compute_ms=-1.0"], "prolog_compute_ms must be >= 0"),
         (["workload.params.bucket_interval_ms=-0.5"], "bucket_interval_ms must be >= 0"),
         (["workload.params.bucket_scheduling=parallel"], "bucket_scheduling must be one of"),

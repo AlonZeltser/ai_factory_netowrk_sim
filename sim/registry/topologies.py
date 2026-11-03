@@ -19,7 +19,6 @@ _CLOS_FABRIC_KEYS = (
     "packet_stall_retransmit_priority",
     "server_to_leaf_bandwidth_bps",
     "leaf_to_spine_bandwidth_bps",
-    "bandwidth_profile",
 )
 
 
@@ -35,12 +34,16 @@ def _require_mapping_param(params: dict[str, Any], key: str) -> dict[str, Any]:
 def _normalize_routing(spec: RoutingSpec) -> tuple[RoutingMode, int]:
     mode = str(spec.mode).strip().lower()
     flowlet_packets = int(spec.ecmp_flowlet_n_packets)
-    if mode in {"ecmp", "hash"}:
-        return RoutingMode.ECMP, max(flowlet_packets, 0)
+    if flowlet_packets < 0:
+        raise ConfigError(f"routing.ecmp_flowlet_n_packets must be >= 0, got {flowlet_packets}")
+    if mode == "ecmp":
+        return RoutingMode.ECMP, flowlet_packets
     if mode == "flowlet":
-        return RoutingMode.ECMP, flowlet_packets if flowlet_packets > 0 else 64
-    if mode in {"adaptive", "adapt"}:
-        return RoutingMode.ADAPTIVE, max(flowlet_packets, 0)
+        if flowlet_packets == 0:
+            raise ConfigError("routing.mode 'flowlet' requires routing.ecmp_flowlet_n_packets > 0")
+        return RoutingMode.ECMP, flowlet_packets
+    if mode == "adaptive":
+        return RoutingMode.ADAPTIVE, flowlet_packets
     raise ConfigError(f"Unsupported routing.mode: {spec.mode!r}. Valid: ecmp | adaptive | flowlet")
 def _require_int_param(params: dict[str, Any], key: str) -> int:
     if key not in params:
@@ -60,25 +63,14 @@ def _require_bool_param(params: dict[str, Any], key: str) -> bool:
     return bool(params[key])
 
 
-def _bandwidth_profile_to_bps(profile: str) -> tuple[float, float]:
-    normalized = profile.strip().lower()
-    if normalized == "4g":
-        return 4e9, 4e9
-    if normalized == "400g":
-        return 400e9, 400e9
-    raise ConfigError(f"Unsupported topology fabric bandwidth_profile: {profile!r}. Valid: 4g | 400g")
-
-
 def _build_clos(topology: TopologySpec, routing: RoutingSpec, run: RunSpec) -> Network:
     routing_mode, flowlet_packets = _normalize_routing(routing)
-    if str(topology.profile).strip():
-        raise ConfigError("topology.profile is no longer supported. Put topology defaults in YAML via extends and override topology.params directly.")
 
     params = dict(topology.params)
     reject_unknown_keys(params, _CLOS_PARAM_KEYS, "topology.params")
     layers = _require_int_param(params, "layers")
     if layers != 2:
-        raise ConfigError("The current clos implementation supports only layers=2 (leaf-spine) during Batch 2")
+        raise ConfigError("The clos implementation supports only layers=2 (leaf-spine)")
 
     fabric = _require_mapping_param(params, "fabric")
     reject_unknown_keys(fabric, _CLOS_FABRIC_KEYS, "topology.params.fabric")
@@ -92,16 +84,8 @@ def _build_clos(topology: TopologySpec, routing: RoutingSpec, run: RunSpec) -> N
     host_links_per_server = _require_int_param(fabric, "host_links_per_server")
     parallel_leaf_to_spine_links = _require_int_param(fabric, "parallel_leaf_to_spine_links")
 
-    server_to_leaf_bandwidth_bps = fabric.get("server_to_leaf_bandwidth_bps")
-    leaf_to_spine_bandwidth_bps = fabric.get("leaf_to_spine_bandwidth_bps")
-    bandwidth_profile = fabric.get("bandwidth_profile")
-    if bandwidth_profile is not None:
-        server_to_leaf_bandwidth_bps, leaf_to_spine_bandwidth_bps = _bandwidth_profile_to_bps(str(bandwidth_profile))
-    else:
-        if server_to_leaf_bandwidth_bps is None:
-            server_to_leaf_bandwidth_bps = _require_float_param(fabric, "server_to_leaf_bandwidth_bps")
-        if leaf_to_spine_bandwidth_bps is None:
-            leaf_to_spine_bandwidth_bps = _require_float_param(fabric, "leaf_to_spine_bandwidth_bps")
+    server_to_leaf_bandwidth_bps = _require_float_param(fabric, "server_to_leaf_bandwidth_bps")
+    leaf_to_spine_bandwidth_bps = _require_float_param(fabric, "leaf_to_spine_bandwidth_bps")
 
     topo_cfg = AIFactorySUTopologyConfig(
         leaves=leaf_count,

@@ -4,6 +4,9 @@ meta:
   # Human-readable description inherited by experiments that do not override it.
   description: Base defaults for AI workloads on the two-layer clos AI scale-unit fabric
 run:
+  # Seed for the global random generator (packet stalls, routing tie-breaks). Range: integer, or null.
+  # null leaves the generator unseeded, so repeated runs give different results.
+  seed: null
   # Whether to log DEBUG-level details to the run log file. Allowed values: true | false.
   file_debug: false
   # Whether to emit verbose packet/logging messages during the run. Allowed values: true | false.
@@ -16,7 +19,7 @@ run:
   show_visualization_window: false
   # Whether to store individual packet objects in memory during the run. Allowed values: true | false.
   store_packets: false
-  # Whether to collect a per-packet timeline for post-run analysis (implies store_packets). Allowed values: true | false.
+  # Whether to collect a per-packet timeline for post-run analysis; requires store_packets: true. Allowed values: true | false.
   collect_packet_timeline: false
   # Enable per-step deep flow chain textual logs for sweep analysis. Allowed values: true | false.
   deep_flow_chain_log: false

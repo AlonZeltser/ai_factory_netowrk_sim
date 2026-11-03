@@ -13,9 +13,9 @@ topology:
     fabric:
       packet_stall_delay_ms: 2
       packet_stall_retransmit_priority: true
-      # Bandwidth in bits/sec for each server-to-leaf link, unless overridden by bandwidth_profile. Range: float > 0.
+      # Bandwidth in bits/sec for each server-to-leaf link. Range: float > 0.
       server_to_leaf_bandwidth_bps: 1000000000
-      # Bandwidth in bits/sec for each leaf-to-spine link, unless overridden by bandwidth_profile. Range: float > 0.
+      # Bandwidth in bits/sec for each leaf-to-spine link. Range: float > 0.
       leaf_to_spine_bandwidth_bps: 1000000000
 workload:
   params:
