@@ -5,4 +5,4 @@ meta:
 sweep:
   vary:
     routing.mode: [ecmp, adaptive]
-    workload.params.chunk_redundancy_extra_packets: [0, 1]
+    workload.params.flow_redundancy_extra_packets: [0, 1]

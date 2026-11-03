@@ -162,8 +162,8 @@ def visualize_ai_factory_comm_distributions(
 ) -> Optional[str]:
     """Visualize communication timing distributions for AI-factory workloads.
 
-    Buckets are workload-level communication groups. Flows are the lower-level send units
-    emitted inside a bucket; in the ring collectives they correspond to chunk-like neighbor sends.
+    Gradient buckets are workload-level communication groups. Flows are the lower-level send units
+    emitted inside a gradient bucket; in the ring collectives they correspond to chunk-like neighbor sends.
     """
     if not bucket_metrics and not flow_metrics:
         logging.warning("No AI-factory communication metrics to visualize")
@@ -207,12 +207,12 @@ def visualize_ai_factory_comm_distributions(
         ax = axes[0, 0]
         if bucket_durations_ms:
             ax.hist(bucket_durations_ms, bins=min(30, max(8, len(bucket_durations_ms))), color="#4C78A8", edgecolor="navy", alpha=0.85)
-            ax.set_xlabel("Bucket duration (ms)")
+            ax.set_xlabel("Gradient bucket duration (ms)")
             ax.set_ylabel("Count")
-            ax.set_title("Bucket completion durations")
+            ax.set_title("Gradient bucket completion durations")
             ax.grid(axis="y", alpha=0.3)
         else:
-            ax.text(0.5, 0.5, "No bucket metrics", ha="center", va="center")
+            ax.text(0.5, 0.5, "No gradient bucket metrics", ha="center", va="center")
             ax.set_axis_off()
 
         ax = axes[0, 1]
@@ -225,12 +225,12 @@ def visualize_ai_factory_comm_distributions(
                     unique_phases.append(name)
                 grouped[name].append(duration)
             ax.boxplot([grouped[name] for name in unique_phases], tick_labels=unique_phases, patch_artist=True)
-            ax.set_ylabel("Bucket duration (ms)")
-            ax.set_title("Bucket durations by phase")
+            ax.set_ylabel("Gradient bucket duration (ms)")
+            ax.set_title("Gradient bucket durations by phase")
             ax.tick_params(axis="x", rotation=25)
             ax.grid(axis="y", alpha=0.3)
         else:
-            ax.text(0.5, 0.5, "No bucket metrics", ha="center", va="center")
+            ax.text(0.5, 0.5, "No gradient bucket metrics", ha="center", va="center")
             ax.set_axis_off()
 
         ax = axes[1, 0]
@@ -268,7 +268,7 @@ def visualize_ai_factory_comm_distributions(
         fig.text(
             0.5,
             0.01,
-            "Buckets are workload-level communication groups; chunk/flow timings are lower-level sends emitted inside those buckets.",
+            "Gradient buckets are workload-level communication groups; chunk/flow timings are lower-level sends emitted inside those buckets.",
             ha="center",
             fontsize=10,
             style="italic",
@@ -438,10 +438,8 @@ def _natural_sort_key(value: str) -> tuple[Any, ...]:
     return tuple(int(part) if part.isdigit() else part.lower() for part in parts)
 
 
-def _normalize_summary_collective_matrix(row: Dict[str, Any]) -> list[dict[str, Any]]:
-    matrices = row.get("collective_traffic_matrices")
-    if not isinstance(matrices, list):
-        matrices = row.get("step_traffic_matrices")
+def _normalize_summary_training_step_matrix(row: Dict[str, Any]) -> list[dict[str, Any]]:
+    matrices = row.get("training_step_traffic_matrices")
     if not isinstance(matrices, list):
         return []
 
@@ -451,11 +449,11 @@ def _normalize_summary_collective_matrix(row: Dict[str, Any]) -> list[dict[str, 
             continue
         nodes = item.get("nodes")
         matrix = item.get("matrix_bytes")
-        collective_id = item.get("collective_id", item.get("step_id"))
+        step_id = item.get("step_id")
         if not isinstance(nodes, list) or not isinstance(matrix, list):
             continue
         try:
-            collective_id_int = int(collective_id)
+            step_id_int = int(step_id)
         except (TypeError, ValueError):
             continue
         node_labels = [str(node) for node in nodes]
@@ -480,23 +478,22 @@ def _normalize_summary_collective_matrix(row: Dict[str, Any]) -> list[dict[str, 
 
         normalized.append(
             {
-                "collective_id": collective_id_int,
-                "step_id": collective_id_int,
+                "step_id": step_id_int,
                 "nodes": node_labels,
                 "matrix_bytes": normalized_matrix,
             }
         )
 
-    return sorted(normalized, key=lambda item: item["collective_id"])
+    return sorted(normalized, key=lambda item: item["step_id"])
 
 
-def visualize_summary_collective_traffic_matrices(
+def visualize_summary_training_step_traffic_matrices(
     summary: List[Dict[str, Any]],
     *,
     out_dir: str = "results",
     show: bool = False,
 ) -> list[str]:
-    """Create per-collective traffic-matrix heatmaps for each successful summary row that carries collective flow data."""
+    """Create per-training-step traffic-matrix heatmaps for each successful summary row that carries flow data."""
     rows = [row for row in summary if row.get("ok")]
     if not rows:
         return []
@@ -516,14 +513,14 @@ def visualize_summary_collective_traffic_matrices(
     saved_paths: list[str] = []
 
     for row_idx, row in enumerate(rows):
-        matrices = _normalize_summary_collective_matrix(row)
+        matrices = _normalize_summary_training_step_matrix(row)
         if not matrices:
             continue
 
         label = str(row.get("label") or f"summary_{row_idx}")
         safe_label = re.sub(r"[^A-Za-z0-9._-]+", "_", label).strip("_") or f"summary_{row_idx}"
         routing_mode = row.get("routing_mode")
-        redundancy = _summary_float(row, "chunk_redundancy_extra_packets")
+        redundancy = _summary_float(row, "flow_redundancy_extra_packets")
         x_key, x_label, _, _ = _choose_sweep_x_axis([row])
         x_value = _summary_float(row, x_key)
 
@@ -552,7 +549,7 @@ def visualize_summary_collective_traffic_matrices(
             ax.set_xlabel("Destination host")
             ax.set_ylabel("Source host")
 
-            title_parts = [f"Collective {matrix_info['collective_id']} traffic matrix"]
+            title_parts = [f"Training step {matrix_info['step_id']} traffic matrix"]
             if routing_mode:
                 title_parts.append(f"routing={routing_mode}")
             if redundancy is not None:
@@ -574,7 +571,7 @@ def visualize_summary_collective_traffic_matrices(
 
             filepath = os.path.join(
                 out_dir,
-                f"collective_traffic_matrix_{safe_label}_collective_{matrix_info['collective_id']:03d}_{timestamp}.png",
+                f"training_step_traffic_matrix_{safe_label}_step_{matrix_info['step_id']:03d}_{timestamp}.png",
             )
             _save_or_show(fig, filepath, show=show)
             logging.info("Summary traffic matrix graph saved to: %s", filepath)
@@ -675,7 +672,7 @@ def _sweep_style_maps(
     return marker_map, linestyle_map, color_map
 
 
-def _plot_best_collective_time_views(
+def _plot_best_training_step_time_views(
     plt,
     grouped: dict[float, list[dict[str, float]]],
     *,
@@ -722,7 +719,7 @@ def _plot_best_collective_time_views(
     touched_redundancies = sorted({point["redundancy"] for point in best_by_x})
     saved_paths: list[str] = []
 
-    # View A: best achievable step-time at each impairment level.
+    # View A: best achievable training-step time at each impairment level.
     fig_a, ax_a = plt.subplots(figsize=(11, 7))
     ax_a.set_facecolor('#EAEAF2')
     ax_a.grid(True, color='white', linewidth=1.1, alpha=0.95)
@@ -753,20 +750,20 @@ def _plot_best_collective_time_views(
         )
 
     ax_a.set_title(
-        f"Best achievable collective time vs {title_suffix}",
+        f"Best achievable training step time vs {title_suffix}",
         fontsize=14,
         fontweight='bold',
     )
     ax_a.set_xlabel(x_label, fontsize=12)
-    ax_a.set_ylabel("Best collective time (ms)", fontsize=12)
+    ax_a.set_ylabel("Best training step time (ms)", fontsize=12)
     _apply_exponential_x_axis(ax_a, sorted_series)
     _set_sweep_x_ticks(ax_a, sorted_series)
     ax_a.grid(alpha=0.3, linestyle='--', linewidth=0.7)
     ax_a.legend(loc='best', fontsize=11, framealpha=0.95, edgecolor='black', fancybox=True)
 
-    filepath_a = os.path.join(out_dir, f"best_collective_time_vs_{file_suffix}_{timestamp}.png")
+    filepath_a = os.path.join(out_dir, f"best_training_step_time_vs_{file_suffix}_{timestamp}.png")
     _save_or_show(fig_a, filepath_a, show=show)
-    logging.info("Best collective-time graph saved to: %s", filepath_a)
+    logging.info("Best training-step-time graph saved to: %s", filepath_a)
     saved_paths.append(filepath_a)
 
     # View B: selected best redundancy with best-time annotations.
@@ -880,7 +877,7 @@ def _write_stall_distribution_csv(
 ) -> str | None:
     flat_rows: list[dict[str, Any]] = []
     for row in rows:
-        redundancy = _summary_float(row, "chunk_redundancy_extra_packets")
+        redundancy = _summary_float(row, "flow_redundancy_extra_packets")
         x_value = _summary_float(row, x_key)
         if redundancy is None or x_value is None:
             continue
@@ -895,7 +892,7 @@ def _write_stall_distribution_csv(
                 {
                     "label": str(row.get("label", "")),
                     "routing_mode": str(row.get("routing_mode", "")),
-                    "chunk_redundancy_extra_packets": redundancy,
+                    "flow_redundancy_extra_packets": redundancy,
                     "x_value": x_value,
                     "stall_count": stall_count,
                     "flow_count": flow_count,
@@ -911,7 +908,7 @@ def _write_stall_distribution_csv(
     fieldnames = [
         "label",
         "routing_mode",
-        "chunk_redundancy_extra_packets",
+        "flow_redundancy_extra_packets",
         "x_value",
         "stall_count",
         "flow_count",
@@ -925,7 +922,7 @@ def _write_stall_distribution_csv(
     return csv_path
 
 
-def _write_collective_time_points_csv(
+def _write_training_step_time_points_csv(
     grouped_rows: dict[float, list[dict[str, Any]]],
     *,
     out_dir: str,
@@ -939,34 +936,30 @@ def _write_collective_time_points_csv(
                 {
                     "label": str(point.get("label", "")),
                     "routing_mode": str(point.get("routing_mode", "")),
-                    "chunk_redundancy_extra_packets": redundancy,
+                    "flow_redundancy_extra_packets": redundancy,
                     "x_value": point["x"],
-                    "collective_time_avg_ms": point["y"],
-                    "collective_time_min_ms": point.get("collective_time_min_ms"),
-                    "collective_time_max_ms": point.get("collective_time_max_ms"),
-                    "step_time_avg_ms": point["y"],
-                    "step_time_min_ms": point.get("collective_time_min_ms"),
-                    "step_time_max_ms": point.get("collective_time_max_ms"),
+                    "training_step_time_avg_ms": point["y"],
+                    "training_step_time_min_ms": point.get("training_step_time_min_ms"),
+                    "training_step_time_max_ms": point.get("training_step_time_max_ms"),
                     "flow_time_avg_ms": point.get("flow_time_avg_ms"),
                     "flow_time_min_ms": point.get("flow_time_min_ms"),
                     "flow_time_max_ms": point.get("flow_time_max_ms"),
-                    "bucket_time_avg_ms": point.get("bucket_time_avg_ms"),
-                    "bucket_time_min_ms": point.get("bucket_time_min_ms"),
-                    "bucket_time_max_ms": point.get("bucket_time_max_ms"),
+                    "gradient_bucket_time_avg_ms": point.get("gradient_bucket_time_avg_ms"),
+                    "gradient_bucket_time_min_ms": point.get("gradient_bucket_time_min_ms"),
+                    "gradient_bucket_time_max_ms": point.get("gradient_bucket_time_max_ms"),
                     "total_packets": point.get("total_packets"),
                     "packet_stall_marked_count": point.get("packet_stall_marked_count"),
                     "packet_stall_triggered_count": point.get("packet_stall_triggered_count"),
                     "packet_stall_triggered_percent": point.get("packet_stall_triggered_percent"),
                     "avg_stalls_per_flow": point.get("avg_stalls_per_flow"),
                     "max_stalls_per_flow": point.get("max_stalls_per_flow"),
-                    "bucket_bottleneck_stalls": point.get("bucket_bottleneck_stalls"),
+                    "gradient_bucket_bottleneck_stalls": point.get("gradient_bucket_bottleneck_stalls"),
                     "total_redundant_packets": point.get("total_redundant_packets"),
                     "total_redundant_bytes": point.get("total_redundant_bytes"),
                     "avg_redundant_packets_per_flow": point.get("avg_redundant_packets_per_flow"),
                     "avg_packets_per_ring_flow": point.get("avg_packets_per_ring_flow"),
                     "avg_data_per_host_per_ring_bytes": point.get("avg_data_per_host_per_ring_bytes"),
                     "avg_data_per_collective_per_ring_bytes": point.get("avg_data_per_collective_per_ring_bytes"),
-                    "avg_data_per_step_per_ring_bytes": point.get("avg_data_per_collective_per_ring_bytes"),
                     "avg_packets_in_ring_before_redundancy": point.get("avg_packets_in_ring_before_redundancy"),
                     "avg_packets_in_ring_after_redundancy": point.get("avg_packets_in_ring_after_redundancy"),
                     "packets_in_ring_flow_with_redundancy": point.get("packets_in_ring_flow_with_redundancy"),
@@ -976,38 +969,34 @@ def _write_collective_time_points_csv(
     if not flat_rows:
         return None
 
-    csv_path = os.path.join(out_dir, f"collective_time_vs_{file_suffix}_{timestamp}.csv")
+    csv_path = os.path.join(out_dir, f"training_step_time_vs_{file_suffix}_{timestamp}.csv")
     fieldnames = [
         "label",
         "routing_mode",
-        "chunk_redundancy_extra_packets",
+        "flow_redundancy_extra_packets",
         "x_value",
-        "collective_time_avg_ms",
-        "collective_time_min_ms",
-        "collective_time_max_ms",
-        "step_time_avg_ms",
-        "step_time_min_ms",
-        "step_time_max_ms",
+        "training_step_time_avg_ms",
+        "training_step_time_min_ms",
+        "training_step_time_max_ms",
         "flow_time_avg_ms",
         "flow_time_min_ms",
         "flow_time_max_ms",
-        "bucket_time_avg_ms",
-        "bucket_time_min_ms",
-        "bucket_time_max_ms",
+        "gradient_bucket_time_avg_ms",
+        "gradient_bucket_time_min_ms",
+        "gradient_bucket_time_max_ms",
         "total_packets",
         "packet_stall_marked_count",
         "packet_stall_triggered_count",
         "packet_stall_triggered_percent",
         "avg_stalls_per_flow",
         "max_stalls_per_flow",
-        "bucket_bottleneck_stalls",
+        "gradient_bucket_bottleneck_stalls",
         "total_redundant_packets",
         "total_redundant_bytes",
         "avg_redundant_packets_per_flow",
         "avg_packets_per_ring_flow",
         "avg_data_per_host_per_ring_bytes",
         "avg_data_per_collective_per_ring_bytes",
-        "avg_data_per_step_per_ring_bytes",
         "avg_packets_in_ring_before_redundancy",
         "avg_packets_in_ring_after_redundancy",
         "packets_in_ring_flow_with_redundancy",
@@ -1024,7 +1013,7 @@ def visualize_sweep_time_comparison(
     *,
     out_dir: str = "results",
     show: bool = False,
-    collective_time_lower_zoom_percent: float = 15.0,
+    training_step_time_lower_zoom_percent: float = 15.0,
 ) -> list[str]:
     """Create aggregate and per-redundancy comparison plots across the varying impairment percentage."""
     rows = [row for row in summary if row.get("ok")]
@@ -1052,35 +1041,31 @@ def visualize_sweep_time_comparison(
             "stem": "flow_time",
         },
         {
-            "avg": "bucket_time_avg_ms",
-            "std": "bucket_time_std_ms",
-            "min": "bucket_time_min_ms",
-            "max": "bucket_time_max_ms",
-            "title": "Bucket time vs impairment",
-            "ylabel": "Average bucket time (ms)",
-            "stem": "bucket_time",
+            "avg": "gradient_bucket_time_avg_ms",
+            "std": "gradient_bucket_time_std_ms",
+            "min": "gradient_bucket_time_min_ms",
+            "max": "gradient_bucket_time_max_ms",
+            "title": "Gradient bucket time vs impairment",
+            "ylabel": "Average gradient bucket time (ms)",
+            "stem": "gradient_bucket_time",
         },
         {
-            "avg": "collective_time_avg_ms",
-            "avg_fallback": "step_time_avg_ms",
-            "std": "collective_time_std_ms",
-            "std_fallback": "step_time_std_ms",
-            "min": "collective_time_min_ms",
-            "min_fallback": "step_time_min_ms",
-            "max": "collective_time_max_ms",
-            "max_fallback": "step_time_max_ms",
-            "title": "Collective time vs impairment",
-            "ylabel": "Average collective time (ms)",
-            "stem": "collective_time",
+            "avg": "training_step_time_avg_ms",
+            "std": "training_step_time_std_ms",
+            "min": "training_step_time_min_ms",
+            "max": "training_step_time_max_ms",
+            "title": "Training step time vs impairment",
+            "ylabel": "Average training step time (ms)",
+            "stem": "training_step_time",
         },
         {
-            "avg": "job_time_avg_ms",
-            "std": "job_time_std_ms",
-            "min": "job_time_min_ms",
-            "max": "job_time_max_ms",
-            "title": "Job time vs impairment",
-            "ylabel": "Average job time (ms)",
-            "stem": "job_time",
+            "avg": "training_job_time_avg_ms",
+            "std": "training_job_time_std_ms",
+            "min": "training_job_time_min_ms",
+            "max": "training_job_time_max_ms",
+            "title": "Training job time vs impairment",
+            "ylabel": "Average training job time (ms)",
+            "stem": "training_job_time",
         },
     ]
 
@@ -1093,11 +1078,9 @@ def visualize_sweep_time_comparison(
         grouped: dict[float, list[dict[str, float]]] = {}
         grouped_rows: dict[float, list[dict[str, Any]]] = {}
         for row in rows:
-            redundancy = _summary_float(row, "chunk_redundancy_extra_packets")
+            redundancy = _summary_float(row, "flow_redundancy_extra_packets")
             x_value = _summary_float(row, x_key)
             metric_value = _summary_float(row, metric["avg"])
-            if metric_value is None and metric.get("avg_fallback"):
-                metric_value = _summary_float(row, metric["avg_fallback"])
             if redundancy is None or x_value is None or metric_value is None:
                 continue
             spread = _summary_spread(
@@ -1107,14 +1090,6 @@ def visualize_sweep_time_comparison(
                 min_key=metric["min"],
                 max_key=metric["max"],
             )
-            if metric.get("avg_fallback") and spread["min_value"] is None and spread["max_value"] is None and not spread["has_std"]:
-                spread = _summary_spread(
-                    row,
-                    avg_key=metric["avg_fallback"],
-                    std_key=metric.get("std_fallback"),
-                    min_key=metric.get("min_fallback", metric["min"]),
-                    max_key=metric.get("max_fallback", metric["max"]),
-                )
             avg_packets_in_ring_before_redundancy = _summary_float(row, "avg_packets_in_ring_before_redundancy")
             grouped.setdefault(redundancy, []).append(
                 {
@@ -1130,21 +1105,19 @@ def visualize_sweep_time_comparison(
             packet_stall_triggered_percent = _summary_stall_triggered_percent(row)
             avg_stalls_per_flow = _summary_float(row, "avg_stalls_per_flow")
             max_stalls_per_flow = _summary_float(row, "max_stalls_per_flow")
-            bucket_bottleneck_stalls = _summary_float(row, "bucket_bottleneck_stalls")
+            gradient_bucket_bottleneck_stalls = _summary_float(row, "gradient_bucket_bottleneck_stalls")
             flow_time_avg_ms = _summary_float(row, "flow_time_avg_ms")
             flow_time_min_ms = _summary_float(row, "flow_time_min_ms")
             flow_time_max_ms = _summary_float(row, "flow_time_max_ms")
-            bucket_time_avg_ms = _summary_float(row, "bucket_time_avg_ms")
-            bucket_time_min_ms = _summary_float(row, "bucket_time_min_ms")
-            bucket_time_max_ms = _summary_float(row, "bucket_time_max_ms")
+            gradient_bucket_time_avg_ms = _summary_float(row, "gradient_bucket_time_avg_ms")
+            gradient_bucket_time_min_ms = _summary_float(row, "gradient_bucket_time_min_ms")
+            gradient_bucket_time_max_ms = _summary_float(row, "gradient_bucket_time_max_ms")
             total_redundant_packets = _summary_float(row, "total_redundant_packets")
             total_redundant_bytes = _summary_float(row, "total_redundant_bytes")
             avg_redundant_packets_per_flow = _summary_float(row, "avg_redundant_packets_per_flow")
             avg_packets_per_ring_flow = _summary_float(row, "avg_packets_per_ring_flow")
             avg_data_per_host_per_ring_bytes = _summary_float(row, "avg_data_per_host_per_ring_bytes")
             avg_data_per_collective_per_ring_bytes = _summary_float(row, "avg_data_per_collective_per_ring_bytes")
-            if avg_data_per_collective_per_ring_bytes is None:
-                avg_data_per_collective_per_ring_bytes = _summary_float(row, "avg_data_per_step_per_ring_bytes")
             avg_packets_in_ring_before_redundancy = _summary_float(row, "avg_packets_in_ring_before_redundancy")
             avg_packets_in_ring_after_redundancy = _summary_float(row, "avg_packets_in_ring_after_redundancy")
             packets_in_ring_flow_with_redundancy = _summary_float(row, "packets_in_ring_flow_with_redundancy")
@@ -1154,21 +1127,21 @@ def visualize_sweep_time_comparison(
                     "y": metric_value,
                     "label": row.get("label"),
                     "routing_mode": row.get("routing_mode"),
-                    "collective_time_min_ms": _summary_float(row, "collective_time_min_ms") if _summary_float(row, "collective_time_min_ms") is not None else _summary_float(row, "step_time_min_ms"),
-                    "collective_time_max_ms": _summary_float(row, "collective_time_max_ms") if _summary_float(row, "collective_time_max_ms") is not None else _summary_float(row, "step_time_max_ms"),
+                    "training_step_time_min_ms": _summary_float(row, "training_step_time_min_ms"),
+                    "training_step_time_max_ms": _summary_float(row, "training_step_time_max_ms"),
                     "flow_time_avg_ms": flow_time_avg_ms if flow_time_avg_ms is not None else 0.0,
                     "flow_time_min_ms": flow_time_min_ms if flow_time_min_ms is not None else 0.0,
                     "flow_time_max_ms": flow_time_max_ms if flow_time_max_ms is not None else 0.0,
-                    "bucket_time_avg_ms": bucket_time_avg_ms if bucket_time_avg_ms is not None else 0.0,
-                    "bucket_time_min_ms": bucket_time_min_ms if bucket_time_min_ms is not None else 0.0,
-                    "bucket_time_max_ms": bucket_time_max_ms if bucket_time_max_ms is not None else 0.0,
+                    "gradient_bucket_time_avg_ms": gradient_bucket_time_avg_ms if gradient_bucket_time_avg_ms is not None else 0.0,
+                    "gradient_bucket_time_min_ms": gradient_bucket_time_min_ms if gradient_bucket_time_min_ms is not None else 0.0,
+                    "gradient_bucket_time_max_ms": gradient_bucket_time_max_ms if gradient_bucket_time_max_ms is not None else 0.0,
                     "total_packets": total_packets if total_packets is not None else 0,
                     "packet_stall_marked_count": packet_stall_marked_count if packet_stall_marked_count is not None else 0,
                     "packet_stall_triggered_count": packet_stall_triggered_count if packet_stall_triggered_count is not None else 0,
                     "packet_stall_triggered_percent": packet_stall_triggered_percent if packet_stall_triggered_percent is not None else 0.0,
                     "avg_stalls_per_flow": avg_stalls_per_flow if avg_stalls_per_flow is not None else 0.0,
                     "max_stalls_per_flow": max_stalls_per_flow if max_stalls_per_flow is not None else 0,
-                    "bucket_bottleneck_stalls": bucket_bottleneck_stalls if bucket_bottleneck_stalls is not None else 0,
+                    "gradient_bucket_bottleneck_stalls": gradient_bucket_bottleneck_stalls if gradient_bucket_bottleneck_stalls is not None else 0,
                     "total_redundant_packets": total_redundant_packets if total_redundant_packets is not None else 0,
                     "total_redundant_bytes": total_redundant_bytes if total_redundant_bytes is not None else 0,
                     "avg_redundant_packets_per_flow": avg_redundant_packets_per_flow if avg_redundant_packets_per_flow is not None else 0.0,
@@ -1204,11 +1177,11 @@ def visualize_sweep_time_comparison(
         logging.info("Sweep comparison graph saved to: %s", filepath)
         saved_paths.append(filepath)
 
-        if metric["stem"] == "collective_time" and collective_time_lower_zoom_percent > 0.0:
+        if metric["stem"] == "training_step_time" and training_step_time_lower_zoom_percent > 0.0:
             fig_zoom, ax_zoom = plt.subplots(figsize=(11, 7))
             spread_suffix_zoom = _plot_sweep_metric_series(ax_zoom, sorted_series, include_legend=True)
             ax_zoom.set_title(
-                f"{metric['title'].replace('impairment', title_suffix)} (lower {collective_time_lower_zoom_percent:g}% zoom){spread_suffix_zoom}",
+                f"{metric['title'].replace('impairment', title_suffix)} (lower {training_step_time_lower_zoom_percent:g}% zoom){spread_suffix_zoom}",
                 fontsize=14,
                 fontweight='bold',
             )
@@ -1218,7 +1191,7 @@ def visualize_sweep_time_comparison(
             _set_sweep_x_ticks(ax_zoom, sorted_series)
             zoom_ylim = _lower_zoom_ylim(
                 [point["y"] for _, points in sorted_series for point in points],
-                collective_time_lower_zoom_percent,
+                training_step_time_lower_zoom_percent,
             )
             if zoom_ylim is not None:
                 ax_zoom.set_ylim(*zoom_ylim)
@@ -1226,7 +1199,7 @@ def visualize_sweep_time_comparison(
 
             filepath_zoom = os.path.join(
                 out_dir,
-                f"{metric['stem']}_vs_{file_suffix}_lower_{int(round(collective_time_lower_zoom_percent))}pct_{timestamp}.png",
+                f"{metric['stem']}_vs_{file_suffix}_lower_{int(round(training_step_time_lower_zoom_percent))}pct_{timestamp}.png",
             )
             _save_or_show(fig_zoom, filepath_zoom, show=show)
             logging.info("Sweep comparison (lower-zoom) graph saved to: %s", filepath_zoom)
@@ -1273,9 +1246,9 @@ def visualize_sweep_time_comparison(
             logging.info("Sweep comparison graph saved to: %s", filepath_single)
             saved_paths.append(filepath_single)
 
-        if metric["stem"] == "collective_time":
+        if metric["stem"] == "training_step_time":
             saved_paths.extend(
-                _plot_best_collective_time_views(
+                _plot_best_training_step_time_views(
                     plt,
                     grouped,
                     out_dir=out_dir,
@@ -1286,14 +1259,14 @@ def visualize_sweep_time_comparison(
                     show=show,
                 )
             )
-            csv_path = _write_collective_time_points_csv(
+            csv_path = _write_training_step_time_points_csv(
                 grouped_rows,
                 out_dir=out_dir,
                 file_suffix=file_suffix,
                 timestamp=timestamp,
             )
             if csv_path:
-                logging.info("Sweep collective-time values saved to: %s", csv_path)
+                logging.info("Sweep training-step-time values saved to: %s", csv_path)
                 saved_paths.append(csv_path)
 
     dist_csv_path = _write_stall_distribution_csv(
@@ -1315,10 +1288,10 @@ def visualize_sweep_time_comparison_from_yaml(
     *,
     out_dir: str = "results",
     show: bool = False,
-    collective_time_lower_zoom_percent: float = 15.0,
-    include_collective_traffic_matrices: bool = True,
+    training_step_time_lower_zoom_percent: float = 15.0,
+    include_training_step_traffic_matrices: bool = True,
 ) -> list[str]:
-    """Load a sweep summary YAML file and create aggregate comparison plots and collective traffic matrices."""
+    """Load a sweep summary YAML file and create aggregate comparison plots and training-step traffic matrices."""
     path = Path(summary_yaml_path)
     if not path.is_absolute():
         path = path.resolve()
@@ -1335,11 +1308,11 @@ def visualize_sweep_time_comparison_from_yaml(
         summary,
         out_dir=out_dir,
         show=show,
-        collective_time_lower_zoom_percent=collective_time_lower_zoom_percent,
+        training_step_time_lower_zoom_percent=training_step_time_lower_zoom_percent,
     )
-    if not include_collective_traffic_matrices:
+    if not include_training_step_traffic_matrices:
         return sweep_paths
-    return sweep_paths + visualize_summary_collective_traffic_matrices(summary, out_dir=out_dir, show=show)
+    return sweep_paths + visualize_summary_training_step_traffic_matrices(summary, out_dir=out_dir, show=show)
 
 
 def visualize_experiment_results(results: List[Dict[str, Dict[str, Any]]],
@@ -1353,14 +1326,14 @@ def visualize_experiment_results(results: List[Dict[str, Dict[str, Any]]],
     """
     for result in results:
         packet_timeline = result.get('packet_timeline', [])
-        bucket_metrics = result.get('ai_factory_bucket_metrics', [])
+        bucket_metrics = result.get('ai_factory_gradient_bucket_metrics', [])
         flow_metrics = result.get('ai_factory_flow_metrics', [])
         params = result.get('parameters summary', {})
         stats = result.get('run statistics', {})
         routing_mode = params.get('routing_mode', '')
         link_failure_percent = params.get('link_failure_percent')
         total_time = stats.get('total run time (simulator time in seconds)', 0)
-        redundancy_extra_packets = params.get('chunk_redundancy_extra_packets')
+        redundancy_extra_packets = params.get('flow_redundancy_extra_packets')
 
         if packet_timeline:
             visualize_send_timeline(
@@ -1383,26 +1356,11 @@ def visualize_experiment_results(results: List[Dict[str, Dict[str, Any]]],
             )
 
 
-def visualize_summary_step_traffic_matrices(
-    summary: List[Dict[str, Any]],
-    *,
-    out_dir: str = "results",
-    show: bool = False,
-) -> list[str]:
-    return visualize_summary_collective_traffic_matrices(summary, out_dir=out_dir, show=show)
-
-
-_normalize_summary_step_matrix = _normalize_summary_collective_matrix
-_plot_best_step_time_views = _plot_best_collective_time_views
-_write_step_time_points_csv = _write_collective_time_points_csv
-
-
 __all__ = [
     "visualize_experiment_results",
     "visualize_send_timeline",
     "visualize_ai_factory_comm_distributions",
     "visualize_sweep_time_comparison",
-    "visualize_summary_collective_traffic_matrices",
-    "visualize_summary_step_traffic_matrices",
+    "visualize_summary_training_step_traffic_matrices",
     "visualize_sweep_time_comparison_from_yaml",
 ]

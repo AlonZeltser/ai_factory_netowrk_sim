@@ -1,6 +1,7 @@
 .idea/
 results/
 batch_logs/
+venv/
 
 __pycache__/
 *.py[cod]

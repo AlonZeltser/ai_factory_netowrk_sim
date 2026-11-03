@@ -29,14 +29,6 @@ def _require_param(params: dict[str, Any], key: str) -> Any:
     return params[key]
 
 
-def _require_param_any(params: dict[str, Any], *keys: str) -> Any:
-    for key in keys:
-        if key in params:
-            return params[key]
-    aliases = " or ".join(f"'workload.params.{key}'" for key in keys)
-    raise ConfigError(f"Missing required key {aliases}")
-
-
 def _build_none(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
     return NoneScenario()
 def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
@@ -46,7 +38,7 @@ def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
     seed = int(_require_param(params, "seed"))
     mtu = int(topology.params.get("mtu", 4096))
     return AIFactorySUDpHeavyScenario(
-        collectives=int(_require_param_any(params, "collectives", "steps")),
+        steps=int(_require_param(params, "steps")),
         seed=seed,
         num_buckets=int(_require_param(params, "num_buckets")),
         bucket_bytes_per_participant=int(_require_param(params, "bucket_bytes_per_participant")),
@@ -54,7 +46,7 @@ def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
         t_fwd_bwd_ms=float(_require_param(params, "t_fwd_bwd_ms")),
         optimizer_ms=float(_require_param(params, "optimizer_ms")),
         mtu=mtu,
-        chunk_redundancy_extra_packets=int(_require_param(params, "chunk_redundancy_extra_packets")),
+        flow_redundancy_extra_packets=int(_require_param(params, "flow_redundancy_extra_packets")),
         single_ring_only=bool(_require_param(params, "single_ring_only")),
     )
 

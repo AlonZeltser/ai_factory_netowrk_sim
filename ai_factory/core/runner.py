@@ -9,14 +9,14 @@ from typing import Callable, List
 from des.des import DiscreteEventSimulator
 
 from ai_factory.core.entities import (
-    Job,
-    JobMetrics,
-    CollectiveMetrics,
+    TrainingJob,
+    TrainingJobMetrics,
+    TrainingStepMetrics,
     PhaseMetrics,
-    BucketMetrics,
+    GradientBucketMetrics,
     ComputePhase,
     CommPhase,
-    Bucket,
+    GradientBucket,
 )
 from ai_factory.core.schedule import BarrierBookkeeper, Join, schedule_timer
 from ai_factory.traffic.flow import Flow
@@ -47,13 +47,13 @@ def _compute_percentile(sorted_values: List[float], percentile: float) -> float:
     return sorted_values[lower_idx] * (1 - weight) + sorted_values[upper_idx] * weight
 
 
-def _compute_collective_stats(collectives: List[CollectiveMetrics]) -> dict:
-    """Compute collective duration statistics in seconds.
+def _compute_step_stats(steps: List[TrainingStepMetrics]) -> dict:
+    """Compute training-step duration statistics in seconds.
 
     Returns:
         Dictionary with average, percentiles, and spread keys.
     """
-    durations = [c.end_time - c.start_time for c in collectives if c.end_time >= 0]
+    durations = [s.end_time - s.start_time for s in steps if s.end_time >= 0]
     if not durations:
         return {
             'avg': 0.0,
@@ -98,9 +98,9 @@ def _sim_time_prefix(sim: DiscreteEventSimulator) -> str:
     return f"[sim_t={sim.get_current_time():012.6f}s]"
 
 
-def _collect_collective_flow_ids(collective) -> set[int]:
+def _collect_step_flow_ids(step) -> set[int]:
     flow_ids: set[int] = set()
-    for phase in collective.phases:
+    for phase in step.phases:
         if not isinstance(phase, CommPhase):
             continue
         for bucket in phase.buckets:
@@ -180,8 +180,8 @@ def _build_bucket_dependency_graph(
 
 
 @dataclass
-class JobRunner:
-    """Event-driven state machine that advances Job -> Collective -> Phase.
+class TrainingJobRunner:
+    """Event-driven state machine that advances TrainingJob -> TrainingStep -> Phase.
 
     - Compute phases schedule DES timers.
     - Comm phases inject flows and wait for completion events.
@@ -189,95 +189,95 @@ class JobRunner:
 
     sim: DiscreteEventSimulator
     injector: FlowInjector
-    job: Job
+    job: TrainingJob
 
-    metrics: JobMetrics | None = None
+    metrics: TrainingJobMetrics | None = None
 
-    def _max_per_flow_drops_for_collective(self, collective_flow_ids: set[int]) -> int:
+    def _max_per_flow_drops_for_step(self, step_flow_ids: set[int]) -> int:
         packet_stats = getattr(self.sim, "packet_stats", None)
-        if packet_stats is None or not collective_flow_ids:
+        if packet_stats is None or not step_flow_ids:
             return 0
         max_fn = getattr(packet_stats, "max_dropped_for_flow_ids", None)
         if callable(max_fn):
-            value = max_fn(collective_flow_ids)
+            value = max_fn(step_flow_ids)
             if isinstance(value, (int, float)):
                 return int(value)
         return 0
 
-    def run(self) -> JobMetrics:
-        self.metrics = JobMetrics(job_id=self.job.job_id, start_time=self.sim.get_current_time())
+    def run(self) -> TrainingJobMetrics:
+        self.metrics = TrainingJobMetrics(job_id=self.job.job_id, start_time=self.sim.get_current_time())
         self.sim.schedule_event(0.0, self._start_job)
         return self.metrics
 
     def _start_job(self) -> None:
         assert self.metrics is not None
         logging.info(
-            f"{_sim_time_prefix(self.sim)} Job starting       job={self.job.name} id={self.job.job_id} participants={len(self.job.participants)} collectives={len(self.job.collectives)}"
+            f"{_sim_time_prefix(self.sim)} Training job starting       job={self.job.name} id={self.job.job_id} participants={len(self.job.participants)} training_steps={len(self.job.steps)}"
         )
-        self._run_collective(collective_index=0)
+        self._run_step(step_index=0)
 
-    def _run_collective(self, *, collective_index: int) -> None:
+    def _run_step(self, *, step_index: int) -> None:
         assert self.metrics is not None
-        if collective_index >= len(self.job.collectives):
+        if step_index >= len(self.job.steps):
             self.metrics.end_time = self.sim.get_current_time()
-            # Compute and log collective performance statistics.
-            collective_stats = _compute_collective_stats(self.metrics.collectives)
+            # Compute and log training-step performance statistics.
+            step_stats = _compute_step_stats(self.metrics.steps)
             logging.info(
-                f"{_sim_time_prefix(self.sim)} Job finished       job_id={self.job.job_id} "
-                f"collective_time_avg={collective_stats['avg']*1000:.3f}ms "
-                f"collective_time_p95={collective_stats['p95']*1000:.3f}ms "
-                f"collective_time_p99={collective_stats['p99']*1000:.3f}ms"
+                f"{_sim_time_prefix(self.sim)} Training job finished       job_id={self.job.job_id} "
+                f"training_step_time_avg={step_stats['avg']*1000:.3f}ms "
+                f"training_step_time_p95={step_stats['p95']*1000:.3f}ms "
+                f"training_step_time_p99={step_stats['p99']*1000:.3f}ms"
             )
             return
 
-        _logger.info(f"{_sim_time_prefix(self.sim)} Collective starting collective={collective_index}")
-        collective = self.job.collectives[collective_index]
-        collective_flow_ids = _collect_collective_flow_ids(collective)
-        collective_metrics = CollectiveMetrics(collective_id=collective.collective_id, start_time=self.sim.get_current_time(), end_time=-1.0)
-        self.metrics.collectives.append(collective_metrics)
-        self._run_phase(collective_index=collective_index, phase_index=0, collective_flow_ids=collective_flow_ids)
+        _logger.info(f"{_sim_time_prefix(self.sim)} Training step starting training_step={step_index}")
+        step = self.job.steps[step_index]
+        step_flow_ids = _collect_step_flow_ids(step)
+        step_metrics = TrainingStepMetrics(step_id=step.step_id, start_time=self.sim.get_current_time(), end_time=-1.0)
+        self.metrics.steps.append(step_metrics)
+        self._run_phase(step_index=step_index, phase_index=0, step_flow_ids=step_flow_ids)
 
-    def _run_phase(self, *, collective_index: int, phase_index: int, collective_flow_ids: set[int]) -> None:
+    def _run_phase(self, *, step_index: int, phase_index: int, step_flow_ids: set[int]) -> None:
         assert self.metrics is not None
-        collective = self.job.collectives[collective_index]
-        collective_metrics = self.metrics.collectives[-1]
+        step = self.job.steps[step_index]
+        step_metrics = self.metrics.steps[-1]
 
-        if phase_index >= len(collective.phases):
-            collective_metrics.end_time = self.sim.get_current_time()
-            collective_duration_ms = (collective_metrics.end_time - collective_metrics.start_time) * 1000.0
-            max_per_flow_drops = self._max_per_flow_drops_for_collective(collective_flow_ids)
+        if phase_index >= len(step.phases):
+            step_metrics.end_time = self.sim.get_current_time()
+            step_duration_ms = (step_metrics.end_time - step_metrics.start_time) * 1000.0
+            max_per_flow_drops = self._max_per_flow_drops_for_step(step_flow_ids)
             _logger.info(
-                f"{_sim_time_prefix(self.sim)} Collective finished collective={collective_index} duration={collective_duration_ms:.3f}ms max_per_flow_drops={max_per_flow_drops}"
+                f"{_sim_time_prefix(self.sim)} Training step finished training_step={step_index} duration={step_duration_ms:.3f}ms max_per_flow_drops={max_per_flow_drops}"
             )
-            self._run_collective(collective_index=collective_index + 1)
+            self._run_step(step_index=step_index + 1)
             return
 
-        phase = collective.phases[phase_index]
-        _logger.info(f"{_sim_time_prefix(self.sim)} Phase starting     collective={collective_index} phase={phase_index} name={phase.name}")
+        phase = step.phases[phase_index]
+        _logger.info(f"{_sim_time_prefix(self.sim)} Phase starting     training_step={step_index} phase={phase_index} name={phase.name}")
         phase_metrics = PhaseMetrics(
             phase_id=phase.phase_id,
             name=phase.name,
             start_time=self.sim.get_current_time(),
             end_time=-1.0,
         )
-        collective_metrics.phases.append(phase_metrics)
+        step_metrics.phases.append(phase_metrics)
 
         def done_phase() -> None:
             phase_metrics.end_time = self.sim.get_current_time()
-            _logger.info(f"{_sim_time_prefix(self.sim)} Phase finished     collective={collective_index} phase={phase_index} name={phase.name}")
-            self._run_phase(collective_index=collective_index, phase_index=phase_index + 1, collective_flow_ids=collective_flow_ids)
+            _logger.info(f"{_sim_time_prefix(self.sim)} Phase finished     training_step={step_index} phase={phase_index} name={phase.name}")
+            self._run_phase(step_index=step_index, phase_index=phase_index + 1, step_flow_ids=step_flow_ids)
 
         if isinstance(phase, ComputePhase):
             schedule_timer(self.sim, delay_s=phase.duration_s, cb=done_phase)
             return
 
         if isinstance(phase, CommPhase):
-            self._run_comm_phase(collective.collective_id, phase, done_phase)
+            self._run_comm_phase(step.step_id, phase, done_phase)
             return
 
         raise TypeError(f"Unknown phase type: {type(phase)}")
 
-    def _run_comm_phase(self, collective_id: int, phase: CommPhase, done_phase: Callable[[], None]) -> None:
+    def _run_comm_phase(self, step_id: int, phase: CommPhase, done_phase: Callable[[], None]) -> None:
         book = BarrierBookkeeper()
         assert self.metrics is not None
 
@@ -285,9 +285,9 @@ class JobRunner:
             done_phase()
             return
 
-        # Buckets in the comm phase launch together; the phase advances only after all
+        # Gradient buckets in the comm phase launch together; the phase advances only after all
         # bucket joins complete. This keeps bucket timing independent while preserving
-        # the collective/phase barrier behavior.
+        # the training-step/phase barrier behavior.
         remaining_buckets = len(phase.buckets)
 
         def mark_bucket_finished() -> None:
@@ -297,7 +297,7 @@ class JobRunner:
                 done_phase()
 
         def launch_bucket(bucket_index: int) -> None:
-            bucket: Bucket = phase.buckets[bucket_index]
+            bucket: GradientBucket = phase.buckets[bucket_index]
             now = self.sim.get_current_time()
             bucket_launch_origin = float(now)
             bucket_start_offset = min((float(f.start_time) for f in bucket.flows), default=0.0)
@@ -307,15 +307,15 @@ class JobRunner:
 
             if _logger.isEnabledFor(logging.DEBUG):
                 _logger.debug(
-                    f"{_sim_time_prefix(self.sim)} Bucket scheduled  phase={phase.name} bucket={bucket_index} "
+                    f"{_sim_time_prefix(self.sim)} Gradient bucket scheduled  phase={phase.name} bucket={bucket_index} "
                     f"start_offset_ms={bucket_start_offset * 1000.0:.3f} start_time={bucket_start_time:.6f}s"
                 )
 
             if not bucket.flows:
                 self.metrics.bucket_metrics.append(
-                    BucketMetrics(
+                    GradientBucketMetrics(
                         job_id=int(self.job.job_id),
-                        collective_id=int(collective_id),
+                        step_id=int(step_id),
                         phase_id=int(phase.phase_id),
                         phase_name=phase.name,
                         bucket_id=int(bucket.bucket_id),
@@ -327,14 +327,14 @@ class JobRunner:
                     )
                 )
                 if _logger.isEnabledFor(logging.DEBUG):
-                    _logger.debug(f"{_sim_time_prefix(self.sim)} Bucket finished    phase={phase.name} bucket={bucket_index} (empty)")
+                    _logger.debug(f"{_sim_time_prefix(self.sim)} Gradient bucket finished    phase={phase.name} bucket={bucket_index} (empty)")
                 mark_bucket_finished()
                 return
 
             join_name = f"phase{phase.phase_id}/bucket{bucket.bucket_id}"
-            bucket_metrics = BucketMetrics(
+            bucket_metrics = GradientBucketMetrics(
                 job_id=int(self.job.job_id),
-                collective_id=int(collective_id),
+                step_id=int(step_id),
                 phase_id=int(phase.phase_id),
                 phase_name=phase.name,
                 bucket_id=int(bucket.bucket_id),
@@ -349,9 +349,9 @@ class JobRunner:
             def done_bucket() -> None:
                 bucket_metrics.end_time = float(self.sim.get_current_time())
                 duration_ms = (bucket_metrics.end_time - bucket_metrics.start_time) * 1000.0
-                _logger.info(f"[{phase.name}] Bucket {bucket_index} finished: duration={duration_ms:.2f}ms")
+                _logger.info(f"[{phase.name}] Gradient bucket {bucket_index} finished: duration={duration_ms:.2f}ms")
                 if _logger.isEnabledFor(logging.DEBUG):
-                    _logger.debug(f"{_sim_time_prefix(self.sim)} Bucket finished    phase={phase.name} bucket={bucket_index}")
+                    _logger.debug(f"{_sim_time_prefix(self.sim)} Gradient bucket finished    phase={phase.name} bucket={bucket_index}")
                 mark_bucket_finished()
 
             join = Join(pending={f.flow_id for f in bucket.flows}, on_done=done_bucket)

@@ -2,7 +2,7 @@
 
 from network.scenarios.base import Scenario
 
-from ai_factory.core.runner import JobRunner
+from ai_factory.core.runner import TrainingJobRunner
 from ai_factory.scenarios.network_flow_injector import NetworkFlowInjector
 from ai_factory.traffic.collective import CollectiveAlgorithm
 from ai_factory.workloads.dp_heavy_workload import DPHeavyWorkloadConfig, build_dp_heavy_workload_job
@@ -20,15 +20,12 @@ class AIFactorySUDpHeavyScenario(Scenario):
         gap_us: float,
         t_fwd_bwd_ms: float,
         optimizer_ms: float,
-        collectives: int | None = None,
+        steps: int,
         mtu: int = 4096,
-        chunk_redundancy_extra_packets: int = 0,
+        flow_redundancy_extra_packets: int = 0,
         single_ring_only: bool = False,
-        steps: int | None = None,
     ):
-        if collectives is None and steps is None:
-            raise ValueError("Provide collectives (preferred) or legacy steps")
-        self.collectives = int(collectives if collectives is not None else steps)
+        self.steps = int(steps)
         self.seed = seed
         self.num_buckets = num_buckets
         self.bucket_bytes_per_participant = bucket_bytes_per_participant
@@ -36,13 +33,13 @@ class AIFactorySUDpHeavyScenario(Scenario):
         self.t_fwd_bwd_ms = t_fwd_bwd_ms
         self.optimizer_ms = optimizer_ms
         self.mtu = mtu
-        self.chunk_redundancy_extra_packets = chunk_redundancy_extra_packets
+        self.flow_redundancy_extra_packets = flow_redundancy_extra_packets
         self.single_ring_only = single_ring_only
 
     def install(self, network) -> None:
         participants = sorted(network.hosts.keys())
         cfg = DPHeavyWorkloadConfig(
-            collectives=int(self.collectives),
+            steps=int(self.steps),
             num_buckets=int(self.num_buckets),
             bucket_bytes_per_participant=int(self.bucket_bytes_per_participant),
             algorithm=CollectiveAlgorithm.RING,
@@ -51,24 +48,23 @@ class AIFactorySUDpHeavyScenario(Scenario):
             t_fwd_bwd_ms=float(self.t_fwd_bwd_ms),
             optimizer_ms=float(self.optimizer_ms),
             mtu=int(self.mtu),
-            chunk_redundancy_extra_packets=int(self.chunk_redundancy_extra_packets),
+            flow_redundancy_extra_packets=int(self.flow_redundancy_extra_packets),
             single_ring_only=bool(self.single_ring_only),
         )
-        job = build_dp_heavy_workload_job(participants=participants, config=cfg)
+        training_job = build_dp_heavy_workload_job(participants=participants, config=cfg)
 
         injector = NetworkFlowInjector(network)
-        runner = JobRunner(sim=network.simulator, injector=injector, job=job)
+        runner = TrainingJobRunner(sim=network.simulator, injector=injector, job=training_job)
         metrics = runner.run()
 
         # Expose for downstream result collection.
-        network.entities["ai_factory_job_metrics"] = metrics
+        network.entities["ai_factory_training_job_metrics"] = metrics
 
     def parameters_summary(self):
         out = super().parameters_summary()
         out.update(
             {
                 "steps": self.steps,
-                "collectives": self.collectives,
                 "seed": self.seed,
                 "num_buckets": self.num_buckets,
                 "bucket_bytes_per_participant": self.bucket_bytes_per_participant,
@@ -76,13 +72,9 @@ class AIFactorySUDpHeavyScenario(Scenario):
                 "t_fwd_bwd_ms": self.t_fwd_bwd_ms,
                 "optimizer_ms": self.optimizer_ms,
                 "mtu": self.mtu,
-                "chunk_redundancy_extra_packets": self.chunk_redundancy_extra_packets,
+                "flow_redundancy_extra_packets": self.flow_redundancy_extra_packets,
                 "single_ring_only": self.single_ring_only,
             }
         )
         return out
-
-    @property
-    def steps(self) -> int:
-        return self.collectives
 

@@ -151,7 +151,7 @@ def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch) -> None:
     calls: dict[str, object] = {"comparison": 0, "heatmaps": 0}
 
     def _fake_run_sweep(**kwargs):
-        return [{"label": "ok", "ok": True, "collective_traffic_matrices": []}]
+        return [{"label": "ok", "ok": True, "training_step_traffic_matrices": []}]
 
     def _fake_compare(summary, *, out_dir, show):
         calls["comparison"] = int(calls["comparison"]) + 1
@@ -163,7 +163,7 @@ def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch) -> None:
 
     monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
     monkeypatch.setattr(sim_app, "visualize_sweep_time_comparison", _fake_compare)
-    monkeypatch.setattr(sim_app, "visualize_summary_collective_traffic_matrices", _fake_heatmaps)
+    monkeypatch.setattr(sim_app, "visualize_summary_training_step_traffic_matrices", _fake_heatmaps)
 
     exit_code = sim_app.main(
         [

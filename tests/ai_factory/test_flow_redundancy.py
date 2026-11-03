@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from ai_factory.core.entities import CommPhase
 from ai_factory.traffic.collective import CollectiveAlgorithm
-from ai_factory.traffic.flow import Flow, apply_chunk_redundancy
+from ai_factory.traffic.flow import Flow, apply_flow_redundancy
 from ai_factory.workloads.dp_heavy_workload import DPHeavyWorkloadConfig, build_dp_heavy_workload_job
 
 
-def test_apply_chunk_redundancy_preserves_useful_bytes() -> None:
+def test_apply_flow_redundancy_preserves_useful_bytes() -> None:
     mtu = 100
     flows = [
         Flow(
@@ -23,12 +23,12 @@ def test_apply_chunk_redundancy_preserves_useful_bytes() -> None:
         )
     ]
 
-    redundant = apply_chunk_redundancy(flows, extra_packets=2, mtu=mtu)
+    redundant = apply_flow_redundancy(flows, extra_packets=2, mtu=mtu)
 
     assert len(redundant) == 1
     assert redundant[0].size_bytes == 1000  # 800 + 2*100
     assert redundant[0].useful_size_bytes == 800
-    assert redundant[0].metadata["chunk_redundancy_extra_packets"] == 2
+    assert redundant[0].metadata["flow_redundancy_extra_packets"] == 2
 
 
 def test_dp_heavy_job_marks_comm_flows_complete_after_useful_bytes() -> None:
@@ -44,7 +44,7 @@ def test_dp_heavy_job_marks_comm_flows_complete_after_useful_bytes() -> None:
             optimizer_ms=1.0,
             seed=7,
             mtu=256,
-            chunk_redundancy_extra_packets=1,
+            flow_redundancy_extra_packets=1,
         ),
     )
 

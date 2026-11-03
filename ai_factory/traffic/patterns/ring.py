@@ -42,7 +42,7 @@ def build_ring_order(participants: list[str], *, seed: int) -> RingPlan:
 
     out: list[str] = []
     for leaf in leaf_order:
-        # Keep hosts in-leaf deterministic, but vary inter-leaf wiring per collective.
+        # Keep hosts in-leaf deterministic, but vary inter-leaf wiring per training step.
         out.extend(by_leaf[leaf])
 
     return RingPlan(participants=out)
@@ -77,7 +77,7 @@ def expand_ring_neighbor_sends(
     gap_us: float,
     ids: IdGenerator,
     job_id: int,
-    collective_id: int,
+    step_id: int,
     phase_id: int,
     bucket_id: int | None,
     ring_seed: int | None = None,
@@ -107,7 +107,7 @@ def expand_ring_neighbor_sends(
     if write_to_log:
         logger.info("chunks:")
         logger.info(chunk_per_step)
-        logger.info(f"[{op_tag}] Ring order (job_id={job_id}, collective_id={collective_id}, bucket_id={bucket_id}): {' → '.join(ring.participants)} → {ring.participants[0]}")
+        logger.info(f"[{op_tag}] Ring order (job_id={job_id}, step_id={step_id}, bucket_id={bucket_id}): {' → '.join(ring.participants)} → {ring.participants[0]}")
 
     flows: list[Flow] = []
     for s in range(steps):
@@ -121,7 +121,7 @@ def expand_ring_neighbor_sends(
                 Flow(
                     flow_id=flow_id,
                     job_id=job_id,
-                    collective_id=collective_id,
+                    step_id=step_id,
                     phase_id=phase_id,
                     bucket_id=bucket_id,
                     tag=f"{op_tag}/ring_step_{s}",

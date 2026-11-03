@@ -233,46 +233,30 @@ class Network(ABC):
 
         # --- AI-factory app metrics (if present) ---
         try:
-            from ai_factory.core.runner import _compute_collective_stats  # type: ignore
+            from ai_factory.core.runner import _compute_step_stats  # type: ignore
 
-            job_metrics = self.entities.get("ai_factory_job_metrics")
-            if job_metrics is not None:
-                per_job: dict[str, dict[str, float]] = {}
-
-                for name, jm in [("job", job_metrics)]:
-                    collectives = getattr(jm, "collectives", getattr(jm, "steps", None))
-                    start_time = getattr(jm, "start_time", None)
-                    end_time = getattr(jm, "end_time", None)
-                    if not collectives:
-                        if start_time is None or end_time is None:
-                            continue
-                        per_job[name] = {
-                            "job_duration_ms": (float(end_time) - float(start_time)) * 1000.0,
+            training_job_metrics = self.entities.get("ai_factory_training_job_metrics")
+            if training_job_metrics is not None:
+                training_job_stats: dict[str, float] = {}
+                start_time = training_job_metrics.start_time
+                end_time = training_job_metrics.end_time
+                if training_job_metrics.steps:
+                    step_stats = _compute_step_stats(list(training_job_metrics.steps))
+                    training_job_stats.update(
+                        {
+                            "training_step_time_avg_ms": float(step_stats["avg"]) * 1000.0,
+                            "training_step_time_p95_ms": float(step_stats["p95"]) * 1000.0,
+                            "training_step_time_p99_ms": float(step_stats["p99"]) * 1000.0,
+                            "training_step_time_std_ms": float(step_stats["std"]) * 1000.0,
+                            "training_step_time_min_ms": float(step_stats["min"]) * 1000.0,
+                            "training_step_time_max_ms": float(step_stats["max"]) * 1000.0,
+                            "training_step_count": int(step_stats["count"]),
                         }
-                        continue
-                    stats = _compute_collective_stats(list(collectives))
-                    per_job[name] = {
-                        "collective_time_avg_ms": float(stats["avg"]) * 1000.0,
-                        "collective_time_p95_ms": float(stats["p95"]) * 1000.0,
-                        "collective_time_p99_ms": float(stats["p99"]) * 1000.0,
-                        "collective_time_std_ms": float(stats.get("std", 0.0)) * 1000.0,
-                        "collective_time_min_ms": float(stats.get("min", 0.0)) * 1000.0,
-                        "collective_time_max_ms": float(stats.get("max", 0.0)) * 1000.0,
-                        "collective_count": int(stats.get("count", 0)),
-                        "step_time_avg_ms": float(stats["avg"]) * 1000.0,
-                        "step_time_p95_ms": float(stats["p95"]) * 1000.0,
-                        "step_time_p99_ms": float(stats["p99"]) * 1000.0,
-                        "step_time_std_ms": float(stats.get("std", 0.0)) * 1000.0,
-                        "step_time_min_ms": float(stats.get("min", 0.0)) * 1000.0,
-                        "step_time_max_ms": float(stats.get("max", 0.0)) * 1000.0,
-                        "step_count": int(stats.get("count", 0)),
-                    }
-                    if start_time is not None and end_time is not None:
-                        per_job[name]["job_duration_ms"] = (float(end_time) - float(start_time)) * 1000.0
-
-                if per_job:
-                    run_statistics["ai_factory_collective_time_ms_per_job"] = per_job
-                    run_statistics["ai_factory_step_time_ms_per_job"] = per_job
+                    )
+                if start_time is not None and end_time is not None:
+                    training_job_stats["training_job_duration_ms"] = (float(end_time) - float(start_time)) * 1000.0
+                if training_job_stats:
+                    run_statistics["ai_factory_training_job_stats"] = training_job_stats
         except Exception:
             # Never break results collection because of optional AI-factory metrics.
             pass
@@ -286,10 +270,10 @@ class Network(ABC):
                 for p in self.simulator.packets
             ]
 
-        ai_factory_bucket_metrics = self.entities.get("ai_factory_bucket_metrics", [])
-        job_metrics = self.entities.get("ai_factory_job_metrics")
-        if not ai_factory_bucket_metrics and job_metrics is not None:
-            ai_factory_bucket_metrics = list(getattr(job_metrics, "bucket_metrics", []))
+        training_job_metrics = self.entities.get("ai_factory_training_job_metrics")
+        ai_factory_gradient_bucket_metrics = (
+            list(training_job_metrics.bucket_metrics) if training_job_metrics is not None else []
+        )
 
         ai_factory_flow_metrics = self.entities.get("ai_factory_flow_metrics", [])
         ai_factory_flow_chain_diagnostics = self.entities.get("ai_factory_flow_chain_diagnostics", [])
@@ -299,7 +283,7 @@ class Network(ABC):
             'parameters summary': parameters_summary,
             'run statistics': run_statistics,
             'packet_timeline': packet_timeline,
-            'ai_factory_bucket_metrics': ai_factory_bucket_metrics,
+            'ai_factory_gradient_bucket_metrics': ai_factory_gradient_bucket_metrics,
             'ai_factory_flow_metrics': ai_factory_flow_metrics,
             'ai_factory_flow_chain_diagnostics': ai_factory_flow_chain_diagnostics,
         }

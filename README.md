@@ -194,10 +194,10 @@ meta:
 sweep:
   vary:                                         # dotted config key -> list of values
     routing.mode: [ecmp, adaptive]
-    workload.params.chunk_redundancy_extra_packets: [0, 1, 2]
+    workload.params.flow_redundancy_extra_packets: [0, 1, 2]
   summary_out: results/my_sweep/summary.yaml    # optional
   visualize_summary: true                       # optional: comparison plots
-  plot_ring_heatmaps: false                     # optional: per-collective traffic heatmaps
+  plot_ring_heatmaps: false                     # optional: per-training-step traffic heatmaps
 ```
 
 ```bash
@@ -277,10 +277,10 @@ workload:
   kind: dp-heavy
   params:
     bucket_bytes_per_participant: 4194304
-    chunk_redundancy_extra_packets: 2
+    flow_redundancy_extra_packets: 2
 ```
 
-`chunk_redundancy_extra_packets` adds a fixed number of redundant packets to each communication flow on top of the useful payload. Redundancy is packet-based now, and the simulator validates that each useful flow payload is already an exact whole number of MTU-sized packets before adding those extras. If a flow has `N` useful packets and `R` redundant packets, it transmits `N + R` packets and completes when any `N` of those packets arrive at the receiver; late redundant/stalled packets may still add network load after the flow has completed.
+`flow_redundancy_extra_packets` adds a fixed number of redundant packets to each communication flow on top of the useful payload. Redundancy is packet-based now, and the simulator validates that each useful flow payload is already an exact whole number of MTU-sized packets before adding those extras. If a flow has `N` useful packets and `R` redundant packets, it transmits `N + R` packets and completes when any `N` of those packets arrive at the receiver; late redundant/stalled packets may still add network load after the flow has completed.
 
 ---
 
@@ -292,17 +292,17 @@ Each run generates a detailed log file containing:
 - Topology summary (node/link counts)
 - Parameter summary (configuration)
 - Run statistics:
-  - Step completion times (mean, p95, p99)
+  - Training step completion times (mean, p95, p99)
   - Queue occupancy metrics
   - Total simulation time
 
 When `run.visualize: true`, the simulator also saves visualization files under `results/`, including an AI-factory communication distribution figure showing:
-- bucket completion-time distributions
+- gradient bucket completion-time distributions
 - lower-level chunk / flow completion-time distributions
 
-In this project, **buckets are not the same as chunks**:
-- a **bucket** is a workload-level communication group (for example, one DP gradient bucket)
-- a **chunk / flow** is a lower-level send emitted inside that bucket (for example, a ring neighbor send)
+In this project, **gradient buckets are not the same as chunks**:
+- a **gradient bucket** is a workload-level communication group within one training step
+- a **chunk / flow** is a lower-level send emitted inside that gradient bucket (for example, a ring neighbor send)
 
 **Locations:**
 - Unified runs: `results/logs/<run-name>_YYYYMMDD_HHMMSS_*.log`

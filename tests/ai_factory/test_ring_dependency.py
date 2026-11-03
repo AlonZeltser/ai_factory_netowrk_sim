@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ai_factory.core.entities import CommPhase
-from ai_factory.core.runner import FlowInjector, JobRunner
+from ai_factory.core.runner import FlowInjector, TrainingJobRunner
 from ai_factory.traffic.collective import CollectiveAlgorithm
 from ai_factory.traffic.flow import Flow
 from ai_factory.workloads.dp_heavy_workload import DPHeavyWorkloadConfig, build_dp_heavy_workload_job
@@ -50,7 +50,7 @@ def test_ring_steps_launch_only_after_prerequisite_flow_completion() -> None:
 
     sim = DiscreteEventSimulator()
     injector = _TimedCompletionInjector(sim)
-    runner = JobRunner(sim=sim, injector=injector, job=job)
+    runner = TrainingJobRunner(sim=sim, injector=injector, job=job)
 
     runner.run()
     sim.run()
@@ -97,7 +97,7 @@ def test_all_gather_step_zero_waits_for_reduce_scatter_last_arrival() -> None:
 
     sim = DiscreteEventSimulator()
     injector = _TimedCompletionInjector(sim)
-    runner = JobRunner(sim=sim, injector=injector, job=job)
+    runner = TrainingJobRunner(sim=sim, injector=injector, job=job)
 
     runner.run()
     sim.run()

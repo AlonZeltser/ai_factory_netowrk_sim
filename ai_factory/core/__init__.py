@@ -1,13 +1,13 @@
-﻿from ai_factory.core.entities import Job, JobStep, Phase, ComputePhase, CommPhase, Bucket
-from ai_factory.core.runner import JobRunner
+﻿from ai_factory.core.entities import TrainingJob, TrainingStep, Phase, ComputePhase, CommPhase, GradientBucket
+from ai_factory.core.runner import TrainingJobRunner
 
 __all__ = [
-    "Job",
-    "JobStep",
+    "TrainingJob",
+    "TrainingStep",
     "Phase",
     "ComputePhase",
     "CommPhase",
-    "Bucket",
-    "JobRunner",
+    "GradientBucket",
+    "TrainingJobRunner",
 ]
 

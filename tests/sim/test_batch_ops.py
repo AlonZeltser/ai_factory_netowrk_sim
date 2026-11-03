@@ -19,7 +19,7 @@ def test_collect_and_run_batch_from_configs() -> None:
 
 
 
-def test_build_flow_stall_stats_aggregates_training_flows_and_bucket_bottleneck() -> None:
+def test_build_flow_stall_stats_aggregates_training_flows_and_gradient_bucket_bottleneck() -> None:
     flow_metrics = [
         FlowMetrics(
             flow_id=1,
@@ -91,7 +91,7 @@ def test_build_flow_stall_stats_aggregates_training_flows_and_bucket_bottleneck(
     assert stats == {
         "avg_stalls_per_flow": 1.75,
         "max_stalls_per_flow": 4,
-        "bucket_bottleneck_stalls": 4,
+        "gradient_bucket_bottleneck_stalls": 4,
         "training_flow_count": 4,
         "stalls_per_flow_histogram": {1: 1, 2: 1, 4: 1, 0: 1},
     }

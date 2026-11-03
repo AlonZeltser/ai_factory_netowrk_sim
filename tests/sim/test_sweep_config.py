@@ -27,7 +27,7 @@ def test_sweep_section_is_parsed_in_file_order() -> None:
 
     assert sweep.vary == (
         ("routing.mode", ("ecmp", "adaptive")),
-        ("workload.params.chunk_redundancy_extra_packets", (0, 1)),
+        ("workload.params.flow_redundancy_extra_packets", (0, 1)),
     )
     assert sweep.combination_count() == 4
 
@@ -44,17 +44,17 @@ def test_single_run_ignores_sweep_section() -> None:
 
     # Base values from the extended files, not the sweep values.
     assert spec.routing.mode == "adaptive"
-    assert spec.workload.params["chunk_redundancy_extra_packets"] == 0
+    assert spec.workload.params["flow_redundancy_extra_packets"] == 0
 
 
 def test_build_sweep_inputs_uses_file_dimensions() -> None:
     inputs = build_sweep_inputs(config_path=DP_SMALL_SWEEP)
 
     assert [item.overrides for item in inputs] == [
-        ("routing.mode=ecmp", "workload.params.chunk_redundancy_extra_packets=0"),
-        ("routing.mode=ecmp", "workload.params.chunk_redundancy_extra_packets=1"),
-        ("routing.mode=adaptive", "workload.params.chunk_redundancy_extra_packets=0"),
-        ("routing.mode=adaptive", "workload.params.chunk_redundancy_extra_packets=1"),
+        ("routing.mode=ecmp", "workload.params.flow_redundancy_extra_packets=0"),
+        ("routing.mode=ecmp", "workload.params.flow_redundancy_extra_packets=1"),
+        ("routing.mode=adaptive", "workload.params.flow_redundancy_extra_packets=0"),
+        ("routing.mode=adaptive", "workload.params.flow_redundancy_extra_packets=1"),
     ]
 
 
@@ -65,10 +65,10 @@ def test_cli_vary_replaces_same_key_and_appends_new_key() -> None:
     )
 
     assert [item.overrides for item in inputs] == [
-        ("routing.mode=flowlet", "workload.params.chunk_redundancy_extra_packets=0", "topology.params.leaf_count=4"),
-        ("routing.mode=flowlet", "workload.params.chunk_redundancy_extra_packets=0", "topology.params.leaf_count=8"),
-        ("routing.mode=flowlet", "workload.params.chunk_redundancy_extra_packets=1", "topology.params.leaf_count=4"),
-        ("routing.mode=flowlet", "workload.params.chunk_redundancy_extra_packets=1", "topology.params.leaf_count=8"),
+        ("routing.mode=flowlet", "workload.params.flow_redundancy_extra_packets=0", "topology.params.leaf_count=4"),
+        ("routing.mode=flowlet", "workload.params.flow_redundancy_extra_packets=0", "topology.params.leaf_count=8"),
+        ("routing.mode=flowlet", "workload.params.flow_redundancy_extra_packets=1", "topology.params.leaf_count=4"),
+        ("routing.mode=flowlet", "workload.params.flow_redundancy_extra_packets=1", "topology.params.leaf_count=8"),
     ]
 
 

@@ -4,7 +4,7 @@ workload:
   params:
     # Number of training steps to simulate. Range: integer >= 1.
     steps: 50
-    # Deterministic seed for job / collective generation. Range: integer >= 0.
+    # Deterministic seed for training-job / ring-order generation. Range: integer >= 0.
     seed: 1972
     # Number of gradient buckets synchronized per step. Range: integer >= 1.
     num_buckets: 8
@@ -17,7 +17,7 @@ workload:
     # Optimizer/update compute time after gradient synchronization, in milliseconds. Range: float >= 0.0.
     optimizer_ms: 5.0
     # Number of extra redundant packets added per flow on top of the useful payload. Range: integer >= 0.
-    chunk_redundancy_extra_packets: 0
+    flow_redundancy_extra_packets: 0
     # If true, run only the reduce-scatter ring and skip all-gather. Allowed values: true | false.
     single_ring_only: false
 
