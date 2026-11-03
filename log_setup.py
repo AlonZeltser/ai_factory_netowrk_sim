@@ -30,11 +30,6 @@ def ensure_logging(level: int = logging.INFO, *, force: bool = False) -> None:
         root.setLevel(level)
 
 
-def configure_debug(debug: bool) -> None:
-    """Convenience wrapper to set DEBUG level when requested."""
-    ensure_logging(logging.DEBUG if debug else logging.INFO)
-
-
 def configure_run_logging(
     run_tag: str,
     *,

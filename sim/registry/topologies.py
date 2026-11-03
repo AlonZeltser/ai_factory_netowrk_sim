@@ -5,7 +5,22 @@ from typing import Any
 from ai_factory.simulators.ai_factory_su_network_simulator import AIFactorySUNetworkSimulator, AIFactorySUTopologyConfig
 from network.core.network import Network
 from network.core.network_node import RoutingMode
-from ..config.models import ConfigError, ExperimentSpec, RoutingSpec, RunSpec, TopologySpec
+from ..config.models import ConfigError, ExperimentSpec, RoutingSpec, RunSpec, TopologySpec, reject_unknown_keys
+
+_CLOS_PARAM_KEYS = ("layers", "leaf_count", "spine_count", "max_path", "mtu", "ttl", "fabric")
+_CLOS_FABRIC_KEYS = (
+    "servers_per_leaf",
+    "host_links_per_server",
+    "parallel_leaf_to_spine_links",
+    "link_failure_percent",
+    "packet_stall_percent",
+    "packet_stall_delay_ms",
+    "packet_stall_max_switch_hop",
+    "packet_stall_retransmit_priority",
+    "server_to_leaf_bandwidth_bps",
+    "leaf_to_spine_bandwidth_bps",
+    "bandwidth_profile",
+)
 
 
 def _require_mapping_param(params: dict[str, Any], key: str) -> dict[str, Any]:
@@ -60,11 +75,13 @@ def _build_clos(topology: TopologySpec, routing: RoutingSpec, run: RunSpec) -> N
         raise ConfigError("topology.profile is no longer supported. Put topology defaults in YAML via extends and override topology.params directly.")
 
     params = dict(topology.params)
+    reject_unknown_keys(params, _CLOS_PARAM_KEYS, "topology.params")
     layers = _require_int_param(params, "layers")
     if layers != 2:
         raise ConfigError("The current clos implementation supports only layers=2 (leaf-spine) during Batch 2")
 
     fabric = _require_mapping_param(params, "fabric")
+    reject_unknown_keys(fabric, _CLOS_FABRIC_KEYS, "topology.params.fabric")
     leaf_count = _require_int_param(params, "leaf_count")
     spine_count = _require_int_param(params, "spine_count")
     if leaf_count <= 0:

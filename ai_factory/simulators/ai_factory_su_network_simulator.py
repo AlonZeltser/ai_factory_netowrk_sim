@@ -2,7 +2,6 @@
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Mapping
 
 from network.core.network import Network
 from network.core.network_node import RoutingMode
@@ -17,35 +16,6 @@ class AIFactorySUTopologyConfig:
     servers_per_leaf: int
     server_parallel_links: int
     leaf_to_spine_parallel_links: int
-
-    @staticmethod
-    def from_mapping(d: Mapping[str, Any] | None) -> "AIFactorySUTopologyConfig":
-        if not isinstance(d, Mapping):
-            raise ValueError("Expected mapping for topology.ai_factory_su")
-
-        missing = [
-            k
-            for k in (
-                "leaves",
-                "spines",
-                "servers_per_leaf",
-                "server_parallel_links",
-                "leaf_to_spine_parallel_links",
-            )
-            if k not in d
-        ]
-        if missing:
-            raise ValueError(
-                "Missing required topology.ai_factory_su keys: " + ", ".join(missing)
-            )
-
-        return AIFactorySUTopologyConfig(
-            leaves=int(d["leaves"]),
-            spines=int(d["spines"]),
-            servers_per_leaf=int(d["servers_per_leaf"]),
-            server_parallel_links=int(d["server_parallel_links"]),
-            leaf_to_spine_parallel_links=int(d["leaf_to_spine_parallel_links"]),
-        )
 
 
 class AIFactorySUNetworkSimulator(Network):
@@ -94,8 +64,7 @@ class AIFactorySUNetworkSimulator(Network):
         store_packets: bool = False,
         collect_packet_timeline: bool = False,
         *,
-        topology_config: AIFactorySUTopologyConfig | None = None,
-        topology_cfg: Mapping[str, Any] | None = None,
+        topology_config: AIFactorySUTopologyConfig,
     ):
         super().__init__(
             name="ai-factory-su",
@@ -115,13 +84,7 @@ class AIFactorySUNetworkSimulator(Network):
             collect_packet_timeline=collect_packet_timeline,
         )
 
-        if topology_config is not None and topology_cfg is not None:
-            raise ValueError("Provide either topology_config or topology_cfg, not both")
-
-        if topology_config is None:
-            self.topology = AIFactorySUTopologyConfig.from_mapping(topology_cfg)
-        else:
-            self.topology = topology_config
+        self.topology = topology_config
 
         if self.topology.leaves <= 0 or self.topology.spines <= 0:
             raise ValueError("topology.leaves and topology.spines must be > 0")

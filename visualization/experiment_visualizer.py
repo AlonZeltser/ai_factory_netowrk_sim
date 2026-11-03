@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from run_label import label_slug
+
 
 def visualize_send_timeline(
     packet_timeline: List[Tuple[float, int]],
@@ -518,7 +520,7 @@ def visualize_summary_training_step_traffic_matrices(
             continue
 
         label = str(row.get("label") or f"summary_{row_idx}")
-        safe_label = re.sub(r"[^A-Za-z0-9._-]+", "_", label).strip("_") or f"summary_{row_idx}"
+        safe_label = label_slug(label) or f"summary_{row_idx}"
         routing_mode = row.get("routing_mode")
         redundancy = _summary_float(row, "flow_redundancy_extra_packets")
         x_key, x_label, _, _ = _choose_sweep_x_axis([row])

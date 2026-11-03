@@ -23,9 +23,6 @@ class Flow:
     size_bytes: int
     start_time: float
     completion_bytes: int | None = None
-
-    priority: int | None = None
-    deadline: float | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     @property
@@ -70,8 +67,6 @@ def apply_flow_redundancy(flows: list[Flow], *, extra_packets: int, mtu: int) ->
                 size_bytes=gross_bytes,
                 completion_bytes=useful_bytes,
                 start_time=float(flow.start_time),
-                priority=flow.priority,
-                deadline=flow.deadline,
                 metadata={**dict(flow.metadata), "flow_redundancy_extra_packets": int(extra_packets)},
             )
         )

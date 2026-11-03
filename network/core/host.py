@@ -1,7 +1,6 @@
 ﻿import itertools
 import logging
 import random
-from dataclasses import dataclass
 from typing import cast
 
 from des.des import DiscreteEventSimulator
@@ -12,19 +11,7 @@ from network.core.network_node import NetworkNode, RoutingMode
 _logger = logging.getLogger(__name__)
 
 packet_ids = itertools.count()
-flow_ids = itertools.count(1)
 
-@dataclass
-class Flow:
-    flow_id: int
-    app_id: int
-    session_id: int
-    src_ip: str
-    dst_ip: str
-    size_bytes: int
-    start_time: float
-    end_time: float | None = None
-    bytes_received: int = 0
 
 class Host(NetworkNode):
     def __init__(
@@ -52,7 +39,6 @@ class Host(NetworkNode):
         self._ip_address: str = ip_address
         self._received_count: int = 0
         self.max_path: int | None = max_path
-        self.flows: dict[int, Flow] = {}
         self.ecmp_flowlet_n_packets = ecmp_flowlet_n_packets
         self.mtu = mtu
         self.ttl = ttl

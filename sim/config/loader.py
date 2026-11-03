@@ -87,7 +87,7 @@ def _apply_override(data: dict[str, Any], override: str) -> None:
             cursor[key] = next_value
         cursor = next_value
     cursor[keys[-1]] = value
-def _normalize_loaded_mapping(data: dict[str, Any], *, source_name: str | None = None) -> dict[str, Any]:
+def _normalize_loaded_mapping(data: dict[str, Any]) -> dict[str, Any]:
     if data.get("kind") == "experiment":
         return data
 
@@ -109,7 +109,7 @@ def _load_config_file(config_path: str) -> tuple[Path, dict[str, Any]]:
     if not config_file.exists():
         raise FileNotFoundError(f"Config file not found: {config_file}")
     config_data = _load_yaml_with_extends(config_file)
-    return config_file, _normalize_loaded_mapping(config_data, source_name=config_file.stem)
+    return config_file, _normalize_loaded_mapping(config_data)
 
 
 def load_sweep_spec(config_path: str) -> SweepSpec:

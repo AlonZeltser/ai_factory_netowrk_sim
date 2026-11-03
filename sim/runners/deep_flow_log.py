@@ -4,10 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-
-def _slugify(value: str) -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
-    return cleaned.strip("._") or "run"
+from run_label import label_slug
 
 
 def _natural_sort_key(value: str) -> tuple[Any, ...]:
@@ -143,7 +140,7 @@ def write_sweep_deep_flow_logs(summary: list[dict[str, Any]], *, out_dir: str) -
             continue
 
         run_label = str(row.get("label") or "run")
-        run_dir = root / _slugify(run_label)
+        run_dir = root / (label_slug(run_label) or "run")
         run_dir.mkdir(parents=True, exist_ok=True)
 
         by_step: dict[tuple[int, int], list[dict[str, Any]]] = {}

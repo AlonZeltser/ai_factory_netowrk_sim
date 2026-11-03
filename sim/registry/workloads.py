@@ -6,7 +6,23 @@ from ai_factory.core.entities import BUCKET_SCHEDULING_MODES
 from ai_factory.scenarios.ai_factory_su_dp_heavy_scenario import AIFactorySUDpHeavyScenario
 from network.scenarios.base import Scenario
 from network.scenarios.none_scenario import NoneScenario
-from ..config.models import ConfigError, ExperimentSpec, TopologySpec, WorkloadSpec
+from ..config.models import ConfigError, ExperimentSpec, TopologySpec, WorkloadSpec, reject_unknown_keys
+
+# t_fwd_bwd_ms is the deprecated alias of the bucket-timing keys (removed in a later step).
+_DP_HEAVY_PARAM_KEYS = (
+    "steps",
+    "seed",
+    "num_buckets",
+    "bucket_bytes_per_participant",
+    "gap_us",
+    "prolog_compute_ms",
+    "bucket_interval_ms",
+    "bucket_scheduling",
+    "t_fwd_bwd_ms",
+    "optimizer_ms",
+    "flow_redundancy_extra_packets",
+    "single_ring_only",
+)
 @dataclass(frozen=True)
 class WorkloadRegistryItem:
     name: str
@@ -73,11 +89,15 @@ def _resolve_bucket_timing(params: dict[str, Any]) -> tuple[float, float, str]:
 
 
 def _build_none(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
+    # `none` has no parameters, so workload.params is not read or checked. This lets a sweep
+    # vary workload.kind between a real workload and `none` while the file keeps that
+    # workload's params (a sweep can change values but not remove keys).
     return NoneScenario()
 def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
     _require_topology(topology, "clos")
     _require_no_profile(workload)
     params = dict(workload.params)
+    reject_unknown_keys(params, _DP_HEAVY_PARAM_KEYS, "workload.params")
     seed = int(_require_param(params, "seed"))
     mtu = int(topology.params.get("mtu", 4096))
     prolog_compute_ms, bucket_interval_ms, bucket_scheduling = _resolve_bucket_timing(params)

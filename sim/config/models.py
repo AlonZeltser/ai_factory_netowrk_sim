@@ -20,6 +20,37 @@ def _require_key(data: dict[str, Any], key: str, section: str) -> Any:
     return data[key]
 
 
+def reject_unknown_keys(data: Mapping[str, Any], allowed: tuple[str, ...], section: str) -> None:
+    """Fail on keys the config section does not define, so typos and removed keys never pass silently."""
+    unknown = sorted(str(key) for key in data if key not in allowed)
+    if unknown:
+        raise ConfigError(
+            f"Unknown key(s) in '{section}': {', '.join(unknown)}. Allowed: {', '.join(sorted(allowed))}"
+        )
+
+
+# Keys each section accepts. Aliases still accepted today are listed until they are removed.
+_EXPERIMENT_KEYS = ("kind", "meta", "run", "topology", "routing", "workload")
+_META_KEYS = ("name", "description")
+_RUN_KEYS = (
+    "seed",
+    "file_debug",
+    "debug",
+    "message_verbose",
+    "verbose_route",
+    "visualize",
+    "show_visualization_window",
+    "store_packets",
+    "collect_packet_timeline",
+    "deep_flow_chain_log",
+    "log_dir",
+    "results_dir",
+)
+_ROUTING_KEYS = ("mode", "ecmp_flowlet_n_packets", "flowlet_packets")
+_TOPOLOGY_KEYS = ("family", "name", "type", "profile", "params")
+_WORKLOAD_KEYS = ("kind", "name", "profile", "params")
+
+
 @dataclass(frozen=True)
 class MetaSpec:
     name: str = ""
@@ -30,6 +61,7 @@ class MetaSpec:
         if value is None:
             return MetaSpec()
         data = _require_mapping(value, "meta")
+        reject_unknown_keys(data, _META_KEYS, "meta")
         return MetaSpec(
             name=str(data.get("name", "") or ""),
             description=str(data.get("description", "") or ""),
@@ -63,6 +95,7 @@ class RunSpec:
         if value is None:
             raise ConfigError("Missing required section 'run'")
         data = _require_mapping(value, "run")
+        reject_unknown_keys(data, _RUN_KEYS, "run")
         seed = data.get("seed")
         store_packets = bool(_require_key(data, "store_packets", "run"))
         collect_packet_timeline = bool(_require_key(data, "collect_packet_timeline", "run"))
@@ -116,6 +149,7 @@ class RoutingSpec:
         if value is None:
             raise ConfigError("Missing required section 'routing'")
         data = _require_mapping(value, "routing")
+        reject_unknown_keys(data, _ROUTING_KEYS, "routing")
         # Support legacy alias 'flowlet_packets' for 'ecmp_flowlet_n_packets'
         if "ecmp_flowlet_n_packets" not in data and "flowlet_packets" not in data:
             raise ConfigError("Missing required key 'routing.ecmp_flowlet_n_packets'")
@@ -140,6 +174,7 @@ class TopologySpec:
     @staticmethod
     def from_mapping(value: Any) -> "TopologySpec":
         data = _require_mapping(value, "topology")
+        reject_unknown_keys(data, _TOPOLOGY_KEYS, "topology")
         name = data.get("family", data.get("name", data.get("type")))
         if not name:
             if "params" in data or "profile" in data:
@@ -173,6 +208,7 @@ class WorkloadSpec:
     @staticmethod
     def from_mapping(value: Any) -> "WorkloadSpec":
         data = _require_mapping(value, "workload")
+        reject_unknown_keys(data, _WORKLOAD_KEYS, "workload")
         name = data.get("kind", data.get("name"))
         if not name:
             raise ConfigError("Missing required key 'workload.name'")
@@ -206,6 +242,7 @@ class ExperimentSpec:
     @staticmethod
     def from_mapping(value: Any) -> "ExperimentSpec":
         data = _require_mapping(value, "/")
+        reject_unknown_keys(data, _EXPERIMENT_KEYS, "/")
         kind = data.get("kind")
         if kind not in (None, "experiment"):
             raise ConfigError(f"Unsupported config kind: {kind!r}. Expected 'experiment'.")
@@ -257,9 +294,7 @@ class SweepSpec:
         if value is None:
             return SweepSpec()
         data = _require_mapping(value, "sweep")
-        unknown = sorted(set(data) - set(_SWEEP_KEYS))
-        if unknown:
-            raise ConfigError(f"Unknown key(s) in 'sweep': {', '.join(unknown)}. Allowed: {', '.join(_SWEEP_KEYS)}")
+        reject_unknown_keys(data, _SWEEP_KEYS, "sweep")
 
         vary_raw = data.get("vary") or {}
         vary_map = _require_mapping(vary_raw, "sweep.vary")

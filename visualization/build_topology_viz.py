@@ -9,6 +9,7 @@ Usage:
     python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml --set topology.params.leaf_count=8
 """
 import argparse
+import shutil
 import sys
 from pathlib import Path
 
@@ -73,6 +74,12 @@ def main():
             show=False,
             show_link_status_legend=args.show_link_status_legend,
         )
+
+        if saved_path and args.output:
+            output_path = Path(args.output).resolve()
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(saved_path, output_path)
+            saved_path = str(output_path)
 
         if saved_path:
             print(f"\n✓ Topology visualization saved to:")
