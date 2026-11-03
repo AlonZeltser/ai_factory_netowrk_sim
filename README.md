@@ -181,7 +181,7 @@ python -m apps.sim batch --directory experiments/ --stop-on-error
 
 ### 3. Sweep Execution
 
-A sweep runs every combination of a set of parameter values on top of one experiment file, in parallel. The plan lives in the experiment file itself, so one command reproduces a whole result set:
+A sweep runs every combination of a set of parameter values on top of one experiment file, in parallel. The `sweep:` section of the experiment file is the only way to set up a sweep: every key below is required, and the `sweep` command takes only `--config`. One command reproduces a whole result set:
 
 ```yaml
 # experiments/my_sweep.yaml
@@ -195,9 +195,14 @@ sweep:
   vary:                                         # dotted config key -> list of values
     routing.mode: [ecmp, adaptive]
     workload.params.flow_redundancy_extra_packets: [0, 1, 2]
-  summary_out: results/my_sweep/summary.yaml    # optional
-  visualize_summary: true                       # optional: comparison plots
-  plot_ring_heatmaps: false                     # optional: per-training-step traffic heatmaps
+  summary_out: results/my_sweep/summary.yaml    # summary file; plots and deep logs go next to it
+  visualize_summary: true                       # comparison plots
+  plot_ring_heatmaps: false                     # per-training-step traffic heatmaps
+  lower_zoom_percent: 15.0                      # extra training-step-time plot of the lowest 15% (0 = skip it)
+  stop_on_error: false                          # stop at the first failed run
+  processes: auto                               # worker processes: an integer, or auto (balanced across CPUs)
+  plot_topology_once: false                     # draw the topology of the first combination before running
+  show_visualization_window: false              # open the plots in a window as well as saving them
 ```
 
 ```bash
@@ -206,11 +211,12 @@ python -m apps.sim sweep --config experiments/my_sweep.yaml      # runs all 6 co
 ```
 
 - `run` and `validate` ignore the `sweep` section and use the base values.
-- `--vary key=v1,v2` still works: it replaces the file's values for the same key, or adds a new dimension.
-- `--summary-out`, `--visualize-summary` and `--plot-ring-heatmaps` override the matching `sweep` settings.
+- To sweep other values or settings, edit the `sweep:` section (or write a small file that `extends` the experiment and changes it).
+
+To redraw the comparison plots from a saved summary, pass the experiment file too; its `sweep:` section supplies `lower_zoom_percent` and `show_visualization_window`:
 
 ```bash
-python -m apps.sim sweep --config experiments/dp_single_bucket.yaml --vary routing.mode=ecmp,adaptive --vary topology.params.leaf_count=8,16
+python -m apps.sim plot-summary --summary results/my_sweep/summary.yaml --config experiments/my_sweep.yaml
 ```
 
 ---

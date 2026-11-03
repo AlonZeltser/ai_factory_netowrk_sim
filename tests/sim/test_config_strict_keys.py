@@ -57,16 +57,11 @@ def test_unknown_key_in_params_is_rejected_when_building(override: str, section:
         validate_experiment(spec)
 
 
-def test_unknown_sweep_vary_key_fails_instead_of_being_ignored(tmp_path: Path) -> None:
-    cfg = tmp_path / "exp.yaml"
-    cfg.write_text(
-        f"extends: {(_REPO_ROOT / DP_SMALL).as_posix()}\n"
-        "sweep:\n  vary:\n    workload.params.num_bucket: [1, 2]\n",
-        encoding="utf-8",
-    )
-    sweep = load_sweep_spec(str(cfg))
+def test_unknown_sweep_vary_key_fails_instead_of_being_ignored(write_sweep_config) -> None:
+    cfg = write_sweep_config({"workload.params.num_bucket": [1, 2]})
+    sweep = load_sweep_spec(cfg)
     key, values = sweep.vary[0]
-    spec = load_experiment_spec(config_path=str(cfg), overrides=[f"{key}={values[0]}"])
+    spec = load_experiment_spec(config_path=cfg, overrides=[f"{key}={values[0]}"])
 
     with pytest.raises(ConfigError, match="num_bucket"):
         validate_experiment(spec)

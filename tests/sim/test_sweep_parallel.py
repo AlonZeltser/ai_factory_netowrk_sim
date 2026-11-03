@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import apps.sim as sim_app
+from sim.config.loader import load_sweep_spec
 from sim.runners.batch_runner import BatchInput
 from sim.runners import batch_runner, sweep_runner
 
@@ -18,10 +19,10 @@ def test_default_process_count_balances_tasks(monkeypatch) -> None:
     assert batch_runner._default_process_count(17) == 3
 
 
-def test_run_sweep_enables_process_workers(monkeypatch) -> None:
+def test_run_sweep_takes_workers_and_stop_on_error_from_the_sweep_section(monkeypatch, write_sweep_config) -> None:
     captured: dict[str, object] = {}
 
-    def _fake_run_batch(inputs, *, stop_on_error=False, use_processes=False, max_processes=None):
+    def _fake_run_batch(inputs, *, stop_on_error, use_processes, max_processes):
         captured["count"] = len(inputs)
         captured["stop_on_error"] = stop_on_error
         captured["use_processes"] = use_processes
@@ -29,23 +30,20 @@ def test_run_sweep_enables_process_workers(monkeypatch) -> None:
         return [{"label": i.label, "ok": True} for i in inputs]
 
     monkeypatch.setattr(sweep_runner, "run_batch", _fake_run_batch)
+    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, processes=3, stop_on_error=True)
 
-    summary = sweep_runner.run_sweep(
-        config_path=DP_SMALL,
-        vary_specs=["routing.mode=ecmp,adaptive"],
-        max_processes=3,
-    )
+    summary = sweep_runner.run_sweep(config_path=cfg, sweep=load_sweep_spec(cfg))
 
     assert len(summary) == 2
     assert captured == {
         "count": 2,
-        "stop_on_error": False,
+        "stop_on_error": True,
         "use_processes": True,
         "max_processes": 3,
     }
 
 
-def test_sweep_cli_forwards_process_count(monkeypatch) -> None:
+def test_sweep_cli_passes_the_config_sweep_section(monkeypatch, write_sweep_config) -> None:
     captured: dict[str, object] = {}
 
     def _fake_run_sweep(**kwargs):
@@ -53,54 +51,17 @@ def test_sweep_cli_forwards_process_count(monkeypatch) -> None:
         return [{"label": "test", "ok": True}]
 
     monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
+    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, processes=4)
 
-    exit_code = sim_app.main(
-        [
-            "sweep",
-            "--config",
-            DP_SMALL,
-            "--vary",
-            "routing.mode=ecmp,adaptive",
-            "--processes",
-            "4",
-        ]
-    )
+    exit_code = sim_app.main(["sweep", "--config", cfg])
 
     assert exit_code == 0
-    assert captured["max_processes"] == 4
-    assert captured["config_path"] == DP_SMALL
-    assert captured["vary_specs"] == ["routing.mode=ecmp,adaptive"]
+    assert captured["config_path"] == cfg
+    assert captured["sweep"] == load_sweep_spec(cfg)
+    assert captured["sweep"].max_processes == 4
 
 
-def test_sweep_cli_maps_packet_memory_flags_to_overrides(monkeypatch) -> None:
-    captured: dict[str, object] = {}
-
-    def _fake_run_sweep(**kwargs):
-        captured.update(kwargs)
-        return [{"label": "test", "ok": True}]
-
-    monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
-
-    exit_code = sim_app.main(
-        [
-            "sweep",
-            "--config",
-            DP_SMALL,
-            "--vary",
-            "routing.mode=ecmp,adaptive",
-            "--store-packets",
-            "--collect-packet-timeline",
-        ]
-    )
-
-    assert exit_code == 0
-    overrides = captured.get("base_overrides")
-    assert isinstance(overrides, list)
-    assert "run.store_packets=true" in overrides
-    assert "run.collect_packet_timeline=true" in overrides
-
-
-def test_sweep_cli_plot_topology_once_uses_first_combo(monkeypatch) -> None:
+def test_sweep_cli_plot_topology_once_uses_first_combo(monkeypatch, write_sweep_config) -> None:
     calls: dict[str, object] = {}
 
     def _fake_build_inputs(**kwargs):
@@ -127,17 +88,9 @@ def test_sweep_cli_plot_topology_once_uses_first_combo(monkeypatch) -> None:
     monkeypatch.setattr(sim_app, "load_experiment_spec", _fake_load_spec)
     monkeypatch.setattr(sim_app, "build_network", _fake_build_network)
     monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
+    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, plot_topology_once=True)
 
-    exit_code = sim_app.main(
-        [
-            "sweep",
-            "--config",
-            DP_SMALL,
-            "--vary",
-            "routing.mode=ecmp,adaptive",
-            "--plot-topology-once",
-        ]
-    )
+    exit_code = sim_app.main(["sweep", "--config", cfg])
 
     assert exit_code == 0
     assert calls["topology_create"] is True
@@ -147,13 +100,13 @@ def test_sweep_cli_plot_topology_once_uses_first_combo(monkeypatch) -> None:
     }
 
 
-def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch) -> None:
+def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch, write_sweep_config) -> None:
     calls: dict[str, object] = {"comparison": 0, "heatmaps": 0}
 
     def _fake_run_sweep(**kwargs):
         return [{"label": "ok", "ok": True, "training_step_traffic_matrices": []}]
 
-    def _fake_compare(summary, *, out_dir, show):
+    def _fake_compare(summary, *, out_dir, show, training_step_time_lower_zoom_percent):
         calls["comparison"] = int(calls["comparison"]) + 1
         return ["cmp.png"]
 
@@ -164,25 +117,18 @@ def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch) -> None:
     monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
     monkeypatch.setattr(sim_app, "visualize_sweep_time_comparison", _fake_compare)
     monkeypatch.setattr(sim_app, "visualize_summary_training_step_traffic_matrices", _fake_heatmaps)
+    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, plot_ring_heatmaps=True)
 
-    exit_code = sim_app.main(
-        [
-            "sweep",
-            "--config",
-            DP_SMALL,
-            "--vary",
-            "routing.mode=ecmp,adaptive",
-            "--plot-ring-heatmaps",
-        ]
-    )
+    exit_code = sim_app.main(["sweep", "--config", cfg])
 
     assert exit_code == 0
     assert calls["comparison"] == 0
     assert calls["heatmaps"] == 1
 
 
-def test_sweep_cli_writes_deep_flow_chain_logs(monkeypatch, tmp_path: Path) -> None:
+def test_sweep_cli_writes_deep_flow_chain_logs(monkeypatch, tmp_path: Path, write_sweep_config) -> None:
     summary_path = tmp_path / "summary.yaml"
+    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, summary_out=summary_path.as_posix())
 
     def _fake_run_sweep(**_kwargs):
         return [
@@ -220,17 +166,7 @@ def test_sweep_cli_writes_deep_flow_chain_logs(monkeypatch, tmp_path: Path) -> N
 
     monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
 
-    exit_code = sim_app.main(
-        [
-            "sweep",
-            "--config",
-            DP_SMALL,
-            "--vary",
-            "routing.mode=ecmp,adaptive",
-            "--summary-out",
-            str(summary_path),
-        ]
-    )
+    exit_code = sim_app.main(["sweep", "--config", cfg])
 
     assert exit_code == 0
     deep_root = summary_path.parent / "deep_flow_chain_logs"

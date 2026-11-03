@@ -4,6 +4,7 @@ from pathlib import Path
 
 from ai_factory.core.entities import FlowMetrics
 from sim.runners.batch_runner import _build_flow_stall_stats, collect_batch_inputs, run_batch, write_batch_summary
+from sim.config.loader import load_sweep_spec
 from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 
 DP_SMALL = "tests/fixtures/dp_small.yaml"
@@ -97,17 +98,13 @@ def test_build_flow_stall_stats_aggregates_training_flows_and_gradient_bucket_bo
     }
 
 
-def test_build_and_run_sweep() -> None:
-    inputs = build_sweep_inputs(
-        config_path=DP_SMALL,
-        vary_specs=["workload.kind=dp-heavy,none", "topology.params.leaf_count=8,16"],
-    )
+def test_build_and_run_sweep(write_sweep_config) -> None:
+    cfg = write_sweep_config({"workload.kind": ["dp-heavy", "none"], "topology.params.leaf_count": [8, 16]})
+    sweep = load_sweep_spec(cfg)
+    inputs = build_sweep_inputs(config_path=cfg, sweep=sweep)
     assert len(inputs) == 4
 
-    summary = run_sweep(
-        config_path=DP_SMALL,
-        vary_specs=["workload.kind=dp-heavy,none", "topology.params.leaf_count=8,16"],
-    )
+    summary = run_sweep(config_path=cfg, sweep=sweep)
     assert len(summary) == 4
     assert all(item["ok"] for item in summary)
     assert {item["workload"] for item in summary} == {"dp-heavy", "none"}

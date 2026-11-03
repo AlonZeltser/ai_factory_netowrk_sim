@@ -237,32 +237,67 @@ class ExperimentSpec:
         }
 
 
-_SWEEP_KEYS = ("vary", "summary_out", "visualize_summary", "plot_ring_heatmaps")
+_SWEEP_KEYS = (
+    "vary",
+    "summary_out",
+    "visualize_summary",
+    "plot_ring_heatmaps",
+    "lower_zoom_percent",
+    "stop_on_error",
+    "processes",
+    "plot_topology_once",
+    "show_visualization_window",
+)
 _SCALAR_TYPES = (str, int, float, bool)
+# `sweep.processes: auto` picks a worker count that balances the runs across the CPUs.
+SWEEP_PROCESSES_AUTO = "auto"
+
+
+def _require_number(data: dict[str, Any], key: str, section: str) -> float:
+    value = _require_key(data, key, section)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ConfigError(f"'{section}.{key}' must be a number, got {value!r}")
+    return float(value)
+
+
+def _require_processes(data: dict[str, Any]) -> int | None:
+    """Return the worker count, or None for `auto`."""
+    value = _require_key(data, "processes", "sweep")
+    if value == SWEEP_PROCESSES_AUTO:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ConfigError(f"'sweep.processes' must be an integer >= 1 or '{SWEEP_PROCESSES_AUTO}', got {value!r}")
+    return value
 
 
 @dataclass(frozen=True)
 class SweepSpec:
-    """Optional `sweep:` section of an experiment file.
+    """The `sweep:` section of an experiment file, the only interface for a sweep.
 
     `vary` maps a dotted config key to the list of values to try; the sweep runs
-    every combination. The other fields mirror the matching `sweep` CLI flags.
+    every combination. Every other key is required too.
     """
 
-    vary: tuple[tuple[str, tuple[Any, ...]], ...] = ()
-    summary_out: str = ""
-    visualize_summary: bool = False
-    plot_ring_heatmaps: bool = False
+    vary: tuple[tuple[str, tuple[Any, ...]], ...]
+    summary_out: str
+    visualize_summary: bool
+    plot_ring_heatmaps: bool
+    # Lower part (in percent) of the training-step-time range shown in the extra zoomed plot; 0 skips that plot.
+    lower_zoom_percent: float
+    stop_on_error: bool
+    # None means `auto`.
+    max_processes: int | None
+    plot_topology_once: bool
+    show_visualization_window: bool
 
     @staticmethod
     def from_mapping(value: Any) -> "SweepSpec":
-        if value is None:
-            return SweepSpec()
         data = _require_mapping(value, "sweep")
         reject_unknown_keys(data, _SWEEP_KEYS, "sweep")
 
-        vary_raw = data.get("vary") or {}
-        vary_map = _require_mapping(vary_raw, "sweep.vary")
+        vary_map = _require_mapping(_require_key(data, "vary", "sweep"), "sweep.vary")
+        if not vary_map:
+            raise ConfigError("'sweep.vary' must list at least one key to vary")
         vary: list[tuple[str, tuple[Any, ...]]] = []
         for key, values in vary_map.items():
             if not isinstance(key, str) or not key.strip():
@@ -274,18 +309,27 @@ class SweepSpec:
                     raise ConfigError(f"'sweep.vary.{key}' values must be plain scalars, got {v!r}")
             vary.append((key.strip(), tuple(values)))
 
+        lower_zoom_percent = _require_number(data, "lower_zoom_percent", "sweep")
+        if not 0.0 <= lower_zoom_percent <= 100.0:
+            raise ConfigError(f"'sweep.lower_zoom_percent' must be between 0 and 100, got {lower_zoom_percent!r}")
+
         return SweepSpec(
             vary=tuple(vary),
-            summary_out=str(data.get("summary_out") or ""),
-            visualize_summary=bool(data.get("visualize_summary", False)),
-            plot_ring_heatmaps=bool(data.get("plot_ring_heatmaps", False)),
+            summary_out=_require_str(data, "summary_out", "sweep", allow_empty=False),
+            visualize_summary=bool(_require_key(data, "visualize_summary", "sweep")),
+            plot_ring_heatmaps=bool(_require_key(data, "plot_ring_heatmaps", "sweep")),
+            lower_zoom_percent=lower_zoom_percent,
+            stop_on_error=bool(_require_key(data, "stop_on_error", "sweep")),
+            max_processes=_require_processes(data),
+            plot_topology_once=bool(_require_key(data, "plot_topology_once", "sweep")),
+            show_visualization_window=bool(_require_key(data, "show_visualization_window", "sweep")),
         )
 
     def combination_count(self) -> int:
         count = 1
         for _, values in self.vary:
             count *= len(values)
-        return count if self.vary else 0
+        return count
 
 
 

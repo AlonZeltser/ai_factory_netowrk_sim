@@ -101,10 +101,12 @@ def _load_config_file(config_path: str) -> tuple[Path, dict[str, Any]]:
     return config_file, _load_yaml_with_extends(config_file)
 
 
-def load_sweep_spec(config_path: str) -> SweepSpec:
-    """Read the optional `sweep:` section of an experiment file (after `extends`)."""
+def load_sweep_spec(config_path: str) -> SweepSpec | None:
+    """Read the `sweep:` section of an experiment file (after `extends`); None when the file has none."""
     _, data = _load_config_file(config_path)
-    return SweepSpec.from_mapping(data.get("sweep"))
+    if "sweep" not in data:
+        return None
+    return SweepSpec.from_mapping(data["sweep"])
 
 
 def load_experiment_spec(
