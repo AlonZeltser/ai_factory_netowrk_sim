@@ -90,7 +90,7 @@ Shared fragments live in experiments/base/:
   - run-defaults.yaml        : run, routing and logging defaults
   - topology-clos-small.yaml : 4 leaf, 4 spine, 16 hosts
   - topology-clos-large.yaml : 8 leaf, 4 spine, 32 hosts
-  - workload-dp.yaml         : DP-heavy workload defaults
+  - base_workload.yaml         : DP-heavy workload defaults
 """
 
 

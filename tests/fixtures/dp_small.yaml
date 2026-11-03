@@ -2,7 +2,7 @@
 extends:
   - ../../experiments/base/run-defaults.yaml
   - ../../experiments/base/topology-clos-small.yaml
-  - ../../experiments/base/workload-dp.yaml
+  - ../../experiments/base/base_workload.yaml
 meta:
   name: test-dp-small
   description: Minimal DP-heavy run for unit tests

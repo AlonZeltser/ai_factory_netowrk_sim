@@ -1,7 +1,7 @@
 extends:
   - base/run-defaults.yaml
   - base/topology-clos-small.yaml
-  - base/workload-dp.yaml
+  - base/base_workload.yaml
 meta:
   name: dp-single-bucket
   description: low-load DP-heavy experiment on the AI scale-unit clos profile with reduce-scatter only

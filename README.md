@@ -186,7 +186,7 @@ A sweep runs every combination of a set of parameter values on top of one experi
 extends:
   - base/run-defaults.yaml
   - base/topology-clos-small.yaml
-  - base/workload-dp.yaml
+  - base/base_workload.yaml
 meta:
   name: my-sweep
 sweep:
@@ -239,7 +239,7 @@ A concrete experiment lists its fragments and overrides only what it changes:
 extends:
   - base/run-defaults.yaml
   - base/topology-clos-small.yaml
-  - base/workload-dp.yaml
+  - base/base_workload.yaml
 meta:
   name: dp-single-bucket
 topology:
