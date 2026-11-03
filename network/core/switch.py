@@ -52,16 +52,18 @@ class Switch(NetworkNode):
             return True
         return self._is_last_switch_before_destination(packet)
 
-    def _reschedule_from_source_host(self, packet, packet_stall_delay_s: float) -> bool:
+    def _reschedule_from_source_host(self, packet, packet_stall_delay_s: float) -> None:
         src_ip = packet.routing_header.five_tuple.src_ip
         source_host = self.scheduler.hosts_by_ip.get(src_ip)
         if source_host is None:
-            return False
+            raise LookupError(
+                f"Stalled packet {packet.tracking_info.global_id} at switch {self.name}: "
+                f"no host is registered for its source IP {src_ip}"
+            )
         self.scheduler.schedule_event(
             packet_stall_delay_s,
             partial(source_host.reinject_stalled_packet, packet, stalled_switch_name=self.name),
         )
-        return True
 
     def on_message(self, packet):
         if packet.is_expired():
@@ -81,8 +83,7 @@ class Switch(NetworkNode):
                     _logger.debug(
                         f"[sim_t={now:012.6f}s] Packet stalled     switch={self.name} packet_id={packet.tracking_info.global_id} switch_hop={packet.tracking_info.switch_hops_seen - 1} delay_s={packet_stall_delay_s:.6f}"
                     )
-                if not self._reschedule_from_source_host(packet, packet_stall_delay_s):
-                    self.scheduler.schedule_event(packet_stall_delay_s, partial(self._internal_send_packet, packet))
+                self._reschedule_from_source_host(packet, packet_stall_delay_s)
                 return
             if self.message_verbose and _logger.isEnabledFor(logging.DEBUG):
                 now = self.scheduler.get_current_time()

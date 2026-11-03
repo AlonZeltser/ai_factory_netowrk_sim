@@ -3,15 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from ai_factory.core.entities import FlowMetrics
-from sim.runners.batch_runner import _build_flow_stall_stats, collect_batch_inputs, run_batch, write_batch_summary
+from sim.runners.batch_runner import BatchInput, _build_flow_stall_stats, run_batch
 from sim.config.loader import load_sweep_spec
 from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 
 DP_SMALL = "tests/fixtures/dp_small.yaml"
 
 
-def test_collect_and_run_batch_from_configs() -> None:
-    inputs = collect_batch_inputs(configs=[DP_SMALL], directory=None)
+def test_run_batch_in_process() -> None:
+    inputs = [BatchInput(label=DP_SMALL, config_path=DP_SMALL, overrides=())]
     summary = run_batch(inputs, stop_on_error=False, use_processes=False, max_processes=None)
 
     assert len(summary) == 1

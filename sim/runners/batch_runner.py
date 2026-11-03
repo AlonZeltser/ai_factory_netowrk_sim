@@ -13,7 +13,6 @@ from typing import Any
 import yaml
 
 from sim.config.loader import load_experiment_spec
-from sim.config.models import ConfigError
 from sim.runners.experiment_runner import run_experiment
 
 _log = logging.getLogger(__name__)
@@ -180,31 +179,6 @@ def _normalize_config_path(path: str) -> Path:
     if not p.is_absolute():
         p = (_REPO_ROOT / p).resolve()
     return p
-
-
-def collect_batch_inputs(
-    *,
-    configs: list[str],
-    directory: str | None,
-) -> list[BatchInput]:
-    inputs: list[BatchInput] = []
-    for config in configs:
-        path = _normalize_config_path(config)
-        if not path.exists():
-            raise FileNotFoundError(f"Config file not found: {path}")
-        inputs.append(BatchInput(label=str(path), config_path=str(path), overrides=()))
-    if directory:
-        root = _normalize_config_path(directory)
-        if not root.exists() or not root.is_dir():
-            raise FileNotFoundError(f"Batch directory not found: {root}")
-        for path in sorted(root.rglob("*.yml")) + sorted(root.rglob("*.yaml")):
-            # Files under a `base/` folder are shared fragments, not complete experiments.
-            if "base" in path.relative_to(root).parts[:-1]:
-                continue
-            inputs.append(BatchInput(label=str(path), config_path=str(path), overrides=()))
-    if not inputs:
-        raise ConfigError("Batch requires at least one config or directory input")
-    return inputs
 
 
 def _run_batch_item(item: BatchInput) -> dict[str, Any]:

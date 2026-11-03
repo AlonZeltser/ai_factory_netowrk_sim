@@ -141,13 +141,25 @@ python -m apps.sim list routing
 python -m apps.sim run --config experiments/dp_single_bucket.yaml
 ```
 
-#### Override a few parameters without copying YAML files
+#### Run a variation of an experiment
+
+The YAML file is the only way to set experiment values. To change a few of them, write a small file that `extends` the experiment and overrides only those keys:
+
+```yaml
+# experiments/dp_single_bucket_adaptive.yaml
+extends: dp_single_bucket.yaml
+routing:
+  mode: adaptive
+topology:
+  params:
+    leaf_count: 12
+```
 
 ```bash
-python -m apps.sim run --config experiments/dp_single_bucket.yaml --set routing.mode=adaptive
-python -m apps.sim run --config experiments/dp_single_bucket.yaml --set topology.params.leaf_count=12
-python -m apps.sim run --config experiments/dp_single_bucket.yaml --set topology.params.fabric.link_failure_percent=5
+python -m apps.sim run --config experiments/dp_single_bucket_adaptive.yaml
 ```
+
+To run many variations, use a sweep (below).
 
 #### Validate and inspect the resolved experiment
 
@@ -155,7 +167,7 @@ python -m apps.sim run --config experiments/dp_single_bucket.yaml --set topology
 python -m apps.sim validate --config experiments/dp_single_bucket.yaml
 ```
 
-`validate` prints the fully resolved config (after `extends` and `--set` are applied).
+`validate` prints the fully resolved config (after `extends` is applied).
 
 To save communication-distribution plots and open them in a window after a run:
 
@@ -165,21 +177,7 @@ run:
   show_visualization_window: true
 ```
 
-### 2. Batch Execution
-
-Run several experiment files one after another:
-
-```bash
-python -m apps.sim batch --config experiments/run1.yaml --config experiments/run2.yaml
-python -m apps.sim batch --directory experiments/ --summary-out results/batch-summary.yaml
-python -m apps.sim batch --directory experiments/ --stop-on-error
-```
-
-`--directory` picks up every `.yaml` / `.yml` file under that folder, skipping anything inside a `base/` folder (shared fragments, not complete experiments).
-
----
-
-### 3. Sweep Execution
+### 2. Sweep Execution
 
 A sweep runs every combination of a set of parameter values on top of one experiment file, in parallel. The `sweep:` section of the experiment file is the only way to set up a sweep: every key below is required, and the `sweep` command takes only `--config`. One command reproduces a whole result set:
 
@@ -213,10 +211,10 @@ python -m apps.sim sweep --config experiments/my_sweep.yaml      # runs all 6 co
 - `run` and `validate` ignore the `sweep` section and use the base values.
 - To sweep other values or settings, edit the `sweep:` section (or write a small file that `extends` the experiment and changes it).
 
-To redraw the comparison plots from a saved summary, pass the experiment file too; its `sweep:` section supplies `lower_zoom_percent` and `show_visualization_window`:
+To redraw the comparison plots from a saved summary, pass the experiment file and an output folder; the file's `sweep:` section supplies `lower_zoom_percent` and `show_visualization_window`:
 
 ```bash
-python -m apps.sim plot-summary --summary results/my_sweep/summary.yaml --config experiments/my_sweep.yaml
+python -m apps.sim plot-summary --summary results/my_sweep/summary.yaml --config experiments/my_sweep.yaml --out-dir results/my_sweep/replot
 ```
 
 ---
@@ -254,7 +252,7 @@ workload:
     single_ring_only: true
 ```
 
-`extends` paths are relative to the file that contains them. Later entries override earlier ones, the file's own values override everything it extends, and `--set` overrides are applied last. Inheritance can be chained (`a -> b -> c`). Every option is documented with its allowed range in the `experiments/base/` fragments.
+`extends` paths are relative to the file that contains them. Later entries override earlier ones, and the file's own values override everything it extends. Inheritance can be chained (`a -> b -> c`). Every option is documented with its allowed range in the `experiments/base/` fragments.
 
 There are no in-code defaults: after `extends` is resolved, every key must be present (including `meta.name`, `topology.family` and `run.seed`, where `seed: null` means an unseeded, non-reproducible run), and any key the simulator does not know is an error rather than being ignored.
 
@@ -386,7 +384,7 @@ python -m pytest tests/ai_factory/ -v
 3. **Out of Memory (Heavy Runs)**
    - Heavy scenarios are memory-intensive
    - Use light configs for testing: `*_light.yaml`
-   - Close other applications during batch runs
+   - Close other applications during sweeps
 
 4. **Slow Execution**
    - Disable visualization: Set `visualize: false` in YAML
@@ -440,7 +438,7 @@ run:
 - **Runtime**: Hours per scenario
 - **Purpose**: Full experimental results
 
-### Batch Runs (All Scenarios)
+### Full Sweeps (All Scenarios)
 - **Count**: 24+ scenarios (6 routing × 4 load points × 2 workload types)
 - **Total Runtime**: Many hours to days
 - **Purpose**: Complete comparison study

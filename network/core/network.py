@@ -300,11 +300,7 @@ class Network(ABC):
             'max_path': self.max_path,
         }
         if self._scenario is not None:
-            try:
-                params.update(self._scenario.parameters_summary())
-            except Exception:
-                # keep results usable even if scenario summary fails
-                params['scenario'] = self._scenario.name
+            params.update(self._scenario.parameters_summary())
         return params
 
     def get_entity(self, name: str) -> Any:

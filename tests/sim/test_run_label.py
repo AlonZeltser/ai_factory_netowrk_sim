@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import yaml
+
 from run_label import MAX_LABEL_SLUG_LEN, label_slug
 from sim.runners.deep_flow_log import write_sweep_deep_flow_logs
 from visualization import build_topology_viz
@@ -52,19 +54,18 @@ def test_deep_flow_logs_are_written_for_a_long_label(tmp_path: Path) -> None:
 
 def test_build_topology_viz_writes_to_the_requested_output(tmp_path: Path, monkeypatch) -> None:
     output = tmp_path / "out" / "topology.png"
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "build_topology_viz.py",
-            "--config", str(_REPO_ROOT / "tests" / "fixtures" / "dp_small.yaml"),
-            "--set", "topology.params.leaf_count=2",
-            "--set", "topology.params.spine_count=2",
-            "--set", "topology.params.fabric.servers_per_leaf=2",
-            "--output", str(output),
-        ],
+    cfg = tmp_path / "tiny.yaml"
+    cfg.write_text(
+        yaml.safe_dump(
+            {
+                "extends": (_REPO_ROOT / "tests" / "fixtures" / "dp_small.yaml").as_posix(),
+                "topology": {"params": {"leaf_count": 2, "spine_count": 2, "fabric": {"servers_per_leaf": 2}}},
+            }
+        ),
+        encoding="utf-8",
     )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["build_topology_viz.py", "--config", str(cfg), "--output", str(output)])
 
     assert build_topology_viz.main() == 0
     assert output.exists()

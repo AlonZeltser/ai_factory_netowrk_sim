@@ -26,7 +26,7 @@ from sim.config.loader import dump_experiment_yaml, load_experiment_spec, load_s
 from sim.config.models import ConfigError, SweepSpec
 from sim.registry.topologies import build_network
 from sim.registry.workloads import iter_workload_items
-from sim.runners.batch_runner import collect_batch_inputs, run_batch, write_batch_summary
+from sim.runners.batch_runner import write_batch_summary
 from sim.runners.deep_flow_log import write_sweep_deep_flow_logs
 from sim.runners.experiment_runner import run_experiment, validate_experiment
 from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
@@ -56,25 +56,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Unified simulator CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    def add_config_options(p: argparse.ArgumentParser) -> None:
-        p.add_argument("--config", required=True, help="Path to an experiment YAML file, e.g. experiments/dp_single_bucket.yaml")
-        p.add_argument("--set", dest="overrides", action="append", default=[], help="Override config values, e.g. routing.mode=adaptive")
-        p.add_argument("--store-packets", action="store_true", default=False, help="Store packet objects for diagnostics (higher memory usage)")
-        p.add_argument("--collect-packet-timeline", action="store_true", default=False, help="Collect packet timeline in results (implies --store-packets)")
-
     run_p = sub.add_parser("run", help="Run one experiment")
-    add_config_options(run_p)
+    run_p.add_argument("--config", required=True, help="Path to an experiment YAML file, e.g. experiments/dp_single_bucket.yaml")
 
     validate_p = sub.add_parser("validate", help="Validate and print the resolved experiment and its sweep plan")
-    add_config_options(validate_p)
-
-    batch_p = sub.add_parser("batch", help="Run multiple experiment configs sequentially")
-    batch_p.add_argument("--config", dest="configs", action="append", default=[], help="Config file to include in the batch (repeatable)")
-    batch_p.add_argument("--directory", help="Directory containing .yaml/.yml experiment files")
-    batch_p.add_argument("--summary-out", help="Optional YAML path for the batch summary")
-    batch_p.add_argument("--stop-on-error", action="store_true", default=False, help="Stop immediately if any run fails")
-    batch_p.add_argument("--visualize-summary", action="store_true", default=False, help="Generate aggregate comparison plots from the batch summary")
-    batch_p.add_argument("--show-visualization-window", action="store_true", default=False, help="Open aggregate comparison plots in an interactive window")
+    validate_p.add_argument("--config", required=True, help="Path to an experiment YAML file, e.g. experiments/dp_single_bucket.yaml")
 
     sweep_p = sub.add_parser(
         "sweep",
@@ -85,29 +71,19 @@ def _build_parser() -> argparse.ArgumentParser:
     list_p = sub.add_parser("list", help="List supported workloads/routing modes")
     list_p.add_argument("target", choices=["workloads", "routing"])
 
-    plot_summary_p = sub.add_parser("plot-summary", help="Generate aggregate comparison plots from an existing sweep/batch summary YAML")
-    plot_summary_p.add_argument("--summary", required=True, help="Path to a sweep/batch summary YAML file")
+    plot_summary_p = sub.add_parser("plot-summary", help="Generate aggregate comparison plots from an existing sweep summary YAML")
+    plot_summary_p.add_argument("--summary", required=True, help="Path to a sweep summary YAML file")
     plot_summary_p.add_argument(
         "--config",
         required=True,
         help="Experiment YAML whose sweep section sets the plot settings (lower_zoom_percent, show_visualization_window)",
     )
-    plot_summary_p.add_argument("--out-dir", help="Directory for generated plot files (defaults to summary parent or ./results)")
+    plot_summary_p.add_argument("--out-dir", required=True, help="Directory for generated plot files")
     return parser
 
 
 def _load_from_args(args: argparse.Namespace):
-    return load_experiment_spec(config_path=args.config, overrides=_effective_overrides(args))
-
-
-def _effective_overrides(args: argparse.Namespace) -> list[str]:
-    overrides = list(getattr(args, "overrides", []) or [])
-    if getattr(args, "store_packets", False):
-        overrides.append("run.store_packets=true")
-    if getattr(args, "collect_packet_timeline", False):
-        overrides.append("run.store_packets=true")
-        overrides.append("run.collect_packet_timeline=true")
-    return overrides
+    return load_experiment_spec(config_path=args.config, overrides=[])
 
 
 def _cmd_list(target: str) -> int:
@@ -157,27 +133,6 @@ def _cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_batch(args: argparse.Namespace) -> int:
-    summary = run_batch(
-        collect_batch_inputs(configs=args.configs, directory=args.directory),
-        stop_on_error=args.stop_on_error,
-        use_processes=False,
-        max_processes=None,
-    )
-    print(yaml.safe_dump(_sanitize_for_console(summary), sort_keys=False))
-    output_path = None
-    if args.summary_out:
-        output_path = write_batch_summary(summary, args.summary_out)
-        print(f"Wrote batch summary to {output_path}")
-    if args.visualize_summary:
-        out_dir = str(output_path.parent if output_path is not None else (_REPO_ROOT / "results").resolve())
-        paths = visualize_sweep_time_comparison(summary, out_dir=out_dir, show=args.show_visualization_window, training_step_time_lower_zoom_percent=15.0)
-        paths.extend(visualize_summary_training_step_traffic_matrices(summary, out_dir=out_dir, show=args.show_visualization_window))
-        for path in paths:
-            print(f"Wrote comparison plot to {path}")
-    return 0 if all(item.get("ok") for item in summary) else 1
-
-
 def _cmd_sweep(args: argparse.Namespace) -> int:
     sweep = _require_sweep_spec(args.config)
     if sweep.plot_topology_once:
@@ -221,12 +176,9 @@ def _cmd_plot_summary(args: argparse.Namespace) -> int:
     summary_path = Path(args.summary)
     if not summary_path.is_absolute():
         summary_path = (_REPO_ROOT / summary_path).resolve()
-    out_dir = args.out_dir
-    if not out_dir:
-        out_dir = str(summary_path.parent if summary_path.exists() else (_REPO_ROOT / "results").resolve())
     paths = visualize_sweep_time_comparison_from_yaml(
         str(summary_path),
-        out_dir=out_dir,
+        out_dir=args.out_dir,
         show=sweep.show_visualization_window,
         training_step_time_lower_zoom_percent=sweep.lower_zoom_percent,
         include_training_step_traffic_matrices=True,
@@ -248,8 +200,6 @@ def main(argv: list[str]) -> int:
             return _cmd_validate(args)
         if args.command == "run":
             return _cmd_run(args)
-        if args.command == "batch":
-            return _cmd_batch(args)
         if args.command == "sweep":
             return _cmd_sweep(args)
         if args.command == "plot-summary":

@@ -7,7 +7,6 @@ import pytest
 import apps.sim as sim_app
 from sim.config.loader import load_experiment_spec, load_sweep_spec
 from sim.config.models import ConfigError
-from sim.runners.batch_runner import collect_batch_inputs
 from sim.runners.sweep_runner import build_sweep_inputs
 
 DP_SMALL = "tests/fixtures/dp_small.yaml"
@@ -188,18 +187,29 @@ def test_plot_summary_reads_plot_settings_from_config(monkeypatch, tmp_path: Pat
     assert calls["from_yaml"] == (str(tmp_path / "plots"), False, 30.0, True)
 
 
-def test_plot_summary_requires_config(tmp_path: Path) -> None:
+@pytest.mark.parametrize("missing", ["--config", "--out-dir"])
+def test_plot_summary_requires_config_and_out_dir(tmp_path: Path, missing: str) -> None:
+    args = {"--summary": str(tmp_path / "summary.yaml"), "--config": DP_SMALL_SWEEP, "--out-dir": str(tmp_path / "plots")}
+    del args[missing]
+
     with pytest.raises(SystemExit) as exc:
-        sim_app.main(["plot-summary", "--summary", str(tmp_path / "summary.yaml")])
+        sim_app.main(["plot-summary", *[part for item in args.items() for part in item]])
 
     assert exc.value.code == 2
 
 
-def test_batch_directory_skips_base_fragments(tmp_path: Path) -> None:
-    (tmp_path / "base").mkdir()
-    (tmp_path / "base" / "fragment.yaml").write_text("run: {}\n", encoding="utf-8")
-    (tmp_path / "exp_a.yaml").write_text("kind: experiment\n", encoding="utf-8")
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["run", "--config", DP_SMALL, "--set", "routing.mode=ecmp"],
+        ["run", "--config", DP_SMALL, "--store-packets"],
+        ["run", "--config", DP_SMALL, "--collect-packet-timeline"],
+        ["validate", "--config", DP_SMALL, "--set", "routing.mode=ecmp"],
+        ["batch", "--config", DP_SMALL],
+    ],
+)
+def test_removed_cli_options_are_rejected(argv: list[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        sim_app.main(argv)
 
-    inputs = collect_batch_inputs(directory=str(tmp_path), configs=[])
-
-    assert [Path(item.config_path).name for item in inputs] == ["exp_a.yaml"]
+    assert exc.value.code == 2

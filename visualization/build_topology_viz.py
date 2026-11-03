@@ -6,7 +6,8 @@ This is useful for generating topology diagrams without running the simulator.
 
 Usage:
     python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml
-    python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml --set topology.params.leaf_count=8
+
+To draw a variation, write a small YAML file that `extends` the experiment and changes it.
 """
 import argparse
 import shutil
@@ -31,19 +32,6 @@ def main():
         help="Path to an experiment YAML file"
     )
     parser.add_argument(
-        "--set",
-        dest="overrides",
-        action="append",
-        default=[],
-        help="Override config values, e.g., topology.params.leaf_count=8 (repeatable)"
-    )
-    parser.add_argument(
-        "--spacing",
-        type=float,
-        default=2.0,
-        help="Node spacing factor for visualization (default: 2.0)"
-    )
-    parser.add_argument(
         "--output",
         help="Explicit output file path (optional). If not specified, uses default results/ naming."
     )
@@ -58,7 +46,7 @@ def main():
     try:
         # Load the experiment spec
         print(f"Loading configuration...")
-        spec = load_experiment_spec(config_path=args.config, overrides=args.overrides)
+        spec = load_experiment_spec(config_path=args.config, overrides=[])
 
         print(f"Building network topology...")
         network = build_network(spec)
@@ -70,7 +58,7 @@ def main():
         saved_path = visualize_topology(
             network.name,
             network.entities,
-            spacing=args.spacing,
+            spacing=2.0,
             show=False,
             show_link_status_legend=args.show_link_status_legend,
         )

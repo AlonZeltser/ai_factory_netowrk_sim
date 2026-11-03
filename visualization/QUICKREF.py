@@ -12,11 +12,11 @@ This script makes it easy to visualize network topologies without running a full
 # Generate visualization for an experiment config
 # python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml
 
-# Generate with custom parameter
-# python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml --set topology.params.leaf_count=8
+# Save the drawing to a specific file
+# python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml --output results/topology.png
 
-# Generate with better spacing for large topologies
-# python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml --spacing 3.0
+# Draw a variation: write a small YAML file that `extends` the experiment and changes it
+# (see PARAMETERS below), then pass that file to --config.
 
 
 # ============================================================================
@@ -24,26 +24,21 @@ This script makes it easy to visualize network topologies without running a full
 # ============================================================================
 
 """
-1. View a small topology:
-   python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml \\
-     --set topology.params.leaf_count=2
+1. View a small topology with link failures. Write experiments/small_failures.yaml:
 
-2. View and customize:
-   python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml \\
-     --set topology.params.leaf_count=8 \\
-     --set topology.params.spine_count=8
+     extends: dp_single_bucket.yaml
+     topology:
+       params:
+         leaf_count: 2
+         spine_count: 2
+         fabric:
+           link_failure_percent: 20
 
-3. Show link failures:
-   python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml \\
-     --set topology.params.fabric.link_failure_percent=20
+   then run:
+   python visualization/build_topology_viz.py --config experiments/small_failures.yaml
 
-4. Large topology with good readability:
-   python visualization/build_topology_viz.py --config experiments/dp_single_bucket.yaml \\
-     --set topology.params.leaf_count=16 \\
-     --spacing 4.0
-
-5. Using your own experiment file:
-   python visualization/build_topology_viz.py --config experiments/my-experiment.yaml
+2. Show the healthy/failed link entries in the legend:
+   python visualization/build_topology_viz.py --config experiments/small_failures.yaml --show-link-status-legend
 """
 
 
@@ -68,38 +63,20 @@ Link Status:
 # ============================================================================
 
 PARAMETERS = """
-Common Topology Parameters to Override:
+Common topology keys to change in a YAML file that extends the experiment:
 
-  topology.params.leaf_count=N
-    Number of leaf switches
-    Example: --set topology.params.leaf_count=8
+  topology.params.leaf_count                          Number of leaf switches
+  topology.params.spine_count                         Number of spine switches
+  topology.params.fabric.servers_per_leaf             Number of servers per leaf switch
+  topology.params.fabric.host_links_per_server        Parallel NIC connections per server
+  topology.params.fabric.parallel_leaf_to_spine_links Parallel links between each leaf-spine pair
+  topology.params.fabric.link_failure_percent         Percentage of links to fail (0-100)
 
-  topology.params.spine_count=N
-    Number of spine switches
-    Example: --set topology.params.spine_count=4
+Tool options:
 
-  topology.params.fabric.servers_per_leaf=N
-    Number of servers per leaf switch
-    Example: --set topology.params.fabric.servers_per_leaf=8
-
-  topology.params.fabric.host_links_per_server=N
-    Parallel NIC connections per server
-    Example: --set topology.params.fabric.host_links_per_server=2
-
-  topology.params.fabric.parallel_leaf_to_spine_links=N
-    Parallel links between each leaf-spine pair
-    Example: --set topology.params.fabric.parallel_leaf_to_spine_links=4
-
-  topology.params.fabric.link_failure_percent=N
-    Percentage of links to fail (0-100)
-    Example: --set topology.params.fabric.link_failure_percent=10
-
-Visualization Parameters:
-
-  --spacing FLOAT
-    Node spacing factor (default: 2.0)
-    Higher = more spread out
-    Example: --spacing 3.5
+  --config FILE                Experiment YAML file (required)
+  --output FILE                Save the drawing here instead of results/
+  --show-link-status-legend    Show healthy/failed link entries in the legend
 """
 
 
@@ -146,8 +123,7 @@ TROUBLESHOOTING = """
    → Verify topology configuration
 
 ❌ Visualization too crowded
-   → Increase --spacing parameter
-   → Reduce topology size via overrides
+   → Reduce the topology size in a YAML file that extends the experiment
 
 ❌ Matplotlib not found
    → pip install matplotlib networkx
