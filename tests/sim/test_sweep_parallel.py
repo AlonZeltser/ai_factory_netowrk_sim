@@ -4,32 +4,32 @@ from pathlib import Path
 
 import apps.sim as sim_app
 from sim.config.loader import load_sweep_spec
-from sim.runners.batch_runner import BatchInput
-from sim.runners import batch_runner, sweep_runner
+from sim.runners.sweep_executor import SweepInput
+from sim.runners import sweep_executor, sweep_runner
 
 DP_SMALL = "tests/fixtures/dp_small.yaml"
 
 
 def test_default_process_count_balances_tasks(monkeypatch) -> None:
-    monkeypatch.setattr(batch_runner.os, "cpu_count", lambda: 8)
+    monkeypatch.setattr(sweep_executor.os, "cpu_count", lambda: 8)
 
-    assert batch_runner._default_process_count(1) == 1
-    assert batch_runner._default_process_count(8) == 4
-    assert batch_runner._default_process_count(10) == 3
-    assert batch_runner._default_process_count(17) == 3
+    assert sweep_executor._default_process_count(1) == 1
+    assert sweep_executor._default_process_count(8) == 4
+    assert sweep_executor._default_process_count(10) == 3
+    assert sweep_executor._default_process_count(17) == 3
 
 
 def test_run_sweep_takes_workers_and_stop_on_error_from_the_sweep_section(monkeypatch, write_sweep_config) -> None:
     captured: dict[str, object] = {}
 
-    def _fake_run_batch(inputs, *, stop_on_error, use_processes, max_processes):
+    def _fake_run_sweep_inputs(inputs, *, stop_on_error, use_processes, max_processes):
         captured["count"] = len(inputs)
         captured["stop_on_error"] = stop_on_error
         captured["use_processes"] = use_processes
         captured["max_processes"] = max_processes
         return [{"label": i.label, "ok": True} for i in inputs]
 
-    monkeypatch.setattr(sweep_runner, "run_batch", _fake_run_batch)
+    monkeypatch.setattr(sweep_runner, "run_sweep_inputs", _fake_run_sweep_inputs)
     cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, processes=3, stop_on_error=True, drop=())
 
     summary = sweep_runner.run_sweep(config_path=cfg, sweep=load_sweep_spec(cfg))
@@ -66,7 +66,7 @@ def test_sweep_cli_plot_topology_once_uses_first_combo(monkeypatch, write_sweep_
 
     def _fake_build_inputs(**kwargs):
         calls["build_inputs"] = kwargs
-        return [BatchInput(label="first", config_path=DP_SMALL, overrides=("routing.mode=ecmp",))]
+        return [SweepInput(label="first", config_path=DP_SMALL, overrides=("routing.mode=ecmp",))]
 
     def _fake_load_spec(**kwargs):
         calls["load_spec"] = kwargs

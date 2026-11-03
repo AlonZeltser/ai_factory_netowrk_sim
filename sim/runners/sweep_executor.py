@@ -168,7 +168,7 @@ def _default_process_count(task_count: int) -> int:
 
 
 @dataclass(frozen=True)
-class BatchInput:
+class SweepInput:
     label: str
     config_path: str
     overrides: tuple[str, ...]
@@ -181,7 +181,7 @@ def _normalize_config_path(path: str) -> Path:
     return p
 
 
-def _run_batch_item(item: BatchInput) -> dict[str, Any]:
+def _run_sweep_input(item: SweepInput) -> dict[str, Any]:
     def _duration_stats_ms(values: list[float]) -> dict[str, float | None]:
         if not values:
             return {"avg": None, "std": None, "min": None, "max": None}
@@ -385,15 +385,15 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
     }
 
 
-def _run_batch_item_safe(item: BatchInput) -> dict[str, Any]:
+def _run_sweep_input_safe(item: SweepInput) -> dict[str, Any]:
     try:
-        return _run_batch_item(item)
+        return _run_sweep_input(item)
     except Exception as exc:
         return {"label": item.label, "ok": False, "error": str(exc)}
 
 
-def run_batch(
-    inputs: list[BatchInput],
+def run_sweep_inputs(
+    inputs: list[SweepInput],
     *,
     stop_on_error: bool,
     use_processes: bool,
@@ -406,7 +406,7 @@ def run_batch(
         process_count = max_processes or _default_process_count(len(inputs))
         process_count = max(1, min(process_count, len(inputs)))
         _log.info(
-            "Sweep/batch dispatcher: launching %d simulation tasks across %d worker process(es) [spawn context]",
+            "Sweep dispatcher: launching %d simulation tasks across %d worker process(es) [spawn context]",
             len(inputs),
             process_count,
         )
@@ -414,7 +414,7 @@ def run_batch(
             _log.info("  Queued task [%d/%d]: %s", idx + 1, len(inputs), item.label)
         mp_ctx = multiprocessing.get_context("spawn")
         with ProcessPoolExecutor(max_workers=process_count, mp_context=mp_ctx) as executor:
-            for idx, result in enumerate(executor.map(_run_batch_item_safe, inputs)):
+            for idx, result in enumerate(executor.map(_run_sweep_input_safe, inputs)):
                 ok = result.get("ok", False)
                 label = result.get("label", "?")
                 status = "OK" if ok else "FAILED"
@@ -423,21 +423,21 @@ def run_batch(
                     _log.warning("  Error in task %r: %s", label, result.get("error", "<no error message>"))
                 summary.append(result)
                 if stop_on_error and not ok:
-                    raise RuntimeError(result.get("error", "Unknown batch worker error"))
+                    raise RuntimeError(result.get("error", "Unknown sweep worker error"))
         ok_count = sum(1 for r in summary if r.get("ok"))
         _log.info(
-            "Sweep/batch dispatcher: all tasks complete — %d/%d succeeded, %d failed",
+            "Sweep dispatcher: all tasks complete — %d/%d succeeded, %d failed",
             ok_count,
             len(inputs),
             len(inputs) - ok_count,
         )
         return summary
 
-    _log.info("Batch: running %d task(s) sequentially (no parallel processes)", len(inputs))
+    _log.info("Sweep: running %d task(s) sequentially (no parallel processes)", len(inputs))
     for idx, item in enumerate(inputs):
         _log.info("  Starting task [%d/%d]: %s", idx + 1, len(inputs), item.label)
         try:
-            result = _run_batch_item(item)
+            result = _run_sweep_input(item)
             _log.info("  Finished task [%d/%d] OK: %s", idx + 1, len(inputs), item.label)
             summary.append(result)
         except Exception as exc:
@@ -447,7 +447,7 @@ def run_batch(
                 raise
     ok_count = sum(1 for r in summary if r.get("ok"))
     _log.info(
-        "Batch complete: %d/%d succeeded, %d failed",
+        "Sweep complete: %d/%d succeeded, %d failed",
         ok_count,
         len(inputs),
         len(inputs) - ok_count,
@@ -455,7 +455,7 @@ def run_batch(
     return summary
 
 
-def write_batch_summary(summary: list[dict[str, Any]], output_path: str) -> Path:
+def write_sweep_summary(summary: list[dict[str, Any]], output_path: str) -> Path:
     path = _normalize_config_path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(summary, sort_keys=False, allow_unicode=True), encoding="utf-8")

@@ -26,7 +26,7 @@ from sim.config.loader import dump_experiment_yaml, load_experiment_spec, load_s
 from sim.config.models import ConfigError, SweepSpec
 from sim.registry.topologies import build_network
 from sim.registry.workloads import iter_workload_items
-from sim.runners.batch_runner import write_batch_summary
+from sim.runners.sweep_executor import write_sweep_summary
 from sim.runners.deep_flow_log import write_sweep_deep_flow_logs
 from sim.runners.experiment_runner import run_experiment, validate_experiment
 from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
@@ -146,7 +146,7 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
 
     summary = run_sweep(config_path=args.config, sweep=sweep)
     print(yaml.safe_dump(_sanitize_for_console(summary), sort_keys=False))
-    output_path = write_batch_summary(summary, sweep.summary_out)
+    output_path = write_sweep_summary(summary, sweep.summary_out)
     print(f"Wrote sweep summary to {output_path}")
     sweep_out_dir = output_path.parent
     deep_log_paths = write_sweep_deep_flow_logs(summary, out_dir=str(sweep_out_dir / "deep_flow_chain_logs"))

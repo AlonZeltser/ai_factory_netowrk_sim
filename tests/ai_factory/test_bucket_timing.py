@@ -8,7 +8,7 @@ from ai_factory.workloads.dp_heavy_workload import DPHeavyWorkloadConfig, build_
 from sim.config.loader import load_experiment_spec
 from sim.config.models import ConfigError
 from sim.registry.workloads import build_scenario
-from sim.runners.batch_runner import BatchInput, _run_batch_item
+from sim.runners.sweep_executor import SweepInput, _run_sweep_input
 from sim.runners.experiment_runner import run_experiment
 
 DP_SMALL = "tests/fixtures/dp_small.yaml"
@@ -79,8 +79,8 @@ def _bucket_metrics(scheduling: str) -> list:
 
 
 def _summary(scheduling: str) -> dict:
-    row = _run_batch_item(
-        BatchInput(
+    row = _run_sweep_input(
+        SweepInput(
             label=scheduling,
             config_path=DP_SMALL,
             overrides=tuple(FOUR_HOST_OVERRIDES + [f"workload.params.bucket_scheduling={scheduling}"]),
