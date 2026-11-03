@@ -33,7 +33,7 @@ def test_load_config_with_overrides() -> None:
 
 
 def test_validate_and_run_dp_low_small() -> None:
-    spec = load_experiment_spec(config_path=DP_SMALL)
+    spec = load_experiment_spec(config_path=DP_SMALL, overrides=[])
 
     summary = validate_experiment(spec)
     assert summary["topology"] == "clos"
@@ -69,7 +69,7 @@ workload:
         encoding="utf-8",
     )
 
-    spec = load_experiment_spec(config_path=str(cfg))
+    spec = load_experiment_spec(config_path=str(cfg), overrides=[])
 
     with pytest.raises(ConfigError, match="Missing required key 'topology.params.layers'"):
         validate_experiment(spec)

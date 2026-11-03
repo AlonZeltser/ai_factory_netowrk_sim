@@ -22,7 +22,7 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     return dict(data)
 
 
-def _load_yaml_with_extends(path: Path, *, seen: tuple[Path, ...] = ()) -> dict[str, Any]:
+def _load_yaml_with_extends(path: Path, *, seen: tuple[Path, ...]) -> dict[str, Any]:
     path = path.resolve()
     if path in seen:
         cycle = " -> ".join(str(p) for p in (*seen, path))
@@ -98,7 +98,7 @@ def _load_config_file(config_path: str) -> tuple[Path, dict[str, Any]]:
         config_file = (_REPO_ROOT / config_file).resolve()
     if not config_file.exists():
         raise FileNotFoundError(f"Config file not found: {config_file}")
-    return config_file, _load_yaml_with_extends(config_file)
+    return config_file, _load_yaml_with_extends(config_file, seen=())
 
 
 def load_sweep_spec(config_path: str) -> SweepSpec | None:
@@ -112,11 +112,11 @@ def load_sweep_spec(config_path: str) -> SweepSpec | None:
 def load_experiment_spec(
     *,
     config_path: str,
-    overrides: list[str] | None = None,
+    overrides: list[str],
 ) -> ExperimentSpec:
     config_file, merged = _load_config_file(config_path)
 
-    for override in overrides or []:
+    for override in overrides:
         _apply_override(merged, override)
 
     # The sweep plan is read separately by load_sweep_spec; a single run ignores it.

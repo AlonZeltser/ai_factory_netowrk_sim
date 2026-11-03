@@ -65,9 +65,9 @@ class PacketTrackingInfo:
     """Debug information for a packet."""
     global_id: int
     birth_time: float
-    initial_ttl: int = 0
-    route_length: int = 0
-    verbose_route: list[str] | None = None  # only when verbose_route tracking is enabled
+    initial_ttl: int
+    route_length: int
+    verbose_route: list[str] | None  # only when verbose_route tracking is enabled
     delivered: bool = False
     arrival_time: Optional[float] = None
     switch_hops_seen: int = 0

@@ -36,7 +36,7 @@ class PacketStatistics:
         """Called when a packet is created."""
         self.total_count += 1
 
-    def record_delivered(self, route_length: int, packet_time: float | None = None) -> None:
+    def record_delivered(self, route_length: int, packet_time: float) -> None:
         """Called when a packet is successfully delivered."""
         self.delivered_count += 1
         self.route_length_sum += route_length
@@ -45,9 +45,6 @@ class PacketStatistics:
         if route_length > self.route_length_max:
             self.route_length_max = route_length
 
-        if packet_time is None:
-            return
-
         self.packet_time_count += 1
         self.packet_time_sum += packet_time
         if packet_time < self.packet_time_min:
@@ -55,11 +52,9 @@ class PacketStatistics:
         if packet_time > self.packet_time_max:
             self.packet_time_max = packet_time
 
-    def record_dropped(self, packet: Any | None = None) -> None:
+    def record_dropped(self, packet: Any) -> None:
         """Called when a packet is dropped."""
         self.dropped_count += 1
-        if packet is None:
-            return
         try:
             flow_id = int(packet.transport_header.flow_id)
         except (AttributeError, TypeError, ValueError):
@@ -76,11 +71,9 @@ class PacketStatistics:
         """Called when a packet is tagged for a future switch stall."""
         self.packet_stall_marked_count += 1
 
-    def record_packet_stall_triggered(self, packet: Any | None = None) -> None:
+    def record_packet_stall_triggered(self, packet: Any) -> None:
         """Called when a tagged packet actually hits its configured switch stall hop."""
         self.packet_stall_triggered_count += 1
-        if packet is None:
-            return
         try:
             flow_id = int(packet.transport_header.flow_id)
         except (AttributeError, TypeError, ValueError):

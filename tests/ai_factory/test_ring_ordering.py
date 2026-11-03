@@ -51,8 +51,11 @@ def test_dp_heavy_ring_order_is_step_stable_and_varies_across_steps() -> None:
         gap_us=10.0,
         optimizer_ms=1.0,
         seed=12345,
+        mtu=4096,
+        flow_redundancy_extra_packets=0,
+        single_ring_only=False,
     )
-    job = build_dp_heavy_workload_job(participants=participants, config=cfg)
+    job = build_dp_heavy_workload_job(participants=participants, config=cfg, job_name="workload1-dp-heavy")
 
     def first_step_pairs(*, step_id: int, bucket_id: int, op_prefix: str) -> list[tuple[str, str]]:
         pairs: list[tuple[str, str]] = []

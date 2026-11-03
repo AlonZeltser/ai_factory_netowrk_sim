@@ -19,12 +19,14 @@ def _packet(*, global_id: int, birth_time: float, route_length: int) -> Packet:
             global_id=global_id,
             birth_time=birth_time,
             route_length=route_length,
+            initial_ttl=0,
+            verbose_route=None,
         ),
     )
 
 
 def test_host_on_message_records_packet_time_statistics() -> None:
-    sim = DiscreteEventSimulator()
+    sim = DiscreteEventSimulator(store_packets=False)
     host = Host(
         name="dst",
         scheduler=sim,

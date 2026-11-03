@@ -161,6 +161,8 @@ def _cmd_batch(args: argparse.Namespace) -> int:
     summary = run_batch(
         collect_batch_inputs(configs=args.configs, directory=args.directory),
         stop_on_error=args.stop_on_error,
+        use_processes=False,
+        max_processes=None,
     )
     print(yaml.safe_dump(_sanitize_for_console(summary), sort_keys=False))
     output_path = None
@@ -169,7 +171,7 @@ def _cmd_batch(args: argparse.Namespace) -> int:
         print(f"Wrote batch summary to {output_path}")
     if args.visualize_summary:
         out_dir = str(output_path.parent if output_path is not None else (_REPO_ROOT / "results").resolve())
-        paths = visualize_sweep_time_comparison(summary, out_dir=out_dir, show=args.show_visualization_window)
+        paths = visualize_sweep_time_comparison(summary, out_dir=out_dir, show=args.show_visualization_window, training_step_time_lower_zoom_percent=15.0)
         paths.extend(visualize_summary_training_step_traffic_matrices(summary, out_dir=out_dir, show=args.show_visualization_window))
         for path in paths:
             print(f"Wrote comparison plot to {path}")
@@ -227,6 +229,7 @@ def _cmd_plot_summary(args: argparse.Namespace) -> int:
         out_dir=out_dir,
         show=sweep.show_visualization_window,
         training_step_time_lower_zoom_percent=sweep.lower_zoom_percent,
+        include_training_step_traffic_matrices=True,
     )
     if not paths:
         print("No comparison plots were generated from the provided summary.")
@@ -236,7 +239,7 @@ def _cmd_plot_summary(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str]) -> int:
     args = _build_parser().parse_args(argv)
     try:
         if args.command == "list":

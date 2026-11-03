@@ -80,6 +80,7 @@ def test_visualize_ai_factory_comm_distributions_saves_file(tmp_path: Path) -> N
         redundancy_extra_packets=2,
         out_dir=str(tmp_path),
         show=False,
+        link_failure_percent=None,
     )
 
     assert output is not None
@@ -94,7 +95,7 @@ def test_visualize_sweep_time_comparison_saves_aggregate_and_per_redundancy_file
         {"ok": True, "label": "run-d", "routing_mode": "adaptive", "flow_redundancy_extra_packets": 2, "link_failure_percent": 0.0, "packet_stall_percent": 3.0, "flow_time_avg_ms": 1.3, "flow_time_std_ms": 0.11, "flow_time_min_ms": 1.0, "flow_time_max_ms": 1.6, "gradient_bucket_time_avg_ms": 5.2, "gradient_bucket_time_std_ms": 0.24, "gradient_bucket_time_min_ms": 4.7, "gradient_bucket_time_max_ms": 5.7, "training_step_time_avg_ms": 21.0, "training_step_time_std_ms": 0.9, "training_step_time_min_ms": 19.8, "training_step_time_max_ms": 22.8, "training_job_time_avg_ms": 52.0, "training_job_time_std_ms": 1.6, "training_job_time_min_ms": 50.2, "training_job_time_max_ms": 54.3, "total_packets": 900, "packet_stall_marked_count": 16, "packet_stall_triggered_count": 12, "packet_stall_triggered_percent": 1.3333333333, "avg_stalls_per_flow": 0.75, "max_stalls_per_flow": 2, "gradient_bucket_bottleneck_stalls": 5, "stalls_per_flow_histogram": {0: 30, 1: 15, 2: 5}, "total_redundant_packets": 113},
     ]
 
-    outputs = visualize_sweep_time_comparison(summary, out_dir=str(tmp_path), show=False)
+    outputs = visualize_sweep_time_comparison(summary, out_dir=str(tmp_path), show=False, training_step_time_lower_zoom_percent=15.0)
 
     assert len(outputs) == 17
     assert all(Path(output).exists() for output in outputs)
@@ -192,7 +193,7 @@ def test_visualize_sweep_time_comparison_from_yaml_saves_plots_and_step_heatmaps
     summary_path = tmp_path / "sweep_summary.yaml"
     summary_path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
 
-    outputs = visualize_sweep_time_comparison_from_yaml(str(summary_path), out_dir=str(tmp_path), show=False)
+    outputs = visualize_sweep_time_comparison_from_yaml(str(summary_path), out_dir=str(tmp_path), show=False, training_step_time_lower_zoom_percent=15.0, include_training_step_traffic_matrices=True)
 
     assert len(outputs) == 19
     assert all(Path(output).exists() for output in outputs)

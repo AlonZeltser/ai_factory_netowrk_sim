@@ -12,12 +12,12 @@ class TestRoutingMode(unittest.TestCase):
     def _make_packet(self, *, src_ip: str, dst_ip: str) -> Packet:
         ft = FiveTupleExt(src_ip, dst_ip, 1111, 2222, Protocol.UDP, 1111)
         header = PacketL3(five_tuple=ft, seq_number=0, size_bytes=100, ttl=16)
-        tracking = PacketTrackingInfo(global_id=1, birth_time=0.0)
+        tracking = PacketTrackingInfo(global_id=1, birth_time=0.0, initial_ttl=0, route_length=0, verbose_route=None)
         transport = PacketTransport(flow_id=1, flow_count=1, flow_seq=0)
         return Packet(routing_header=header, transport_header=transport, tracking_info=tracking)
 
     def test_routing_mode_is_set_on_switch(self):
-        sim = DiscreteEventSimulator()
+        sim = DiscreteEventSimulator(store_packets=False)
         sw = Switch(
             "s1",
             ports_count=2,
@@ -29,7 +29,7 @@ class TestRoutingMode(unittest.TestCase):
         self.assertEqual(sw.routing_mode, RoutingMode.ADAPTIVE)
 
     def test_adaptive_avoids_busy_port_when_equal_cost(self):
-        sim = DiscreteEventSimulator()
+        sim = DiscreteEventSimulator(store_packets=False)
 
         # Two uplinks (port 1 and port 2). We'll make port 1 look busy by enqueuing a packet.
         sw = Switch(

@@ -13,12 +13,12 @@ class IdGenerator:
       * different jobs in the same simulation don't collide
     """
 
-    seed: int = 0
+    seed: int
 
     def __post_init__(self) -> None:
         self._rnd = random.Random(self.seed)
 
-    def next_int(self, *, bits: int = 31) -> int:
+    def next_int(self, *, bits: int) -> int:
         # 31 bits fits comfortably in signed int ranges and is plenty for IDs.
         return self._rnd.getrandbits(bits)
 

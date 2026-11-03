@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Mapping
 
 
@@ -22,12 +22,13 @@ class Flow:
     dst_node_id: str
     size_bytes: int
     start_time: float
-    completion_bytes: int | None = None
-    metadata: Mapping[str, Any] = field(default_factory=dict)
+    # Bytes that must arrive for the flow to count as complete (size_bytes minus redundant packets).
+    completion_bytes: int
+    metadata: Mapping[str, Any]
 
     @property
     def useful_size_bytes(self) -> int:
-        return int(self.completion_bytes if self.completion_bytes is not None else self.size_bytes)
+        return int(self.completion_bytes)
 
     def signature_tuple(self) -> tuple:
         return (self.src_node_id, self.dst_node_id, int(self.size_bytes), float(self.start_time), self.tag)

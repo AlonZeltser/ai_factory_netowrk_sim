@@ -61,6 +61,7 @@ def run_experiment(spec: ExperimentSpec) -> dict[str, Any]:
         log_dir=spec.run.log_dir,
         file_level=logging.DEBUG if spec.run.file_debug else logging.INFO,
         force=True,
+        console_level=logging.INFO,
     )
     logging.info("Logging to console and file: %s", logfile_path)
     logging.info("Resolved experiment: %s", spec.display_name)

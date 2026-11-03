@@ -22,7 +22,7 @@ _log = logging.getLogger(__name__)
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _metric_value(metric: Any, key: str, default: Any = None) -> Any:
+def _metric_value(metric: Any, key: str, default: Any) -> Any:
     if isinstance(metric, dict):
         return metric.get(key, default)
     return getattr(metric, key, default)
@@ -38,9 +38,9 @@ def _build_training_step_traffic_matrices(flow_metrics: list[Any]) -> list[dict[
     step_nodes: dict[int, set[str]] = {}
 
     for metric in flow_metrics:
-        step_id_raw = _metric_value(metric, "step_id")
-        src = _metric_value(metric, "src_node_id")
-        dst = _metric_value(metric, "dst_node_id")
+        step_id_raw = _metric_value(metric, "step_id", None)
+        src = _metric_value(metric, "src_node_id", None)
+        dst = _metric_value(metric, "dst_node_id", None)
         if step_id_raw is None or not src or not dst:
             continue
 
@@ -49,8 +49,8 @@ def _build_training_step_traffic_matrices(flow_metrics: list[Any]) -> list[dict[
         except (TypeError, ValueError):
             continue
 
-        transmitted_bytes = _metric_value(metric, "transmitted_bytes")
-        useful_bytes = _metric_value(metric, "useful_bytes")
+        transmitted_bytes = _metric_value(metric, "transmitted_bytes", None)
+        useful_bytes = _metric_value(metric, "useful_bytes", None)
         try:
             byte_count = int(transmitted_bytes if transmitted_bytes is not None else (useful_bytes if useful_bytes is not None else 0))
         except (TypeError, ValueError):
@@ -105,8 +105,8 @@ def _build_flow_stall_stats(flow_metrics: list[Any], stall_counts_by_flow_id: di
     bucket_flow_ids: dict[tuple[int, int, int, int], set[int]] = {}
 
     for metric in flow_metrics:
-        step_id_raw = _metric_value(metric, "step_id")
-        flow_id_raw = _metric_value(metric, "flow_id")
+        step_id_raw = _metric_value(metric, "step_id", None)
+        flow_id_raw = _metric_value(metric, "flow_id", None)
         if step_id_raw is None or flow_id_raw is None:
             continue
 
@@ -118,7 +118,7 @@ def _build_flow_stall_stats(flow_metrics: list[Any], stall_counts_by_flow_id: di
 
         training_flow_ids.add(flow_id)
 
-        bucket_id_raw = _metric_value(metric, "bucket_id")
+        bucket_id_raw = _metric_value(metric, "bucket_id", None)
         if bucket_id_raw is None:
             continue
         try:
@@ -192,7 +192,7 @@ def _default_process_count(task_count: int) -> int:
 class BatchInput:
     label: str
     config_path: str
-    overrides: tuple[str, ...] = ()
+    overrides: tuple[str, ...]
 
 
 def _normalize_config_path(path: str) -> Path:
@@ -204,15 +204,15 @@ def _normalize_config_path(path: str) -> Path:
 
 def collect_batch_inputs(
     *,
-    configs: list[str] | None = None,
-    directory: str | None = None,
+    configs: list[str],
+    directory: str | None,
 ) -> list[BatchInput]:
     inputs: list[BatchInput] = []
-    for config in configs or []:
+    for config in configs:
         path = _normalize_config_path(config)
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
-        inputs.append(BatchInput(label=str(path), config_path=str(path)))
+        inputs.append(BatchInput(label=str(path), config_path=str(path), overrides=()))
     if directory:
         root = _normalize_config_path(directory)
         if not root.exists() or not root.is_dir():
@@ -221,7 +221,7 @@ def collect_batch_inputs(
             # Files under a `base/` folder are shared fragments, not complete experiments.
             if "base" in path.relative_to(root).parts[:-1]:
                 continue
-            inputs.append(BatchInput(label=str(path), config_path=str(path)))
+            inputs.append(BatchInput(label=str(path), config_path=str(path), overrides=()))
     if not inputs:
         raise ConfigError("Batch requires at least one config or directory input")
     return inputs
@@ -263,8 +263,8 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
     # count as "not available", so the wait stats are left empty for them.
     bucket_wait_ms: list[float] = []
     for m in bucket_metrics:
-        release_time = _metric_value(m, "release_time")
-        start_time = _metric_value(m, "start_time")
+        release_time = _metric_value(m, "release_time", None)
+        start_time = _metric_value(m, "start_time", None)
         if release_time is None or start_time is None:
             continue
         bucket_wait_ms.append(max(0.0, float(start_time) - float(release_time)) * 1000.0)
@@ -296,7 +296,7 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
     total_useful_bytes_ring_flow = 0
     host_ring_useful_bytes: dict[tuple[int, int, int, int, str, str], int] = {}
     for metric in flow_metrics:
-        step_id_raw = _metric_value(metric, "step_id")
+        step_id_raw = _metric_value(metric, "step_id", None)
         if step_id_raw is None:
             continue
         try:
@@ -440,9 +440,9 @@ def _run_batch_item_safe(item: BatchInput) -> dict[str, Any]:
 def run_batch(
     inputs: list[BatchInput],
     *,
-    stop_on_error: bool = False,
-    use_processes: bool = False,
-    max_processes: int | None = None,
+    stop_on_error: bool,
+    use_processes: bool,
+    max_processes: int | None,
 ) -> list[dict[str, Any]]:
     summary: list[dict[str, Any]] = []
 

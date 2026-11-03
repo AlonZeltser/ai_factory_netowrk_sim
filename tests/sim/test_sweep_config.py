@@ -71,7 +71,8 @@ def test_sweep_values_apply_with_their_yaml_types(write_sweep_config) -> None:
         {
             "topology.params.fabric.packet_stall_retransmit_priority": [True, False],
             "topology.params.fabric.packet_stall_percent": [0.5],
-        }
+        },
+        drop=(),
     )
     first = build_sweep_inputs(config_path=cfg, sweep=load_sweep_spec(cfg))[0]
 
@@ -106,7 +107,7 @@ def test_sweep_setting_missing_is_rejected(write_sweep_config, key: str) -> None
     ],
 )
 def test_invalid_sweep_section_is_rejected(write_sweep_config, vary, settings, message: str) -> None:
-    cfg = write_sweep_config(vary, **settings)
+    cfg = write_sweep_config(vary, **settings, drop=())
 
     with pytest.raises(ConfigError, match=message):
         load_sweep_spec(cfg)
@@ -118,6 +119,7 @@ def test_sweep_cli_uses_output_settings_from_config(monkeypatch, write_sweep_con
         visualize_summary=True,
         lower_zoom_percent=25.0,
         show_visualization_window=True,
+        drop=(),
     )
     summary_path = Path(load_sweep_spec(cfg).summary_out)
     calls: dict[str, object] = {}
@@ -169,11 +171,11 @@ def test_sweep_cli_without_sweep_section_fails(capsys) -> None:
 
 
 def test_plot_summary_reads_plot_settings_from_config(monkeypatch, tmp_path: Path, write_sweep_config) -> None:
-    cfg = write_sweep_config({"routing.mode": ["ecmp"]}, lower_zoom_percent=30.0)
+    cfg = write_sweep_config({"routing.mode": ["ecmp"]}, lower_zoom_percent=30.0, drop=())
     calls: dict[str, object] = {}
 
-    def _fake_from_yaml(summary_yaml_path, *, out_dir, show, training_step_time_lower_zoom_percent):
-        calls["from_yaml"] = (out_dir, show, training_step_time_lower_zoom_percent)
+    def _fake_from_yaml(summary_yaml_path, *, out_dir, show, training_step_time_lower_zoom_percent, include_training_step_traffic_matrices):
+        calls["from_yaml"] = (out_dir, show, training_step_time_lower_zoom_percent, include_training_step_traffic_matrices)
         return ["plot.png"]
 
     monkeypatch.setattr(sim_app, "visualize_sweep_time_comparison_from_yaml", _fake_from_yaml)
@@ -183,7 +185,7 @@ def test_plot_summary_reads_plot_settings_from_config(monkeypatch, tmp_path: Pat
     )
 
     assert exit_code == 0
-    assert calls["from_yaml"] == (str(tmp_path / "plots"), False, 30.0)
+    assert calls["from_yaml"] == (str(tmp_path / "plots"), False, 30.0, True)
 
 
 def test_plot_summary_requires_config(tmp_path: Path) -> None:
@@ -198,6 +200,6 @@ def test_batch_directory_skips_base_fragments(tmp_path: Path) -> None:
     (tmp_path / "base" / "fragment.yaml").write_text("run: {}\n", encoding="utf-8")
     (tmp_path / "exp_a.yaml").write_text("kind: experiment\n", encoding="utf-8")
 
-    inputs = collect_batch_inputs(directory=str(tmp_path))
+    inputs = collect_batch_inputs(directory=str(tmp_path), configs=[])
 
     assert [Path(item.config_path).name for item in inputs] == ["exp_a.yaml"]

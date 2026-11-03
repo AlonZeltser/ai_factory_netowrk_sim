@@ -21,7 +21,7 @@ DEFAULT_FORMAT = "%(asctime)s [%(levelname)-7s] %(filename)s:%(lineno)d %(messag
 DEFAULT_DATEFMT = "%H:%M:%S"
 
 
-def ensure_logging(level: int = logging.INFO, *, force: bool = False) -> None:
+def ensure_logging(level: int, *, force: bool) -> None:
     """Ensure the root logger is configured with a StreamHandler to stdout."""
     root = logging.getLogger()
     if force or not root.handlers:
@@ -33,14 +33,14 @@ def ensure_logging(level: int = logging.INFO, *, force: bool = False) -> None:
 def configure_run_logging(
     run_tag: str,
     *,
-    log_dir: str = "results/logs",
-    console_level: int = logging.INFO,
-    file_level: int = logging.DEBUG,
-    force: bool = True,
+    log_dir: str,
+    console_level: int,
+    file_level: int,
+    force: bool,
 ) -> str:
     """Configure per-run logging.
 
-    - Console handler at `console_level` (default: INFO).
+    - Console handler at `console_level`.
     - File handler at `file_level` (DEBUG or INFO based on file_debug).
     - Returns absolute logfile path.
 

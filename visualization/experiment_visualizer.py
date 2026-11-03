@@ -14,11 +14,11 @@ from run_label import label_slug
 def visualize_send_timeline(
     packet_timeline: List[Tuple[float, int]],
     total_time: float,
-    routing_mode: str = "",
-    link_failure_percent: float | None = None,
-    out_dir: str = "results",
-    num_bins: int = 200,
-    show: bool = False,
+    routing_mode: str,
+    link_failure_percent: float | None,
+    out_dir: str,
+    num_bins: int,
+    show: bool,
 ) -> Optional[str]:
     """Create a histogram showing the distribution of sends over the simulation timeline.
 
@@ -138,7 +138,7 @@ def visualize_send_timeline(
         return None
 
 
-def _metric_attr(metric: Any, key: str, default: Any = None) -> Any:
+def _metric_attr(metric: Any, key: str, default: Any) -> Any:
     if isinstance(metric, dict):
         return metric.get(key, default)
     return getattr(metric, key, default)
@@ -156,11 +156,11 @@ def visualize_ai_factory_comm_distributions(
     bucket_metrics: List[Any],
     flow_metrics: List[Any],
     *,
-    routing_mode: str = "",
-    link_failure_percent: float | None = None,
-    redundancy_extra_packets: int | None = None,
-    out_dir: str = "results",
-    show: bool = False,
+    routing_mode: str,
+    link_failure_percent: float | None,
+    redundancy_extra_packets: int | None,
+    out_dir: str,
+    show: bool,
 ) -> Optional[str]:
     """Visualize communication timing distributions for AI-factory workloads.
 
@@ -492,8 +492,8 @@ def _normalize_summary_training_step_matrix(row: Dict[str, Any]) -> list[dict[st
 def visualize_summary_training_step_traffic_matrices(
     summary: List[Dict[str, Any]],
     *,
-    out_dir: str = "results",
-    show: bool = False,
+    out_dir: str,
+    show: bool,
 ) -> list[str]:
     """Create per-training-step traffic-matrix heatmaps for each successful summary row that carries flow data."""
     rows = [row for row in summary if row.get("ok")]
@@ -1013,9 +1013,9 @@ def _write_training_step_time_points_csv(
 def visualize_sweep_time_comparison(
     summary: List[Dict[str, Any]],
     *,
-    out_dir: str = "results",
-    show: bool = False,
-    training_step_time_lower_zoom_percent: float = 15.0,
+    out_dir: str,
+    show: bool,
+    training_step_time_lower_zoom_percent: float,
 ) -> list[str]:
     """Create aggregate and per-redundancy comparison plots across the varying impairment percentage."""
     rows = [row for row in summary if row.get("ok")]
@@ -1288,10 +1288,10 @@ def visualize_sweep_time_comparison(
 def visualize_sweep_time_comparison_from_yaml(
     summary_yaml_path: str,
     *,
-    out_dir: str = "results",
-    show: bool = False,
-    training_step_time_lower_zoom_percent: float = 15.0,
-    include_training_step_traffic_matrices: bool = True,
+    out_dir: str,
+    show: bool,
+    training_step_time_lower_zoom_percent: float,
+    include_training_step_traffic_matrices: bool,
 ) -> list[str]:
     """Load a sweep summary YAML file and create aggregate comparison plots and training-step traffic matrices."""
     path = Path(summary_yaml_path)
@@ -1318,8 +1318,8 @@ def visualize_sweep_time_comparison_from_yaml(
 
 
 def visualize_experiment_results(results: List[Dict[str, Dict[str, Any]]],
-                                 out_dir: str = "results",
-                                 show: bool = False) -> None:
+                                 out_dir: str,
+                                 show: bool) -> None:
     """Visualize experiment results including send timeline distribution.
 
     Args:
@@ -1345,6 +1345,7 @@ def visualize_experiment_results(results: List[Dict[str, Dict[str, Any]]],
                 link_failure_percent=(float(link_failure_percent) if link_failure_percent is not None else None),
                 out_dir=out_dir,
                 show=show,
+                num_bins=200,
             )
         if bucket_metrics or flow_metrics:
             visualize_ai_factory_comm_distributions(

@@ -18,13 +18,13 @@ from network.core.port import Port
 from network.core.switch import Switch
 
 
-def _make_sim(*, retransmit_priority: bool = False) -> DiscreteEventSimulator:
-    sim = DiscreteEventSimulator()
+def _make_sim(*, retransmit_priority: bool) -> DiscreteEventSimulator:
+    sim = DiscreteEventSimulator(store_packets=False)
     sim.packet_stall_retransmit_priority = retransmit_priority
     return sim
 
 
-def _make_packet(sim: DiscreteEventSimulator, global_id: int, *, is_retransmit: bool = False) -> Packet:
+def _make_packet(sim: DiscreteEventSimulator, global_id: int, *, is_retransmit: bool) -> Packet:
     ft = FiveTupleExt("10.0.0.1", "10.0.0.2", 1000, 80, Protocol.UDP, 0)
     header = PacketL3(five_tuple=ft, seq_number=global_id, size_bytes=128, ttl=64)
     transport = PacketTransport(flow_id=1, flow_count=1, flow_seq=global_id)
@@ -33,6 +33,8 @@ def _make_packet(sim: DiscreteEventSimulator, global_id: int, *, is_retransmit: 
         birth_time=sim.get_current_time(),
         initial_ttl=64,
         is_retransmit=is_retransmit,
+        route_length=0,
+        verbose_route=None,
     )
     return Packet(routing_header=header, transport_header=transport, tracking_info=tracking)
 
@@ -250,7 +252,7 @@ class TestIsRetransmitFlag(unittest.TestCase):
     """Verify that reinject_stalled_packet correctly sets is_retransmit=True."""
 
     def test_reinject_sets_is_retransmit(self):
-        sim = _make_sim()
+        sim = _make_sim(retransmit_priority=False)
         sim.packet_stall_percent = 0.0
         h1 = Host(name="h1", scheduler=sim, ip_address="10.0.0.1",
                   message_verbose=False, verbose_route=False, max_path=10,
@@ -273,7 +275,7 @@ class TestIsRetransmitFlag(unittest.TestCase):
         self.assertTrue(pkt.tracking_info.is_retransmit)
 
     def test_fresh_packet_is_not_retransmit(self):
-        pkt = _make_packet(_make_sim(), 1, is_retransmit=False)
+        pkt = _make_packet(_make_sim(retransmit_priority=False), 1, is_retransmit=False)
         self.assertFalse(pkt.tracking_info.is_retransmit)
 
 

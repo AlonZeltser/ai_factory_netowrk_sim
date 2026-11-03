@@ -20,7 +20,7 @@ class _Simulator:
 
 
 class _Host:
-    def __init__(self, name: str, ip_address: str, mtu: int = 100) -> None:
+    def __init__(self, name: str, ip_address: str, mtu: int) -> None:
         self.name = name
         self.ip_address = ip_address
         self.mtu = mtu
@@ -38,8 +38,8 @@ class _Network:
     def __init__(self) -> None:
         self.simulator = _Simulator()
         self.entities: dict = {"deep_flow_chain_log": True}
-        self.src = _Host("src", "10.0.0.1")
-        self.dst = _Host("dst", "10.0.0.2")
+        self.src = _Host("src", "10.0.0.1", mtu=100)
+        self.dst = _Host("dst", "10.0.0.2", mtu=100)
         self.hosts = {"src": self.src, "dst": self.dst}
 
     def get_entity(self, node_id: str) -> _Host:
@@ -52,8 +52,8 @@ def _packet(
     flow_seq: int,
     src_ip: str,
     dst_ip: str,
-    birth_time: float = 0.0,
-    is_retransmit: bool = False,
+    birth_time: float,
+    is_retransmit: bool,
 ) -> Packet:
     return Packet(
         routing_header=PacketL3(
@@ -68,6 +68,9 @@ def _packet(
             birth_time=birth_time,
             egress_queue_positions=[flow_seq + 1],
             is_retransmit=is_retransmit,
+            initial_ttl=0,
+            route_length=0,
+            verbose_route=None,
         ),
     )
 
@@ -88,16 +91,17 @@ def test_redundant_packets_count_toward_flow_completion_after_any_n_arrivals() -
         size_bytes=400,
         completion_bytes=200,
         start_time=0.0,
+        metadata={},
     )
 
     injector.inject(flow, on_complete=lambda flow_id: completed.append(flow_id))
 
     network.simulator.time = 1.0
-    network.dst.on_message(_packet(flow_id=7, flow_seq=2, src_ip=network.src.ip_address, dst_ip=network.dst.ip_address))
+    network.dst.on_message(_packet(flow_id=7, flow_seq=2, src_ip=network.src.ip_address, dst_ip=network.dst.ip_address, birth_time=0.0, is_retransmit=False))
     assert completed == []
 
     network.simulator.time = 2.0
-    network.dst.on_message(_packet(flow_id=7, flow_seq=3, src_ip=network.src.ip_address, dst_ip=network.dst.ip_address))
+    network.dst.on_message(_packet(flow_id=7, flow_seq=3, src_ip=network.src.ip_address, dst_ip=network.dst.ip_address, birth_time=0.0, is_retransmit=False))
 
     assert completed == [7]
     metrics = network.entities["ai_factory_flow_metrics"]
@@ -112,7 +116,7 @@ def test_redundant_packets_count_toward_flow_completion_after_any_n_arrivals() -
     assert diagnostics[0]["latest_valuable_packet_end_time"] == 2.0
 
     network.simulator.time = 3.0
-    network.dst.on_message(_packet(flow_id=7, flow_seq=0, src_ip=network.src.ip_address, dst_ip=network.dst.ip_address))
+    network.dst.on_message(_packet(flow_id=7, flow_seq=0, src_ip=network.src.ip_address, dst_ip=network.dst.ip_address, birth_time=0.0, is_retransmit=False))
     assert completed == [7]
     assert len(network.entities["ai_factory_flow_metrics"]) == 1
 
@@ -133,6 +137,7 @@ def test_retransmit_packets_are_excluded_from_deep_flow_egress_diagnostics() -> 
         size_bytes=400,
         completion_bytes=200,
         start_time=0.0,
+        metadata={},
     )
 
     injector.inject(flow, on_complete=lambda flow_id: completed.append(flow_id))
@@ -145,12 +150,13 @@ def test_retransmit_packets_are_excluded_from_deep_flow_egress_diagnostics() -> 
             src_ip=network.src.ip_address,
             dst_ip=network.dst.ip_address,
             is_retransmit=True,
+            birth_time=0.0,
         )
     )
     assert completed == []
 
     network.simulator.time = 2.0
-    network.dst.on_message(_packet(flow_id=8, flow_seq=2, src_ip=network.src.ip_address, dst_ip=network.dst.ip_address))
+    network.dst.on_message(_packet(flow_id=8, flow_seq=2, src_ip=network.src.ip_address, dst_ip=network.dst.ip_address, birth_time=0.0, is_retransmit=False))
     assert completed == [8]
 
     diagnostics = network.entities["ai_factory_flow_chain_diagnostics"]

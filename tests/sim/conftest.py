@@ -15,10 +15,10 @@ def write_sweep_config(tmp_path: Path) -> Callable[..., str]:
     """Return a writer for an experiment file that extends dp_small.yaml and has a full sweep section.
 
     `vary` is the sweep.vary mapping. Keyword arguments replace sweep settings (or add
-    unknown keys); `drop` removes settings, to test missing-key errors.
+    unknown keys); `drop` lists settings to remove, to test missing-key errors (pass () for none).
     """
 
-    def _write(vary: Any, *, drop: tuple[str, ...] = (), **settings: Any) -> str:
+    def _write(vary: Any, *, drop: tuple[str, ...], **settings: Any) -> str:
         sweep: dict[str, Any] = {
             "vary": vary,
             "summary_out": (tmp_path / "out" / "summary.yaml").as_posix(),

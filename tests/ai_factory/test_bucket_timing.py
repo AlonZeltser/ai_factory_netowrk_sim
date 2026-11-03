@@ -38,6 +38,9 @@ def _config(**overrides) -> DPHeavyWorkloadConfig:
         gap_us=5.0,
         optimizer_ms=1.0,
         seed=11,
+        mtu=4096,
+        flow_redundancy_extra_packets=0,
+        single_ring_only=False,
     )
     values.update(overrides)
     return DPHeavyWorkloadConfig(**values)
@@ -47,6 +50,7 @@ def test_prolog_sets_phase_zero_and_interval_spaces_bucket_releases() -> None:
     job = build_dp_heavy_workload_job(
         participants=PARTICIPANTS,
         config=_config(prolog_compute_ms=7.0, bucket_interval_ms=2.5, num_buckets=4),
+        job_name="workload1-dp-heavy",
     )
 
     for step in job.steps:

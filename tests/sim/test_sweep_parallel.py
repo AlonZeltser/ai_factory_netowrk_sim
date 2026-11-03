@@ -30,7 +30,7 @@ def test_run_sweep_takes_workers_and_stop_on_error_from_the_sweep_section(monkey
         return [{"label": i.label, "ok": True} for i in inputs]
 
     monkeypatch.setattr(sweep_runner, "run_batch", _fake_run_batch)
-    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, processes=3, stop_on_error=True)
+    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, processes=3, stop_on_error=True, drop=())
 
     summary = sweep_runner.run_sweep(config_path=cfg, sweep=load_sweep_spec(cfg))
 
@@ -51,7 +51,7 @@ def test_sweep_cli_passes_the_config_sweep_section(monkeypatch, write_sweep_conf
         return [{"label": "test", "ok": True}]
 
     monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
-    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, processes=4)
+    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, processes=4, drop=())
 
     exit_code = sim_app.main(["sweep", "--config", cfg])
 
@@ -88,7 +88,7 @@ def test_sweep_cli_plot_topology_once_uses_first_combo(monkeypatch, write_sweep_
     monkeypatch.setattr(sim_app, "load_experiment_spec", _fake_load_spec)
     monkeypatch.setattr(sim_app, "build_network", _fake_build_network)
     monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
-    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, plot_topology_once=True)
+    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, plot_topology_once=True, drop=())
 
     exit_code = sim_app.main(["sweep", "--config", cfg])
 
@@ -117,7 +117,7 @@ def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch, write_swee
     monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
     monkeypatch.setattr(sim_app, "visualize_sweep_time_comparison", _fake_compare)
     monkeypatch.setattr(sim_app, "visualize_summary_training_step_traffic_matrices", _fake_heatmaps)
-    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, plot_ring_heatmaps=True)
+    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, plot_ring_heatmaps=True, drop=())
 
     exit_code = sim_app.main(["sweep", "--config", cfg])
 
@@ -128,7 +128,7 @@ def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch, write_swee
 
 def test_sweep_cli_writes_deep_flow_chain_logs(monkeypatch, tmp_path: Path, write_sweep_config) -> None:
     summary_path = tmp_path / "summary.yaml"
-    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, summary_out=summary_path.as_posix())
+    cfg = write_sweep_config({"routing.mode": ["ecmp", "adaptive"]}, summary_out=summary_path.as_posix(), drop=())
 
     def _fake_run_sweep(**_kwargs):
         return [

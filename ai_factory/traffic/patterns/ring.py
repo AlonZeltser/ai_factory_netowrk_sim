@@ -80,8 +80,8 @@ def expand_ring_neighbor_sends(
     step_id: int,
     phase_id: int,
     bucket_id: int | None,
-    ring_seed: int | None = None,
-    write_to_log:bool = False
+    ring_seed: int,
+    write_to_log: bool,
 ) -> list[Flow]:
     """Minimum viable ring model.
 
@@ -98,8 +98,7 @@ def expand_ring_neighbor_sends(
     if p < 2:
         return []
 
-    seed = ids.seed if ring_seed is None else int(ring_seed)
-    ring = build_ring_order(participants, seed=seed)
+    ring = build_ring_order(participants, seed=int(ring_seed))
     steps = p - 1
     chunk_per_step = _chunk_sizes(bytes_per_participant, p)
 
@@ -116,7 +115,7 @@ def expand_ring_neighbor_sends(
         for sender in ring.participants:
             receiver = ring.next_of(sender)
             size = chunk_per_step[s]
-            flow_id = ids.next_int()
+            flow_id = ids.next_int(bits=31)
             flows.append(
                 Flow(
                     flow_id=flow_id,
@@ -128,6 +127,7 @@ def expand_ring_neighbor_sends(
                     src_node_id=sender,
                     dst_node_id=receiver,
                     size_bytes=size,
+                    completion_bytes=size,
                     start_time=t,
                     metadata={"ring_step": s, "participants": p},
                 )

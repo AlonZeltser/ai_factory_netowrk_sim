@@ -38,8 +38,8 @@ def expand_collective(
     step_id: int,
     phase_id: int,
     bucket_id: int | None,
-    ring_seed: int | None = None,
-    write_to_log: bool = False
+    ring_seed: int,
+    write_to_log: bool,
 ) -> CollectiveResult:
     if algorithm != CollectiveAlgorithm.RING:
         raise NotImplementedError("Only ring algorithm is implemented for now")

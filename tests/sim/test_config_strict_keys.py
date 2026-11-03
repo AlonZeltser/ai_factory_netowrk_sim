@@ -58,7 +58,7 @@ def test_unknown_key_in_params_is_rejected_when_building(override: str, section:
 
 
 def test_unknown_sweep_vary_key_fails_instead_of_being_ignored(write_sweep_config) -> None:
-    cfg = write_sweep_config({"workload.params.num_bucket": [1, 2]})
+    cfg = write_sweep_config({"workload.params.num_bucket": [1, 2]}, drop=())
     sweep = load_sweep_spec(cfg)
     key, values = sweep.vary[0]
     spec = load_experiment_spec(config_path=cfg, overrides=[f"{key}={values[0]}"])

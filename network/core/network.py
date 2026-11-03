@@ -25,9 +25,9 @@ class Network(ABC):
                  ecmp_flowlet_n_packets: int,
                  mtu: int,
                  ttl: int,
-                 store_packets: bool = False,
-                 collect_packet_timeline: bool = False,
-                 packet_stall_retransmit_priority: bool = False):
+                 store_packets: bool,
+                 collect_packet_timeline: bool,
+                 packet_stall_retransmit_priority: bool):
         """Base class for topology/scenario network_simulators.
 
         Parameters:
@@ -88,7 +88,7 @@ class Network(ABC):
 
         if visualize:
             try:
-                visualize_topology(self.name, self.entities, show=False)
+                visualize_topology(self.name, self.entities, show=False, spacing=2.0, show_link_status_legend=False)
             except Exception:
                 # do not break simulator creation if visualization fails
                 logging.exception("visualize_topology failed")

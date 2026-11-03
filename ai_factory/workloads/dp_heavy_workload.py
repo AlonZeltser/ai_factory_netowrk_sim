@@ -31,9 +31,9 @@ class DPHeavyWorkloadConfig:
     gap_us: float
     optimizer_ms: float
     seed: int
-    mtu: int = 4096
-    flow_redundancy_extra_packets: int = 0
-    single_ring_only: bool = False
+    mtu: int
+    flow_redundancy_extra_packets: int
+    single_ring_only: bool
 
     def __post_init__(self) -> None:
         if self.prolog_compute_ms < 0:
@@ -50,7 +50,7 @@ def build_dp_heavy_workload_job(
     *,
     participants: list[str],
     config: DPHeavyWorkloadConfig,
-    job_name: str = "workload1-dp-heavy",
+    job_name: str,
 ) -> TrainingJob:
     """Build Workload 1 (DP-heavy) as a TrainingJob -> TrainingStep -> GradientBucket hierarchy."""
 
@@ -58,7 +58,7 @@ def build_dp_heavy_workload_job(
 
     # Make job_id unique per process run even if the workload seed is fixed.
     # Keep it deterministic-ish but collision-resistant.
-    job_id = (ids.next_int() ^ secrets.randbits(31)) & 0x7FFFFFFF
+    job_id = (ids.next_int(bits=31) ^ secrets.randbits(31)) & 0x7FFFFFFF
 
     steps: list[TrainingStep] = []
     for step_idx in range(int(config.steps)):

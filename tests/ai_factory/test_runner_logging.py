@@ -15,7 +15,7 @@ class _NoopInjector(FlowInjector):
 
 
 def test_training_step_finished_log_includes_step_duration(caplog) -> None:
-    sim = DiscreteEventSimulator()
+    sim = DiscreteEventSimulator(store_packets=False)
     job = TrainingJob(
         job_id=1,
         name="log-test",
@@ -43,7 +43,7 @@ def test_training_step_finished_log_includes_step_duration(caplog) -> None:
 
 
 def test_training_step_finished_log_includes_max_per_flow_drops_for_step_flows(caplog) -> None:
-    sim = DiscreteEventSimulator()
+    sim = DiscreteEventSimulator(store_packets=False)
     flow_a = Flow(
         flow_id=101,
         job_id=1,
@@ -55,6 +55,8 @@ def test_training_step_finished_log_includes_max_per_flow_drops_for_step_flows(c
         dst_node_id="h2",
         size_bytes=1000,
         start_time=0.0,
+        completion_bytes=1000,
+        metadata={},
     )
     flow_b = Flow(
         flow_id=202,
@@ -67,6 +69,8 @@ def test_training_step_finished_log_includes_max_per_flow_drops_for_step_flows(c
         dst_node_id="h3",
         size_bytes=1000,
         start_time=0.0,
+        completion_bytes=1000,
+        metadata={},
     )
     job = TrainingJob(
         job_id=1,

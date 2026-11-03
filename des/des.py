@@ -19,12 +19,12 @@ class DESEvent:
 
 class DiscreteEventSimulator:
 
-    def __init__(self, store_packets: bool = False):
+    def __init__(self, store_packets: bool):
         self.current_time = 0.0
         self.event_queue: MinValuePriorityQueue = MinValuePriorityQueue()
         self.scheduling_counter = itertools.count()
         self.packet_stats = PacketStatistics()
-        # Optional: store packets for debugging (disabled by default to save memory)
+        # Optional: store packets for debugging (run.store_packets; costs memory)
         self._store_packets = store_packets
         self.packets = [] if store_packets else None
         self.end_time: float | None = None

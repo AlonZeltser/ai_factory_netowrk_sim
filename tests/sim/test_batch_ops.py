@@ -11,8 +11,8 @@ DP_SMALL = "tests/fixtures/dp_small.yaml"
 
 
 def test_collect_and_run_batch_from_configs() -> None:
-    inputs = collect_batch_inputs(configs=[DP_SMALL])
-    summary = run_batch(inputs)
+    inputs = collect_batch_inputs(configs=[DP_SMALL], directory=None)
+    summary = run_batch(inputs, stop_on_error=False, use_processes=False, max_processes=None)
 
     assert len(summary) == 1
     assert all(item["ok"] for item in summary)
@@ -99,7 +99,7 @@ def test_build_flow_stall_stats_aggregates_training_flows_and_gradient_bucket_bo
 
 
 def test_build_and_run_sweep(write_sweep_config) -> None:
-    cfg = write_sweep_config({"workload.kind": ["dp-heavy", "none"], "topology.params.leaf_count": [8, 16]})
+    cfg = write_sweep_config({"workload.kind": ["dp-heavy", "none"], "topology.params.leaf_count": [8, 16]}, drop=())
     sweep = load_sweep_spec(cfg)
     inputs = build_sweep_inputs(config_path=cfg, sweep=sweep)
     assert len(inputs) == 4

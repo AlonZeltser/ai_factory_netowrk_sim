@@ -20,6 +20,8 @@ def test_apply_flow_redundancy_preserves_useful_bytes() -> None:
             dst_node_id="h2",
             size_bytes=800,
             start_time=0.0,
+            completion_bytes=800,
+            metadata={},
         )
     ]
 
@@ -47,7 +49,9 @@ def test_dp_heavy_job_marks_comm_flows_complete_after_useful_bytes() -> None:
             seed=7,
             mtu=256,
             flow_redundancy_extra_packets=1,
+            single_ring_only=False,
         ),
+        job_name="workload1-dp-heavy",
     )
 
     comm_phase = job.steps[0].phases[1]
@@ -72,7 +76,10 @@ def test_dp_heavy_single_ring_only_skips_all_gather_flows() -> None:
             optimizer_ms=1.0,
             seed=7,
             single_ring_only=True,
+            mtu=4096,
+            flow_redundancy_extra_packets=0,
         ),
+        job_name="workload1-dp-heavy",
     )
 
     comm_phase = job.steps[0].phases[1]

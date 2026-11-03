@@ -8,9 +8,9 @@ from typing import Optional, Dict, Any
 def visualize_topology(
     topop_name: str,
     entities: Dict[Any, Any],
-    spacing: float = 2.0,
-    show: bool = True,
-    show_link_status_legend: bool = False,
+    spacing: float,
+    show: bool,
+    show_link_status_legend: bool,
 ) -> Optional[str]:
     """Create a visualization of the topology using networkx + matplotlib if available.
 
@@ -123,7 +123,7 @@ def visualize_topology(
             key.append(int(part) if part.isdigit() else part)
         return key
 
-    def _classify_node_type(node_name: Any, default_type: str = "switch") -> str:
+    def _classify_node_type(node_name: Any, default_type: str) -> str:
         n_str = str(node_name).lower()
         if '_spine' in n_str or n_str.startswith('core_switch'):
             return 'spine'

@@ -47,10 +47,14 @@ def test_ring_steps_launch_only_after_prerequisite_flow_completion() -> None:
             gap_us=0.0,
             optimizer_ms=1.0,
             seed=7,
+            mtu=4096,
+            flow_redundancy_extra_packets=0,
+            single_ring_only=False,
         ),
+        job_name="workload1-dp-heavy",
     )
 
-    sim = DiscreteEventSimulator()
+    sim = DiscreteEventSimulator(store_packets=False)
     injector = _TimedCompletionInjector(sim)
     runner = TrainingJobRunner(sim=sim, injector=injector, job=job)
 
@@ -96,10 +100,14 @@ def test_all_gather_step_zero_waits_for_reduce_scatter_last_arrival() -> None:
             gap_us=0.0,
             optimizer_ms=1.0,
             seed=19,
+            mtu=4096,
+            flow_redundancy_extra_packets=0,
+            single_ring_only=False,
         ),
+        job_name="workload1-dp-heavy",
     )
 
-    sim = DiscreteEventSimulator()
+    sim = DiscreteEventSimulator(store_packets=False)
     injector = _TimedCompletionInjector(sim)
     runner = TrainingJobRunner(sim=sim, injector=injector, job=job)
 

@@ -120,7 +120,7 @@ class Host(NetworkNode):
                 self.scheduler.packets.append(packet)
             self._internal_send_packet(packet)
 
-    def reinject_stalled_packet(self, packet: Packet, *, stalled_switch_name: str | None = None) -> None:
+    def reinject_stalled_packet(self, packet: Packet, *, stalled_switch_name: str) -> None:
         now = self.scheduler.get_current_time()
         initial_ttl = int(packet.tracking_info.initial_ttl or self.ttl)
         packet.routing_header.ttl = initial_ttl
@@ -130,9 +130,8 @@ class Host(NetworkNode):
         if self.verbose_route and packet.tracking_info.verbose_route is not None:
             packet.tracking_info.verbose_route.append(self.name)
         if self.message_verbose and _logger.isEnabledFor(logging.DEBUG):
-            stall_text = f" stalled_at={stalled_switch_name}" if stalled_switch_name else ""
             _logger.debug(
-                f"[sim_t={now:012.6f}s] Packet reinjected  host={self.name} packet_id={packet.tracking_info.global_id}{stall_text} ttl_reset={initial_ttl}"
+                f"[sim_t={now:012.6f}s] Packet reinjected  host={self.name} packet_id={packet.tracking_info.global_id} stalled_at={stalled_switch_name} ttl_reset={initial_ttl}"
             )
         self._internal_send_packet(packet)
 

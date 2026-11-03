@@ -23,9 +23,9 @@ class AIFactorySUDpHeavyScenario(Scenario):
         bucket_scheduling: str,
         optimizer_ms: float,
         steps: int,
-        mtu: int = 4096,
-        flow_redundancy_extra_packets: int = 0,
-        single_ring_only: bool = False,
+        mtu: int,
+        flow_redundancy_extra_packets: int,
+        single_ring_only: bool,
     ):
         self.steps = int(steps)
         self.seed = seed
@@ -57,7 +57,7 @@ class AIFactorySUDpHeavyScenario(Scenario):
             flow_redundancy_extra_packets=int(self.flow_redundancy_extra_packets),
             single_ring_only=bool(self.single_ring_only),
         )
-        training_job = build_dp_heavy_workload_job(participants=participants, config=cfg)
+        training_job = build_dp_heavy_workload_job(participants=participants, config=cfg, job_name="workload1-dp-heavy")
 
         injector = NetworkFlowInjector(network)
         runner = TrainingJobRunner(sim=network.simulator, injector=injector, job=training_job)

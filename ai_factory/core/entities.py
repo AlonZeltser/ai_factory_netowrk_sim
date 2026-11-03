@@ -32,9 +32,9 @@ BUCKET_SCHEDULING_MODES = ("concurrent", "serialized")
 
 @dataclass(frozen=True)
 class CommPhase(Phase):
-    buckets: list[GradientBucket] = field(default_factory=list)
-    # Required: comes from workload.params.bucket_scheduling, never defaulted in code.
-    bucket_scheduling: str = field(kw_only=True)
+    buckets: list[GradientBucket]
+    # From workload.params.bucket_scheduling.
+    bucket_scheduling: str
 
 
 @dataclass(frozen=True)
