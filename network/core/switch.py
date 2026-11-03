@@ -1,4 +1,5 @@
 ﻿import logging
+from functools import partial
 
 from network.core.network_node import NetworkNode, RoutingMode
 
@@ -62,10 +63,7 @@ class Switch(NetworkNode):
             return False
         self.scheduler.schedule_event(
             packet_stall_delay_s,
-            lambda packet=packet, source_host=source_host: source_host.reinject_stalled_packet(
-                packet,
-                stalled_switch_name=self.name,
-            ),
+            partial(source_host.reinject_stalled_packet, packet, stalled_switch_name=self.name),
         )
         return True
 
@@ -88,7 +86,7 @@ class Switch(NetworkNode):
                         f"[sim_t={now:012.6f}s] Packet stalled     switch={self.name} packet_id={packet.tracking_info.global_id} switch_hop={packet.tracking_info.switch_hops_seen - 1} delay_s={packet_stall_delay_s:.6f}"
                     )
                 if not self._reschedule_from_source_host(packet, packet_stall_delay_s):
-                    self.scheduler.schedule_event(packet_stall_delay_s, lambda packet=packet: self._internal_send_packet(packet))
+                    self.scheduler.schedule_event(packet_stall_delay_s, partial(self._internal_send_packet, packet))
                 return
             if self.message_verbose and _logger.isEnabledFor(logging.DEBUG):
                 now = self.scheduler.get_current_time()

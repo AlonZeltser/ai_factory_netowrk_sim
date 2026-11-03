@@ -98,16 +98,18 @@ class TrainingStepMetrics:
     step_id: int
     start_time: float
     end_time: float
-    phases: list[PhaseMetrics] = field(default_factory=list)
+    # Filled in by the runner as phases finish.
+    phases: list[PhaseMetrics] = field(init=False, default_factory=list)
 
 
 @dataclass(slots=True)
 class TrainingJobMetrics:
     job_id: int
     start_time: float
-    end_time: Optional[float] = None
-    steps: list[TrainingStepMetrics] = field(default_factory=list)
-    bucket_metrics: list[GradientBucketMetrics] = field(default_factory=list)
+    # Runner state: None until the job finishes; the lists fill in as the job runs.
+    end_time: Optional[float] = field(init=False, default=None)
+    steps: list[TrainingStepMetrics] = field(init=False, default_factory=list)
+    bucket_metrics: list[GradientBucketMetrics] = field(init=False, default_factory=list)
 
 
 FlowCompleteCallback = Callable[[int], None]

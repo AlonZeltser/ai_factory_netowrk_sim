@@ -13,24 +13,25 @@ class PacketStatistics:
     Statistics are updated as packets are created, delivered, or dropped.
     """
 
-    total_count: int = 0
-    delivered_count: int = 0
-    dropped_count: int = 0
-    packet_stall_marked_count: int = 0
-    packet_stall_triggered_count: int = 0
-    dropped_count_by_flow_id: dict[int, int] = field(default_factory=dict)
-    packet_stall_triggered_count_by_flow_id: dict[int, int] = field(default_factory=dict)
+    # All fields are counters that start empty; none is a constructor parameter.
+    total_count: int = field(init=False, default=0)
+    delivered_count: int = field(init=False, default=0)
+    dropped_count: int = field(init=False, default=0)
+    packet_stall_marked_count: int = field(init=False, default=0)
+    packet_stall_triggered_count: int = field(init=False, default=0)
+    dropped_count_by_flow_id: dict[int, int] = field(init=False, default_factory=dict)
+    packet_stall_triggered_count_by_flow_id: dict[int, int] = field(init=False, default_factory=dict)
 
     # Route length statistics
-    route_length_sum: int = 0
-    route_length_min: int = 999999
-    route_length_max: int = 0
+    route_length_sum: int = field(init=False, default=0)
+    route_length_min: int = field(init=False, default=999999)
+    route_length_max: int = field(init=False, default=0)
 
     # Packet time statistics (end-to-end delivery latency in seconds)
-    packet_time_count: int = 0
-    packet_time_sum: float = 0.0
-    packet_time_min: float = float("inf")
-    packet_time_max: float = 0.0
+    packet_time_count: int = field(init=False, default=0)
+    packet_time_sum: float = field(init=False, default=0.0)
+    packet_time_min: float = field(init=False, default=float("inf"))
+    packet_time_max: float = field(init=False, default=0.0)
 
     def record_created(self) -> None:
         """Called when a packet is created."""

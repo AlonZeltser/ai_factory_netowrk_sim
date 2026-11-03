@@ -48,7 +48,7 @@ class PacketL3:
     seq_number: int
     size_bytes: int
     ttl: int # number of hops the packet can traverse. At 0, the packet is expired.
-    dropped: bool = field(default=False)
+    dropped: bool = field(init=False, default=False)
 
 @dataclass(frozen=True, slots=True)
 class PacketTransport:
@@ -68,13 +68,14 @@ class PacketTrackingInfo:
     initial_ttl: int
     route_length: int
     verbose_route: list[str] | None  # only when verbose_route tracking is enabled
-    delivered: bool = False
-    arrival_time: Optional[float] = None
-    switch_hops_seen: int = 0
-    packet_stall_target_switch_hop: Optional[int] = None
-    packet_stall_triggered: bool = False
-    egress_queue_positions: list[int] = field(default_factory=list)
-    is_retransmit: bool = False  # True when packet has been reinjected from source host after a stall
+    # State updated while the packet travels; not constructor parameters.
+    delivered: bool = field(init=False, default=False)
+    arrival_time: Optional[float] = field(init=False, default=None)
+    switch_hops_seen: int = field(init=False, default=0)
+    packet_stall_target_switch_hop: Optional[int] = field(init=False, default=None)
+    packet_stall_triggered: bool = field(init=False, default=False)
+    egress_queue_positions: list[int] = field(init=False, default_factory=list)
+    is_retransmit: bool = field(init=False, default=False)  # True when packet has been reinjected from source host after a stall
 
 
 @dataclass(slots=True)

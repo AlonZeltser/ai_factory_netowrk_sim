@@ -55,6 +55,16 @@ def _packet(
     birth_time: float,
     is_retransmit: bool,
 ) -> Packet:
+    tracking_info = PacketTrackingInfo(
+        global_id=flow_seq,
+        birth_time=birth_time,
+        initial_ttl=0,
+        route_length=0,
+        verbose_route=None,
+    )
+    # Travel state the network would have set by the time the packet arrives.
+    tracking_info.egress_queue_positions = [flow_seq + 1]
+    tracking_info.is_retransmit = is_retransmit
     return Packet(
         routing_header=PacketL3(
             five_tuple=FiveTupleExt(src_ip, dst_ip, 1000, 2000, Protocol.TCP, 0),
@@ -63,15 +73,7 @@ def _packet(
             ttl=64,
         ),
         transport_header=PacketTransport(flow_id=flow_id, flow_count=4, flow_seq=flow_seq),
-        tracking_info=PacketTrackingInfo(
-            global_id=flow_seq,
-            birth_time=birth_time,
-            egress_queue_positions=[flow_seq + 1],
-            is_retransmit=is_retransmit,
-            initial_ttl=0,
-            route_length=0,
-            verbose_route=None,
-        ),
+        tracking_info=tracking_info,
     )
 
 

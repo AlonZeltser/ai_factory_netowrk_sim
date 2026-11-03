@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import partial
+
 from ai_factory.core.entities import CommPhase
 from ai_factory.core.runner import FlowInjector, TrainingJobRunner
 from ai_factory.traffic.collective import CollectiveAlgorithm
@@ -21,11 +23,11 @@ class _TimedCompletionInjector(FlowInjector):
         ring_step = int(flow.metadata.get("ring_step", 0))
         delay = 1.0 if ring_step == 0 else 0.1
 
-        def _complete(ff: Flow = flow) -> None:
-            self.complete_times[int(ff.flow_id)] = self.sim.get_current_time()
-            on_complete(int(ff.flow_id))
+        self.sim.schedule_event(delay, partial(self._complete, flow, on_complete))
 
-        self.sim.schedule_event(delay, _complete)
+    def _complete(self, flow: Flow, on_complete) -> None:
+        self.complete_times[int(flow.flow_id)] = self.sim.get_current_time()
+        on_complete(int(flow.flow_id))
 
 
 def _op_prefix(tag: str) -> str:

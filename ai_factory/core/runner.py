@@ -3,7 +3,8 @@
 from collections import defaultdict
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import partial
 from typing import Callable, List
 
 from des.des import DiscreteEventSimulator
@@ -192,7 +193,8 @@ class TrainingJobRunner:
     injector: FlowInjector
     job: TrainingJob
 
-    metrics: TrainingJobMetrics | None = None
+    # Set by run().
+    metrics: TrainingJobMetrics | None = field(init=False, default=None)
 
     def _max_per_flow_drops_for_step(self, step_flow_ids: set[int]) -> int:
         packet_stats = getattr(self.sim, "packet_stats", None)
@@ -379,10 +381,7 @@ class TrainingJobRunner:
 
                 delay = max(0.0, launch_time - current)
 
-                def _inject(ff: Flow = flow) -> None:
-                    self.injector.inject(ff, on_complete=on_flow_complete)
-
-                self.sim.schedule_event(delay, _inject)
+                self.sim.schedule_event(delay, partial(self.injector.inject, flow, on_complete=on_flow_complete))
                 return max(launch_time, current)
 
             def on_flow_complete(flow_id: int) -> None:

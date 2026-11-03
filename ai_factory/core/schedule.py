@@ -23,7 +23,7 @@ class Join:
 class BarrierBookkeeper:
     """Tracks joins/barriers for a running job."""
 
-    joins: Dict[str, Join] = field(default_factory=dict)
+    joins: Dict[str, Join] = field(init=False, default_factory=dict)
 
     def add_join(self, name: str, join: Join) -> None:
         if name in self.joins:

@@ -32,10 +32,10 @@ def _make_packet(sim: DiscreteEventSimulator, global_id: int, *, is_retransmit: 
         global_id=global_id,
         birth_time=sim.get_current_time(),
         initial_ttl=64,
-        is_retransmit=is_retransmit,
         route_length=0,
         verbose_route=None,
     )
+    tracking.is_retransmit = is_retransmit
     return Packet(routing_header=header, transport_header=transport, tracking_info=tracking)
 
 
