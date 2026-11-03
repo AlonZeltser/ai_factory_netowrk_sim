@@ -2,7 +2,7 @@ from des.des import DiscreteEventSimulator
 
 
 def test_run_without_until_executes_all_events_and_advances_time():
-    sim = DiscreteEventSimulator(store_packets=False)
+    sim = DiscreteEventSimulator(store_packets=False, packet_stall_percent=0.0, packet_stall_delay_s=0.0, packet_stall_max_switch_hop=0, packet_stall_retransmit_priority=False)
     calls = []
 
     def make_action(name):

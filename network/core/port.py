@@ -54,13 +54,13 @@ class Port:
         is a retransmit, it goes into the high-priority queue (drained first).
         Otherwise it goes into the regular egress queue.
         """
-        if getattr(self.link, "failed", False):
+        if self.link is not None and self.link.failed:
             # Should normally be filtered by routing logic. But be defensive.
             packet.routing_header.dropped = True
             self.owner.scheduler.packet_stats.record_dropped(packet)
             return
 
-        priority_enabled = bool(getattr(self.owner.scheduler, "packet_stall_retransmit_priority", False))
+        priority_enabled = self.owner.scheduler.packet_stall_retransmit_priority
         if priority_enabled and packet.tracking_info.is_retransmit:
             self.priority_queue.append(packet)
         else:
@@ -87,7 +87,7 @@ class Port:
         # Combined emptiness check.
         if not self.priority_queue and not self.egress_queue:
             return
-        if getattr(self.link, "failed", False):
+        if self.link is not None and self.link.failed:
             # Drop everything queued if link fails.
             for queue in (self.priority_queue, self.egress_queue):
                 while queue:

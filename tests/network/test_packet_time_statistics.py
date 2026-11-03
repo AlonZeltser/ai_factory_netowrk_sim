@@ -26,7 +26,7 @@ def _packet(*, global_id: int, birth_time: float, route_length: int) -> Packet:
 
 
 def test_host_on_message_records_packet_time_statistics() -> None:
-    sim = DiscreteEventSimulator(store_packets=False)
+    sim = DiscreteEventSimulator(store_packets=False, packet_stall_percent=0.0, packet_stall_delay_s=0.0, packet_stall_max_switch_hop=0, packet_stall_retransmit_priority=False)
     host = Host(
         name="dst",
         scheduler=sim,

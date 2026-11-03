@@ -42,10 +42,7 @@ class Host(NetworkNode):
         self.ecmp_flowlet_n_packets = ecmp_flowlet_n_packets
         self.mtu = mtu
         self.ttl = ttl
-        hosts_by_ip = getattr(self.scheduler, "hosts_by_ip", None)
-        if hosts_by_ip is None:
-            hosts_by_ip = {}
-            self.scheduler.hosts_by_ip = hosts_by_ip
+        hosts_by_ip = self.scheduler.hosts_by_ip
         existing = hosts_by_ip.get(self.ip_address)
         if existing is not None and existing is not self:
             raise ValueError(f"Duplicate host IP registration: {self.ip_address}")
@@ -105,8 +102,8 @@ class Host(NetworkNode):
                 verbose_route=None)
             if self.verbose_route:
                 tracking_info.verbose_route = [self.name]
-            packet_stall_percent = float(getattr(self.scheduler, "packet_stall_percent", 0.0) or 0.0)
-            packet_stall_max_switch_hop = int(getattr(self.scheduler, "packet_stall_max_switch_hop", 0) or 0)
+            packet_stall_percent = self.scheduler.packet_stall_percent
+            packet_stall_max_switch_hop = self.scheduler.packet_stall_max_switch_hop
             if packet_stall_percent > 0.0 and random.random() < (packet_stall_percent / 100.0):
                 tracking_info.packet_stall_target_switch_hop = random.randint(0, max(0, packet_stall_max_switch_hop))
                 self.scheduler.packet_stats.record_packet_stall_marked()
@@ -122,7 +119,7 @@ class Host(NetworkNode):
 
     def reinject_stalled_packet(self, packet: Packet, *, stalled_switch_name: str) -> None:
         now = self.scheduler.get_current_time()
-        initial_ttl = int(packet.tracking_info.initial_ttl or self.ttl)
+        initial_ttl = int(packet.tracking_info.initial_ttl)
         packet.routing_header.ttl = initial_ttl
         packet.tracking_info.arrival_time = None
         packet.tracking_info.delivered = False

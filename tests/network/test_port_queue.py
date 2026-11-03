@@ -12,7 +12,7 @@ from network.core.network_node import RoutingMode
 class TestPortQueue(unittest.TestCase):
 
     def test_port_queue_drains_using_link_availability(self):
-        sim = DiscreteEventSimulator(store_packets=False)
+        sim = DiscreteEventSimulator(store_packets=False, packet_stall_percent=0.0, packet_stall_delay_s=0.0, packet_stall_max_switch_hop=0, packet_stall_retransmit_priority=False)
 
         h1 = Host(
             name="h1",
@@ -86,10 +86,13 @@ class TestPortQueue(unittest.TestCase):
         self.assertAlmostEqual(sim.end_time, 0.016, places=6)
 
     def test_packet_stall_holds_marked_packet_at_switch_before_forwarding(self):
-        sim = DiscreteEventSimulator(store_packets=False)
-        sim.packet_stall_percent = 100.0
-        sim.packet_stall_delay_s = 0.05
-        sim.packet_stall_max_switch_hop = 0
+        sim = DiscreteEventSimulator(
+            store_packets=False,
+            packet_stall_percent=100.0,
+            packet_stall_delay_s=0.05,
+            packet_stall_max_switch_hop=0,
+            packet_stall_retransmit_priority=False,
+        )
 
         h1 = Host(
             name="h1",
@@ -159,10 +162,13 @@ class TestPortQueue(unittest.TestCase):
         self.assertLess(sim.end_time, 0.051)
 
     def test_packet_stall_falls_back_to_last_switch_when_target_hop_is_beyond_path(self):
-        sim = DiscreteEventSimulator(store_packets=False)
-        sim.packet_stall_percent = 100.0
-        sim.packet_stall_delay_s = 0.05
-        sim.packet_stall_max_switch_hop = 2
+        sim = DiscreteEventSimulator(
+            store_packets=False,
+            packet_stall_percent=100.0,
+            packet_stall_delay_s=0.05,
+            packet_stall_max_switch_hop=2,
+            packet_stall_retransmit_priority=False,
+        )
 
         h1 = Host(
             name="h1",

@@ -18,13 +18,17 @@ class Scenario(ABC):
       - It may schedule events on `network.simulator`.
     """
 
-    name: str
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Scenario name reported as `scenario` in the parameters summary."""
+        raise NotImplementedError
 
     @abstractmethod
     def install(self, creator: Network) -> None:
         raise NotImplementedError
 
     def parameters_summary(self) -> Dict[str, Any]:
-        return {"scenario": getattr(self, "name", self.__class__.__name__)}
+        return {"scenario": self.name}
 
 

@@ -19,9 +19,13 @@ from network.core.switch import Switch
 
 
 def _make_sim(*, retransmit_priority: bool) -> DiscreteEventSimulator:
-    sim = DiscreteEventSimulator(store_packets=False)
-    sim.packet_stall_retransmit_priority = retransmit_priority
-    return sim
+    return DiscreteEventSimulator(
+        store_packets=False,
+        packet_stall_percent=0.0,
+        packet_stall_delay_s=0.0,
+        packet_stall_max_switch_hop=0,
+        packet_stall_retransmit_priority=retransmit_priority,
+    )
 
 
 def _make_packet(sim: DiscreteEventSimulator, global_id: int, *, is_retransmit: bool) -> Packet:
@@ -136,10 +140,8 @@ class TestRetransmitPriorityQueueIntegration(unittest.TestCase):
         with a very slow h1->s1 link so packets queue up,
         and a fast s1->h2 link.
         """
+        # No random stalls (_make_sim): retransmits are injected manually.
         sim = _make_sim(retransmit_priority=priority)
-        sim.packet_stall_percent = 0.0  # we'll inject retransmit manually
-        sim.packet_stall_delay_s = 0.0
-        sim.packet_stall_max_switch_hop = 0
 
         h1 = Host(name="h1", scheduler=sim, ip_address="10.0.0.1",
                   message_verbose=False, verbose_route=False, max_path=10,
@@ -253,7 +255,6 @@ class TestIsRetransmitFlag(unittest.TestCase):
 
     def test_reinject_sets_is_retransmit(self):
         sim = _make_sim(retransmit_priority=False)
-        sim.packet_stall_percent = 0.0
         h1 = Host(name="h1", scheduler=sim, ip_address="10.0.0.1",
                   message_verbose=False, verbose_route=False, max_path=10,
                   ports_count=1, routing_mode=RoutingMode.ECMP,

@@ -61,7 +61,7 @@ def configure_run_logging(
     # Use microseconds + a short random suffix so consecutive runs don't collide.
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     suffix = secrets.token_hex(2)
-    safe_tag = "".join(c if c.isalnum() or c in "._-" else "_" for c in (run_tag or "run"))
+    safe_tag = "".join(c if c.isalnum() or c in "._-" else "_" for c in run_tag)
     logfile = os.path.abspath(os.path.join(log_dir, f"{safe_tag}_{ts}_{suffix}.log"))
 
     # Replace the basicConfig-created handlers with our aligned formatter + levels

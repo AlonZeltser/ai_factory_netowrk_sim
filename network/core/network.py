@@ -37,7 +37,6 @@ class Network(ABC):
         mtu: maximum transmission unit in bytes
         ttl: time to live (max hops for packets)
         """
-        self.simulator = DiscreteEventSimulator(store_packets=bool(store_packets))
         self.entities: Dict[str, Any] = {}
         self.hosts: Dict[str, Host] = {}
         self.name = name
@@ -64,10 +63,13 @@ class Network(ABC):
         self.mtu = int(mtu)
         self.ttl = int(ttl)
         self.collect_packet_timeline = bool(collect_packet_timeline and store_packets)
-        self.simulator.packet_stall_percent = self.packet_stall_percent
-        self.simulator.packet_stall_delay_s = self.packet_stall_delay_s
-        self.simulator.packet_stall_max_switch_hop = self.packet_stall_max_switch_hop
-        self.simulator.packet_stall_retransmit_priority = self.packet_stall_retransmit_priority
+        self.simulator = DiscreteEventSimulator(
+            store_packets=bool(store_packets),
+            packet_stall_percent=self.packet_stall_percent,
+            packet_stall_delay_s=self.packet_stall_delay_s,
+            packet_stall_max_switch_hop=self.packet_stall_max_switch_hop,
+            packet_stall_retransmit_priority=self.packet_stall_retransmit_priority,
+        )
 
 
     def create(self, visualize:bool) -> None:
@@ -80,7 +82,7 @@ class Network(ABC):
 
         # After topology created, log a short summary of failed links (if any)
         if self.link_failure_percent and self.link_failure_percent > 0.0:
-            failed = [l.name for l in self._links if getattr(l, 'failed', False)]
+            failed = [l.name for l in self._links if l.failed]
             if failed:
                 logging.info(f"Link failure summary: {len(failed)} links marked as failed")
             else:
@@ -184,13 +186,11 @@ class Network(ABC):
         global_max_port_peak_queue_len = 0
         node_peak_queue_lens: list[int] = []
         for n in nodes:
-            # Some code paths/tests may construct nodes without ports populated; be defensive.
-            ports = getattr(n, 'ports', None)
-            if not ports:
+            if not n.ports:
                 continue
             node_peak = 0
-            for p in ports:
-                peak = int(getattr(p, 'peak_queue_len', 0))
+            for p in n.ports:
+                peak = int(p.peak_queue_len)
                 if peak > global_max_port_peak_queue_len:
                     global_max_port_peak_queue_len = peak
                 if peak > node_peak:
@@ -304,7 +304,7 @@ class Network(ABC):
                 params.update(self._scenario.parameters_summary())
             except Exception:
                 # keep results usable even if scenario summary fails
-                params['scenario'] = getattr(self._scenario, 'name', self._scenario.__class__.__name__)
+                params['scenario'] = self._scenario.name
         return params
 
     def get_entity(self, name: str) -> Any:

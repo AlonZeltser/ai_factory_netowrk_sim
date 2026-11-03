@@ -56,7 +56,7 @@ def test_ring_steps_launch_only_after_prerequisite_flow_completion() -> None:
         job_name="workload1-dp-heavy",
     )
 
-    sim = DiscreteEventSimulator(store_packets=False)
+    sim = DiscreteEventSimulator(store_packets=False, packet_stall_percent=0.0, packet_stall_delay_s=0.0, packet_stall_max_switch_hop=0, packet_stall_retransmit_priority=False)
     injector = _TimedCompletionInjector(sim)
     runner = TrainingJobRunner(sim=sim, injector=injector, job=job)
 
@@ -109,7 +109,7 @@ def test_all_gather_step_zero_waits_for_reduce_scatter_last_arrival() -> None:
         job_name="workload1-dp-heavy",
     )
 
-    sim = DiscreteEventSimulator(store_packets=False)
+    sim = DiscreteEventSimulator(store_packets=False, packet_stall_percent=0.0, packet_stall_delay_s=0.0, packet_stall_max_switch_hop=0, packet_stall_retransmit_priority=False)
     injector = _TimedCompletionInjector(sim)
     runner = TrainingJobRunner(sim=sim, injector=injector, job=job)
 

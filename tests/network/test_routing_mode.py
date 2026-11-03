@@ -17,7 +17,7 @@ class TestRoutingMode(unittest.TestCase):
         return Packet(routing_header=header, transport_header=transport, tracking_info=tracking)
 
     def test_routing_mode_is_set_on_switch(self):
-        sim = DiscreteEventSimulator(store_packets=False)
+        sim = DiscreteEventSimulator(store_packets=False, packet_stall_percent=0.0, packet_stall_delay_s=0.0, packet_stall_max_switch_hop=0, packet_stall_retransmit_priority=False)
         sw = Switch(
             "s1",
             ports_count=2,
@@ -29,7 +29,7 @@ class TestRoutingMode(unittest.TestCase):
         self.assertEqual(sw.routing_mode, RoutingMode.ADAPTIVE)
 
     def test_adaptive_avoids_busy_port_when_equal_cost(self):
-        sim = DiscreteEventSimulator(store_packets=False)
+        sim = DiscreteEventSimulator(store_packets=False, packet_stall_percent=0.0, packet_stall_delay_s=0.0, packet_stall_max_switch_hop=0, packet_stall_retransmit_priority=False)
 
         # Two uplinks (port 1 and port 2). We'll make port 1 look busy by enqueuing a packet.
         sw = Switch(

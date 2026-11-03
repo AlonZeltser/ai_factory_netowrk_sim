@@ -11,6 +11,9 @@ from ai_factory.workloads.dp_heavy_workload import DPHeavyWorkloadConfig, build_
 class AIFactorySUDpHeavyScenario(Scenario):
     """Workload1 DP-heavy on the AI-Factory scale-unit topology."""
 
+    # The class name, as earlier result summaries report it.
+    name = "AIFactorySUDpHeavyScenario"
+
     def __init__(
         self,
         *,

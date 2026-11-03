@@ -197,15 +197,7 @@ class TrainingJobRunner:
     metrics: TrainingJobMetrics | None = field(init=False, default=None)
 
     def _max_per_flow_drops_for_step(self, step_flow_ids: set[int]) -> int:
-        packet_stats = getattr(self.sim, "packet_stats", None)
-        if packet_stats is None or not step_flow_ids:
-            return 0
-        max_fn = getattr(packet_stats, "max_dropped_for_flow_ids", None)
-        if callable(max_fn):
-            value = max_fn(step_flow_ids)
-            if isinstance(value, (int, float)):
-                return int(value)
-        return 0
+        return self.sim.packet_stats.max_dropped_for_flow_ids(step_flow_ids)
 
     def run(self) -> TrainingJobMetrics:
         self.metrics = TrainingJobMetrics(job_id=self.job.job_id, start_time=self.sim.get_current_time())

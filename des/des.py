@@ -19,7 +19,15 @@ class DESEvent:
 
 class DiscreteEventSimulator:
 
-    def __init__(self, store_packets: bool):
+    def __init__(
+        self,
+        *,
+        store_packets: bool,
+        packet_stall_percent: float,
+        packet_stall_delay_s: float,
+        packet_stall_max_switch_hop: int,
+        packet_stall_retransmit_priority: bool,
+    ):
         self.current_time = 0.0
         self.event_queue: MinValuePriorityQueue = MinValuePriorityQueue()
         self.scheduling_counter = itertools.count()
@@ -28,6 +36,13 @@ class DiscreteEventSimulator:
         self._store_packets = store_packets
         self.packets = [] if store_packets else None
         self.end_time: float | None = None
+        # Packet-stall model settings, read by hosts, switches and ports.
+        self.packet_stall_percent = float(packet_stall_percent)
+        self.packet_stall_delay_s = float(packet_stall_delay_s)
+        self.packet_stall_max_switch_hop = int(packet_stall_max_switch_hop)
+        self.packet_stall_retransmit_priority = bool(packet_stall_retransmit_priority)
+        # Hosts register here by IP so a stalled packet can be re-sent from its source host.
+        self.hosts_by_ip: dict = {}
 
     @property
     def messages(self):

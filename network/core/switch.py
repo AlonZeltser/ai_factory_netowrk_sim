@@ -31,14 +31,13 @@ class Switch(NetworkNode):
         if best_port_id is None:
             return False
         port = self.ports[best_port_id]
-        link = getattr(port, "link", None)
-        if link is None or getattr(link, "failed", False):
+        link = port.link
+        if link is None or link.failed:
             return False
         if link.port1 is None or link.port2 is None:
             return False
         dst_port = link.port2 if port == link.port1 else link.port1
-        dst_owner = getattr(dst_port, "owner", None)
-        return getattr(dst_owner, "__class__", type(None)).__name__ == "Host"
+        return type(dst_port.owner).__name__ == "Host"
 
     def _should_delay_packet(self, packet) -> bool:
         tracking = packet.tracking_info
@@ -55,10 +54,7 @@ class Switch(NetworkNode):
 
     def _reschedule_from_source_host(self, packet, packet_stall_delay_s: float) -> bool:
         src_ip = packet.routing_header.five_tuple.src_ip
-        hosts_by_ip = getattr(self.scheduler, "hosts_by_ip", None)
-        if not isinstance(hosts_by_ip, dict):
-            return False
-        source_host = hosts_by_ip.get(src_ip)
+        source_host = self.scheduler.hosts_by_ip.get(src_ip)
         if source_host is None:
             return False
         self.scheduler.schedule_event(
@@ -78,7 +74,7 @@ class Switch(NetworkNode):
         else:
             if self._should_delay_packet(packet):
                 now = self.scheduler.get_current_time()
-                packet_stall_delay_s = float(getattr(self.scheduler, "packet_stall_delay_s", 0.0) or 0.0)
+                packet_stall_delay_s = self.scheduler.packet_stall_delay_s
                 packet.tracking_info.packet_stall_triggered = True
                 self.scheduler.packet_stats.record_packet_stall_triggered(packet)
                 if self.message_verbose and _logger.isEnabledFor(logging.DEBUG):

@@ -94,8 +94,8 @@ class NetworkFlowInjector(FlowInjector):
                     )
                 )
                 if self._deep_flow_chain_log:
-                    stall_counts = getattr(self._network.simulator.packet_stats, "packet_stall_triggered_count_by_flow_id", {})
-                    packets_stalled = int(stall_counts.get(flow_id, 0)) if isinstance(stall_counts, dict) else 0
+                    stall_counts = self._network.simulator.packet_stats.packet_stall_triggered_count_by_flow_id
+                    packets_stalled = int(stall_counts.get(flow_id, 0))
                     gross_packets = max(1, int(stat.gross_packet_count))
                     egress_values = stat.all_observed_egress_positions
                     avg_place = (float(sum(egress_values)) / float(len(egress_values))) if egress_values else 0.0
@@ -135,7 +135,7 @@ class NetworkFlowInjector(FlowInjector):
         flow_id = int(flow.flow_id)
 
         self._callbacks[flow_id] = on_complete
-        mtu = max(1, int(getattr(src, "mtu", 1500) or 1500))
+        mtu = int(src.mtu)
         useful_packet_count = max(1, int(math.ceil(float(int(flow.useful_size_bytes)) / float(mtu))))
         gross_packet_count = max(1, int(math.ceil(float(int(flow.size_bytes)) / float(mtu))))
         self._stats[flow_id] = _FlowDeliveryState(
