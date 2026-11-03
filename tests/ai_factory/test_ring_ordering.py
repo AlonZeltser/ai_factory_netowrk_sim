@@ -42,7 +42,9 @@ def test_dp_heavy_ring_order_is_step_stable_and_varies_across_steps() -> None:
     participants = [f"leaf{leaf}_srv{srv}" for leaf in range(8) for srv in range(2)]
     cfg = DPHeavyWorkloadConfig(
         steps=2,
-        t_fwd_bwd_ms=1.0,
+        prolog_compute_ms=1.0,
+        bucket_interval_ms=1.0,
+        bucket_scheduling="concurrent",
         num_buckets=2,
         bucket_bytes_per_participant=8 * 1024,
         algorithm=CollectiveAlgorithm.RING,

@@ -280,6 +280,8 @@ workload:
     flow_redundancy_extra_packets: 2
 ```
 
+Each training step runs `prolog_compute_ms` of compute (forward pass plus the backward part that produces the first gradient bucket), then gradient sync, then `optimizer_ms`. Gradient bucket `b` is released `b * bucket_interval_ms` after gradient sync starts, modeling backward compute that overlaps communication. With `bucket_scheduling: concurrent` every bucket starts at its release time and buckets may share the network; with `serialized` bucket `b` waits for bucket `b-1` to finish, like the NCCL bucket queue in PyTorch DDP. The older `t_fwd_bwd_ms: X` is still accepted as a deprecated alias for `prolog_compute_ms = bucket_interval_ms = X` with concurrent buckets.
+
 `flow_redundancy_extra_packets` adds a fixed number of redundant packets to each communication flow on top of the useful payload. Redundancy is packet-based now, and the simulator validates that each useful flow payload is already an exact whole number of MTU-sized packets before adding those extras. If a flow has `N` useful packets and `R` redundant packets, it transmits `N + R` packets and completes when any `N` of those packets arrive at the receiver; late redundant/stalled packets may still add network load after the flow has completed.
 
 ---

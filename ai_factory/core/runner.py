@@ -9,6 +9,7 @@ from typing import Callable, List
 from des.des import DiscreteEventSimulator
 
 from ai_factory.core.entities import (
+    BUCKET_SCHEDULING_MODES,
     TrainingJob,
     TrainingJobMetrics,
     TrainingStepMetrics,
@@ -285,30 +286,38 @@ class TrainingJobRunner:
             done_phase()
             return
 
-        # Gradient buckets in the comm phase launch together; the phase advances only after all
-        # bucket joins complete. This keeps bucket timing independent while preserving
-        # the training-step/phase barrier behavior.
+        if phase.bucket_scheduling not in BUCKET_SCHEDULING_MODES:
+            raise ValueError(f"Unknown bucket_scheduling: {phase.bucket_scheduling!r}")
+        serialized = phase.bucket_scheduling == "serialized"
+
+        # Every bucket's flow offsets are relative to the comm-phase start (its release origin).
+        # concurrent: all buckets launch now, so each starts at its own release time.
+        # serialized: bucket b launches when bucket b-1 finishes, so it starts at
+        #             max(release time, previous bucket done).
+        # The phase advances only after all bucket joins complete.
+        phase_origin = float(self.sim.get_current_time())
         remaining_buckets = len(phase.buckets)
 
-        def mark_bucket_finished() -> None:
+        def bucket_finished(bucket_index: int) -> None:
             nonlocal remaining_buckets
             remaining_buckets -= 1
+            if serialized and bucket_index + 1 < len(phase.buckets):
+                launch_bucket(bucket_index + 1)
             if remaining_buckets == 0:
                 done_phase()
 
         def launch_bucket(bucket_index: int) -> None:
             bucket: GradientBucket = phase.buckets[bucket_index]
-            now = self.sim.get_current_time()
-            bucket_launch_origin = float(now)
-            bucket_start_offset = min((float(f.start_time) for f in bucket.flows), default=0.0)
-            bucket_start_time = float(now + bucket_start_offset)
+            now = float(self.sim.get_current_time())
+            release_offset = min((float(f.start_time) for f in bucket.flows), default=0.0)
+            release_time = phase_origin + release_offset
             dependency_graph, pending_prereqs, flow_by_id = _build_bucket_dependency_graph(bucket.flows)
             injected_flow_ids: set[int] = set()
 
             if _logger.isEnabledFor(logging.DEBUG):
                 _logger.debug(
                     f"{_sim_time_prefix(self.sim)} Gradient bucket scheduled  phase={phase.name} bucket={bucket_index} "
-                    f"start_offset_ms={bucket_start_offset * 1000.0:.3f} start_time={bucket_start_time:.6f}s"
+                    f"release_offset_ms={release_offset * 1000.0:.3f} release_time={release_time:.6f}s"
                 )
 
             if not bucket.flows:
@@ -319,7 +328,8 @@ class TrainingJobRunner:
                         phase_id=int(phase.phase_id),
                         phase_name=phase.name,
                         bucket_id=int(bucket.bucket_id),
-                        start_time=float(bucket_start_time),
+                        release_time=float(release_time),
+                        start_time=float(max(release_time, now)),
                         end_time=float(now),
                         flow_count=0,
                         transmitted_bytes=0,
@@ -328,7 +338,7 @@ class TrainingJobRunner:
                 )
                 if _logger.isEnabledFor(logging.DEBUG):
                     _logger.debug(f"{_sim_time_prefix(self.sim)} Gradient bucket finished    phase={phase.name} bucket={bucket_index} (empty)")
-                mark_bucket_finished()
+                bucket_finished(bucket_index)
                 return
 
             join_name = f"phase{phase.phase_id}/bucket{bucket.bucket_id}"
@@ -338,7 +348,8 @@ class TrainingJobRunner:
                 phase_id=int(phase.phase_id),
                 phase_name=phase.name,
                 bucket_id=int(bucket.bucket_id),
-                start_time=float(bucket_start_time),
+                release_time=float(release_time),
+                start_time=-1.0,
                 end_time=-1.0,
                 flow_count=len(bucket.flows),
                 transmitted_bytes=sum(int(f.size_bytes) for f in bucket.flows),
@@ -352,24 +363,27 @@ class TrainingJobRunner:
                 _logger.info(f"[{phase.name}] Gradient bucket {bucket_index} finished: duration={duration_ms:.2f}ms")
                 if _logger.isEnabledFor(logging.DEBUG):
                     _logger.debug(f"{_sim_time_prefix(self.sim)} Gradient bucket finished    phase={phase.name} bucket={bucket_index}")
-                mark_bucket_finished()
+                bucket_finished(bucket_index)
 
             join = Join(pending={f.flow_id for f in bucket.flows}, on_done=done_bucket)
             book.add_join(join_name, join)
 
-            def schedule_injection(flow: Flow) -> None:
+            def schedule_injection(flow: Flow) -> float:
+                """Schedule a flow's injection and return the sim time it will be injected."""
                 flow_id = int(flow.flow_id)
+                current = float(self.sim.get_current_time())
+                launch_time = phase_origin + max(0.0, float(flow.start_time))
                 if flow_id in injected_flow_ids:
-                    return
+                    return max(launch_time, current)
                 injected_flow_ids.add(flow_id)
 
-                launch_time = bucket_launch_origin + max(0.0, float(flow.start_time))
-                delay = max(0.0, launch_time - self.sim.get_current_time())
+                delay = max(0.0, launch_time - current)
 
                 def _inject(ff: Flow = flow) -> None:
                     self.injector.inject(ff, on_complete=on_flow_complete)
 
                 self.sim.schedule_event(delay, _inject)
+                return max(launch_time, current)
 
             def on_flow_complete(flow_id: int) -> None:
                 book.on_flow_complete(flow_id)
@@ -381,11 +395,14 @@ class TrainingJobRunner:
                         if dependent_flow is not None:
                             schedule_injection(dependent_flow)
 
-            for f in bucket.flows:
-                if pending_prereqs.get(int(f.flow_id), 0) == 0:
-                    schedule_injection(f)
+            # Flows without prerequisites go first; the earliest of them is the bucket's start.
+            first_inject_times = [
+                schedule_injection(f) for f in bucket.flows if pending_prereqs.get(int(f.flow_id), 0) == 0
+            ]
+            bucket_metrics.start_time = float(min(first_inject_times, default=max(release_time, now)))
 
-        for bucket_index in range(len(phase.buckets)):
-            launch_bucket(bucket_index)
-
-
+        if serialized:
+            launch_bucket(0)
+        else:
+            for bucket_index in range(len(phase.buckets)):
+                launch_bucket(bucket_index)

@@ -36,7 +36,9 @@ def test_dp_heavy_job_marks_comm_flows_complete_after_useful_bytes() -> None:
         participants=["h1", "h2", "h3", "h4"],
         config=DPHeavyWorkloadConfig(
             steps=1,
-            t_fwd_bwd_ms=1.0,
+            prolog_compute_ms=1.0,
+            bucket_interval_ms=1.0,
+            bucket_scheduling="concurrent",
             num_buckets=1,
             bucket_bytes_per_participant=1024,
             algorithm=CollectiveAlgorithm.RING,
@@ -60,7 +62,9 @@ def test_dp_heavy_single_ring_only_skips_all_gather_flows() -> None:
         participants=["h1", "h2", "h3", "h4"],
         config=DPHeavyWorkloadConfig(
             steps=1,
-            t_fwd_bwd_ms=1.0,
+            prolog_compute_ms=1.0,
+            bucket_interval_ms=1.0,
+            bucket_scheduling="concurrent",
             num_buckets=1,
             bucket_bytes_per_participant=1024,
             algorithm=CollectiveAlgorithm.RING,

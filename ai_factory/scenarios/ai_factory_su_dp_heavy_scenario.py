@@ -18,7 +18,9 @@ class AIFactorySUDpHeavyScenario(Scenario):
         num_buckets: int,
         bucket_bytes_per_participant: int,
         gap_us: float,
-        t_fwd_bwd_ms: float,
+        prolog_compute_ms: float,
+        bucket_interval_ms: float,
+        bucket_scheduling: str,
         optimizer_ms: float,
         steps: int,
         mtu: int = 4096,
@@ -30,7 +32,9 @@ class AIFactorySUDpHeavyScenario(Scenario):
         self.num_buckets = num_buckets
         self.bucket_bytes_per_participant = bucket_bytes_per_participant
         self.gap_us = gap_us
-        self.t_fwd_bwd_ms = t_fwd_bwd_ms
+        self.prolog_compute_ms = prolog_compute_ms
+        self.bucket_interval_ms = bucket_interval_ms
+        self.bucket_scheduling = bucket_scheduling
         self.optimizer_ms = optimizer_ms
         self.mtu = mtu
         self.flow_redundancy_extra_packets = flow_redundancy_extra_packets
@@ -45,7 +49,9 @@ class AIFactorySUDpHeavyScenario(Scenario):
             algorithm=CollectiveAlgorithm.RING,
             gap_us=float(self.gap_us),
             seed=int(self.seed),
-            t_fwd_bwd_ms=float(self.t_fwd_bwd_ms),
+            prolog_compute_ms=float(self.prolog_compute_ms),
+            bucket_interval_ms=float(self.bucket_interval_ms),
+            bucket_scheduling=str(self.bucket_scheduling),
             optimizer_ms=float(self.optimizer_ms),
             mtu=int(self.mtu),
             flow_redundancy_extra_packets=int(self.flow_redundancy_extra_packets),
@@ -69,7 +75,9 @@ class AIFactorySUDpHeavyScenario(Scenario):
                 "num_buckets": self.num_buckets,
                 "bucket_bytes_per_participant": self.bucket_bytes_per_participant,
                 "gap_us": self.gap_us,
-                "t_fwd_bwd_ms": self.t_fwd_bwd_ms,
+                "prolog_compute_ms": self.prolog_compute_ms,
+                "bucket_interval_ms": self.bucket_interval_ms,
+                "bucket_scheduling": self.bucket_scheduling,
                 "optimizer_ms": self.optimizer_ms,
                 "mtu": self.mtu,
                 "flow_redundancy_extra_packets": self.flow_redundancy_extra_packets,

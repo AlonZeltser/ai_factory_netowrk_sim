@@ -21,7 +21,9 @@ workload:
   params:
     steps: 30
     seed: 1972
-    t_fwd_bwd_ms: 0.0
+    prolog_compute_ms: 0.0
+    bucket_interval_ms: 0.0
+    bucket_scheduling: concurrent
     optimizer_ms: 0.0
     #bucket_bytes_per_participant: 2097152
     #bucket_bytes_per_participant: 16777216

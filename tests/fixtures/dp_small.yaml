@@ -12,5 +12,7 @@ workload:
     num_buckets: 1
     # 64 MTU packets per participant, so ring chunks stay whole packets for 16, 32 or 64 hosts.
     bucket_bytes_per_participant: 262144
-    t_fwd_bwd_ms: 0.0
+    prolog_compute_ms: 0.0
+    bucket_interval_ms: 0.0
+    bucket_scheduling: concurrent
     optimizer_ms: 0.0

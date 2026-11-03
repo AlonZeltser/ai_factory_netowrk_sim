@@ -24,9 +24,17 @@ class ComputePhase(Phase):
     duration_s: float
 
 
+# How the gradient buckets of a comm phase share the network:
+# - concurrent: each bucket starts at its own release time, independent of the others.
+# - serialized: bucket b starts no earlier than the completion of bucket b-1 (NCCL-style queue).
+BUCKET_SCHEDULING_MODES = ("concurrent", "serialized")
+
+
 @dataclass(frozen=True)
 class CommPhase(Phase):
     buckets: list[GradientBucket] = field(default_factory=list)
+    # Required: comes from workload.params.bucket_scheduling, never defaulted in code.
+    bucket_scheduling: str = field(kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -59,6 +67,9 @@ class GradientBucketMetrics:
     phase_id: int
     phase_name: str
     bucket_id: int
+    # When the bucket's gradients are ready (its earliest flow offset after the comm-phase start).
+    release_time: float
+    # When the bucket's first flow is injected; later than release_time if it waited in a queue.
     start_time: float
     end_time: float
     flow_count: int

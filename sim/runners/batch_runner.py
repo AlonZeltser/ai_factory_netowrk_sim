@@ -259,6 +259,17 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
     ]
     bucket_stats = _duration_stats_ms(bucket_durations_ms)
 
+    # Queueing delay of each bucket (start - release). Metrics without release_time
+    # count as "not available", so the wait stats are left empty for them.
+    bucket_wait_ms: list[float] = []
+    for m in bucket_metrics:
+        release_time = _metric_value(m, "release_time")
+        start_time = _metric_value(m, "start_time")
+        if release_time is None or start_time is None:
+            continue
+        bucket_wait_ms.append(max(0.0, float(start_time) - float(release_time)) * 1000.0)
+    bucket_wait_stats = _duration_stats_ms(bucket_wait_ms)
+
     flow_durations_ms = [
         (float(getattr(m, "end_time", 0.0)) - float(getattr(m, "start_time", 0.0))) * 1000.0
         if not isinstance(m, dict)
@@ -381,6 +392,8 @@ def _run_batch_item(item: BatchInput) -> dict[str, Any]:
         "gradient_bucket_time_std_ms": bucket_stats["std"],
         "gradient_bucket_time_min_ms": bucket_stats["min"],
         "gradient_bucket_time_max_ms": bucket_stats["max"],
+        "gradient_bucket_wait_time_avg_ms": bucket_wait_stats["avg"],
+        "gradient_bucket_wait_time_max_ms": bucket_wait_stats["max"],
         "training_step_time_avg_ms": training_job_stats.get("training_step_time_avg_ms"),
         "training_step_time_std_ms": training_job_stats.get("training_step_time_std_ms"),
         "training_step_time_min_ms": training_job_stats.get("training_step_time_min_ms"),

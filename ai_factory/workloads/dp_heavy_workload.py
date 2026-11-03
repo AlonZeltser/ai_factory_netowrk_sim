@@ -3,7 +3,14 @@
 from dataclasses import dataclass
 import secrets
 
-from ai_factory.core.entities import CommPhase, ComputePhase, GradientBucket, TrainingJob, TrainingStep
+from ai_factory.core.entities import (
+    BUCKET_SCHEDULING_MODES,
+    CommPhase,
+    ComputePhase,
+    GradientBucket,
+    TrainingJob,
+    TrainingStep,
+)
 from ai_factory.core.ids import IdGenerator
 from ai_factory.traffic.collective import CollectiveAlgorithm, CollectiveKind, expand_collective
 from ai_factory.traffic.flow import apply_flow_redundancy
@@ -12,7 +19,12 @@ from ai_factory.traffic.flow import apply_flow_redundancy
 @dataclass(frozen=True)
 class DPHeavyWorkloadConfig:
     steps: int
-    t_fwd_bwd_ms: float
+    # Compute time from step start until the first bucket's gradients are ready.
+    prolog_compute_ms: float
+    # Backward-compute time between the release of bucket b and bucket b+1.
+    bucket_interval_ms: float
+    # How released buckets share the network: "concurrent" or "serialized".
+    bucket_scheduling: str
     num_buckets: int
     bucket_bytes_per_participant: int
     algorithm: CollectiveAlgorithm
@@ -22,6 +34,16 @@ class DPHeavyWorkloadConfig:
     mtu: int = 4096
     flow_redundancy_extra_packets: int = 0
     single_ring_only: bool = False
+
+    def __post_init__(self) -> None:
+        if self.prolog_compute_ms < 0:
+            raise ValueError(f"prolog_compute_ms must be >= 0, got {self.prolog_compute_ms}")
+        if self.bucket_interval_ms < 0:
+            raise ValueError(f"bucket_interval_ms must be >= 0, got {self.bucket_interval_ms}")
+        if self.bucket_scheduling not in BUCKET_SCHEDULING_MODES:
+            raise ValueError(
+                f"bucket_scheduling must be one of {', '.join(BUCKET_SCHEDULING_MODES)}, got {self.bucket_scheduling!r}"
+            )
 
 
 def build_dp_heavy_workload_job(
@@ -46,18 +68,18 @@ def build_dp_heavy_workload_job(
         phases.append(
             ComputePhase(
                 phase_id=0,
-                name="fwd_bwd_compute",
-                duration_s=float(config.t_fwd_bwd_ms) / 1000.0,
+                name="prolog_compute",
+                duration_s=float(config.prolog_compute_ms) / 1000.0,
             )
         )
 
         comm_buckets: list[GradientBucket] = []
         for b in range(int(config.num_buckets)):
             bucket_id = b
-            # Gradient bucket start times are relative to the comm-phase start.
-            # Gradient bucket 0 is the prolog; later buckets tick at the same interval as
-            # the forward/backward delay used by the compute phase.
-            start_time = (float(b) * float(config.t_fwd_bwd_ms)) / 1000.0
+            # Release time relative to the comm-phase start: bucket b's gradients are ready
+            # b intervals of backward compute after bucket 0. The rest of backward overlaps
+            # the comm phase, so the last bucket is released exactly when backward ends.
+            start_time = (float(b) * float(config.bucket_interval_ms)) / 1000.0
 
             rs = expand_collective(
                 kind=CollectiveKind.REDUCE_SCATTER,
@@ -104,7 +126,14 @@ def build_dp_heavy_workload_job(
                 )
             )
 
-        phases.append(CommPhase(phase_id=1, name="gradient_sync", buckets=comm_buckets))
+        phases.append(
+            CommPhase(
+                phase_id=1,
+                name="gradient_sync",
+                buckets=comm_buckets,
+                bucket_scheduling=config.bucket_scheduling,
+            )
+        )
 
         phases.append(
             ComputePhase(

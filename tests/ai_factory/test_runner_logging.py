@@ -79,6 +79,7 @@ def test_training_step_finished_log_includes_max_per_flow_drops_for_step_flows(c
                         phase_id=1,
                         name="comm",
                         buckets=[GradientBucket(bucket_id=0, flows=[flow_a, flow_b])],
+                        bucket_scheduling="concurrent",
                     )
                 ],
             )
