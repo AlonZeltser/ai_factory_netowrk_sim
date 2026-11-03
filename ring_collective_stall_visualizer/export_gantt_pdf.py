@@ -31,7 +31,7 @@ def _apply_filters(df: pd.DataFrame, filter_specs: list[str]) -> pd.DataFrame:
         if not key or not values:
             raise ValueError(f"Invalid --filter format: {spec!r} (expected key=v1,v2,...)")
         if key not in out.columns:
-            continue
+            raise ValueError(f"Invalid --filter {spec!r}: the log has no column {key!r}")
         out = out[out[key].astype(str).isin(set(values))]
     return out
 
@@ -39,10 +39,10 @@ def _apply_filters(df: pd.DataFrame, filter_specs: list[str]) -> pd.DataFrame:
 def _build_export_figure(fig: go.Figure) -> tuple[go.Figure, int, int]:
     export_fig = go.Figure(fig)
 
-    annotations = list(export_fig.layout.annotations or [])
+    annotations = list(export_fig.layout.annotations)
     subtitle_annotations = [
         a for a in annotations
-        if not getattr(a, "showarrow", True) and str(getattr(a, "text", "")).strip()
+        if not a.showarrow and str(a.text).strip()
     ]
     n_panels = max(1, len(subtitle_annotations))
 
@@ -54,7 +54,7 @@ def _build_export_figure(fig: go.Figure) -> tuple[go.Figure, int, int]:
 
     y_values: set[str] = set()
     for trace in export_fig.data:
-        y_arr = getattr(trace, "y", None)
+        y_arr = trace.y
         if y_arr is not None:
             y_values.update(str(v) for v in y_arr if v is not None)
     chains_per_panel = max(1, len(y_values))
@@ -98,15 +98,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", required=True, help="Output PDF path")
     parser.add_argument(
         "--color-by",
-        default="stall_bucket",
+        required=True,
         choices=["stall_bucket", "stalled_packets", "duration_ms", "max_egress", "avg_egress"],
         help="Gantt coloring dimension",
     )
-    parser.add_argument("--chain-limit", type=int, default=16, help="Max number of chains to display")
+    parser.add_argument("--chain-limit", type=int, required=True, help="Max number of chains to display")
     parser.add_argument(
         "--labels",
-        default="",
-        help="Optional comma-separated subplot labels for multi-log mode (e.g. 'Baseline,Tuned')",
+        help="Optional comma-separated subplot labels for multi-log mode (e.g. 'Baseline,Tuned'); unlabeled panels are named 'Scan N'",
     )
     parser.add_argument(
         "--filter",
@@ -117,7 +116,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str]) -> int:
     args = _build_parser().parse_args(argv)
 
     input_paths = [Path(p).expanduser().resolve() for p in args.logs]
@@ -163,6 +162,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
 
 

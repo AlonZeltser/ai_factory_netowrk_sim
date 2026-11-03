@@ -46,7 +46,7 @@ def _parse_scalar(value: str) -> Any:
         return value
 
 
-def _parse_key_values(text: str, separator: str = "|") -> Dict[str, Any]:
+def _parse_key_values(text: str, separator: str) -> Dict[str, Any]:
     result: Dict[str, Any] = {}
 
     for part in text.split(separator):
@@ -135,7 +135,7 @@ def parse_log_text(text: str) -> pd.DataFrame:
             if current_chain is None:
                 continue
 
-            flow = _parse_key_values(line)
+            flow = _parse_key_values(line, "|")
 
             hop_index = hop_index_by_chain[current_chain]
             hop_index_by_chain[current_chain] += 1

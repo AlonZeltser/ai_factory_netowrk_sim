@@ -56,27 +56,10 @@ def parse_uploaded_file(file_bytes: bytes) -> pd.DataFrame:
     return parse_log_text(text)
 
 
-def _numeric_series(df: pd.DataFrame, col: str, default: float = 0.0) -> pd.Series:
+def _numeric_series(df: pd.DataFrame, col: str, default: float) -> pd.Series:
     if col not in df.columns:
         return pd.Series([default] * len(df), index=df.index, dtype=float)
     return pd.to_numeric(df[col], errors="coerce").fillna(default)
-
-
-def _normalize_visualizer_df(df: pd.DataFrame | None) -> pd.DataFrame | None:
-    if df is None:
-        return None
-    normalized = df.copy()
-    if "stalled_packets" not in normalized.columns:
-        if "stall_packets_declared" in normalized.columns:
-            normalized["stalled_packets"] = pd.to_numeric(normalized["stall_packets_declared"], errors="coerce").fillna(0)
-        else:
-            normalized["stalled_packets"] = pd.Series([pd.NA] * len(normalized), index=normalized.index, dtype="Int64")
-    if "stall_bucket" not in normalized.columns:
-        stalled = pd.to_numeric(normalized["stalled_packets"], errors="coerce")
-        normalized["stall_bucket"] = stalled.apply(
-            lambda x: "unknown" if pd.isna(x) else ("0" if int(x) <= 0 else ("1" if int(x) == 1 else ("2" if int(x) == 2 else ("3" if int(x) == 3 else ("4" if int(x) == 4 else "5+")))))
-        )
-    return normalized
 
 
 def _png_export_button(fig, *, label: str, filename_prefix: str, key: str) -> None:
@@ -130,28 +113,25 @@ def _build_export_figure(fig) -> tuple[go.Figure, int, int]:
 
     # ── Count subplot panels ─────────────────────────────────────────────────
     # make_subplots() places subplot-title annotations with showarrow=False.
-    annotations = list(export_fig.layout.annotations or [])
+    annotations = list(export_fig.layout.annotations)
     subtitle_annotations = [
         a for a in annotations
-        if not getattr(a, "showarrow", True) and str(getattr(a, "text", "")).strip()
+        if not a.showarrow and str(a.text).strip()
     ]
     n_panels = max(1, len(subtitle_annotations))
 
-    # Fallback: count numbered xaxis entries in the layout dict.
+    # Without subplot titles, count the numbered xaxis entries in the layout instead.
     if n_panels == 1:
-        try:
-            layout_json = export_fig.layout.to_plotly_json()
-            n_xaxes = sum(1 for k in layout_json if k.startswith("xaxis"))
-            n_panels = max(n_panels, n_xaxes)
-        except Exception:
-            pass
+        layout_json = export_fig.layout.to_plotly_json()
+        n_xaxes = sum(1 for k in layout_json if k.startswith("xaxis"))
+        n_panels = max(n_panels, n_xaxes)
 
     # ── Count unique chain rows (y-axis values) across all traces ───────────
     # In a comparison Gantt every panel shows the same chain names, so the
     # set of unique y-values equals chains-per-panel.
     y_values: set[str] = set()
     for trace in export_fig.data:
-        y_arr = getattr(trace, "y", None)
+        y_arr = trace.y
         if y_arr is not None:
             y_values.update(str(v) for v in y_arr if v is not None)
     chains_per_panel = max(1, len(y_values))
@@ -207,10 +187,11 @@ if uploaded is None:
     st.stop()
 
 
-df = _normalize_visualizer_df(parse_uploaded_file(uploaded.getvalue()))
-df_compare = _normalize_visualizer_df(parse_uploaded_file(uploaded_compare.getvalue())) if uploaded_compare is not None else None
-df_compare_3 = _normalize_visualizer_df(parse_uploaded_file(uploaded_compare_3.getvalue())) if uploaded_compare_3 is not None else None
-df_compare_4 = _normalize_visualizer_df(parse_uploaded_file(uploaded_compare_4.getvalue())) if uploaded_compare_4 is not None else None
+# The parser already adds `stalled_packets` and `stall_bucket` to every non-empty frame.
+df = parse_uploaded_file(uploaded.getvalue())
+df_compare = parse_uploaded_file(uploaded_compare.getvalue()) if uploaded_compare is not None else None
+df_compare_3 = parse_uploaded_file(uploaded_compare_3.getvalue()) if uploaded_compare_3 is not None else None
+df_compare_4 = parse_uploaded_file(uploaded_compare_4.getvalue()) if uploaded_compare_4 is not None else None
 
 if df.empty:
     st.error("No flow records were parsed. Check the log format.")

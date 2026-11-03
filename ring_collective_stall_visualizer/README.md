@@ -137,10 +137,14 @@ python ring_collective_stall_visualizer\export_gantt_pdf.py `
   --out results\_tmp_ringviz_pdf_script_test\gantt_stalled_packets.pdf
 ```
 
-Common options:
+Required options:
+- `--out FILE` output PDF path
 - `--color-by` one of: `stall_bucket`, `stalled_packets`, `duration_ms`, `max_egress`, `avg_egress`
-- `--filter key=v1,v2,...` repeatable (for example `--filter step=0 --filter phase=1`)
-- `--chain-limit N`
+- `--chain-limit N` max number of chains to draw
+
+Optional:
+- `--labels "A,B,..."` panel names in multi-log mode (unlabeled panels are named `Scan N`)
+- `--filter key=v1,v2,...` repeatable (for example `--filter step=0 --filter phase=1`); a key the log doesn't have is an error
 
 ---
 

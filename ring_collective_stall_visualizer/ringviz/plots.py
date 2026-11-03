@@ -15,15 +15,15 @@ STALL_COLOR_MAP = {
     "5+": "#D55E00",  # vermillion
 }
 
-def _row_value(row: pd.Series, key: str, default: object = "") -> object:
+def _row_value(row: pd.Series, key: str, default: object) -> object:
     return row.get(key, default)
 
 
 def _prepare_gantt_frame(
     df: pd.DataFrame,
     *,
-    chain_limit: int | None = None,
-    normalize_time: bool = False,
+    chain_limit: int | None,
+    normalize_time: bool,
 ) -> tuple[pd.DataFrame, list[str], float]:
     plot_df = df.copy()
     chains = list(plot_df["chain"].drop_duplicates())
@@ -45,7 +45,7 @@ def _prepare_gantt_frame(
 
 
 def _build_gantt_hover(row: pd.Series, *, start_col: str, end_col: str, include_absolute_time: bool) -> str:
-    def _time_text(label: str, rel_value: object, abs_value: object | None = None) -> str:
+    def _time_text(label: str, rel_value: object, abs_value: object | None) -> str:
         rel_text = f"{float(rel_value):.6f} s" if rel_value is not None and rel_value != "" else ""
         if include_absolute_time and abs_value is not None and abs_value != rel_value:
             abs_text = f"{float(abs_value):.6f} s"
@@ -146,8 +146,8 @@ def _add_missing_stall_bucket_legend(
     *,
     plot_frames: list[pd.DataFrame],
     chain_lists: list[list[str]],
-    row: int = 1,
-    col: int = 1,
+    row: int,
+    col: int,
 ) -> None:
     present_by_frame = [
         set(frame["stall_bucket"].dropna().astype(str).unique()) if not frame.empty else set()
@@ -181,8 +181,9 @@ def _add_missing_stall_bucket_legend(
 
 def make_gantt(
     df: pd.DataFrame,
-    color_by: str = "stall_bucket",
-    chain_limit: int | None = None,
+    *,
+    color_by: str,
+    chain_limit: int | None,
 ) -> go.Figure:
     if df.empty:
         return go.Figure()
@@ -241,10 +242,11 @@ def make_gantt(
 def make_gantt_comparison(
     data_frames: list[pd.DataFrame],
     *,
-    labels: list[str] | None = None,
-    color_by: str = "stall_bucket",
-    chain_limit: int | None = None,
+    labels: list[str] | None,
+    color_by: str,
+    chain_limit: int | None,
 ) -> go.Figure:
+    """`labels` names the panels in order; None (or too few labels) names the rest "Scan N"."""
     non_empty_frames = [df for df in data_frames if not df.empty]
     if not non_empty_frames:
         return go.Figure()
@@ -364,8 +366,9 @@ def make_gantt_comparison(
 
 def make_heatmap(
     df: pd.DataFrame,
-    metric: str = "duration_ms",
-    chain_limit: int | None = None,
+    *,
+    metric: str,
+    chain_limit: int | None,
 ) -> go.Figure:
     if df.empty:
         return go.Figure()
@@ -405,9 +408,9 @@ def make_heatmap(
             r = match.iloc[0]
 
             row_text.append(
-                f"chain: {_row_value(r, 'chain')}"
-                f"<br>hop: {_row_value(r, 'hop_index')}"
-                f"<br>edge: {_row_value(r, 'edge')}"
+                f"chain: {_row_value(r, 'chain', '')}"
+                f"<br>hop: {_row_value(r, 'hop_index', '')}"
+                f"<br>edge: {_row_value(r, 'edge', '')}"
                 f"<br>{metric}: {float(_row_value(r, metric, 0.0)):.6g}"
                 f"<br>duration: {float(_row_value(r, 'duration_ms', 0.0)):.3f} ms"
                 f"<br>stalled packets: {_row_value(r, 'stalled_packets', 0)}"
