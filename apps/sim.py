@@ -22,7 +22,7 @@ _loaded_sim = sys.modules.get("sim")
 if _loaded_sim is not None and not hasattr(_loaded_sim, "__path__"):
     del sys.modules["sim"]
 
-from sim.config.loader import dump_experiment_yaml, load_experiment_spec, load_sweep_spec
+from sim.config.loader import dump_experiment_yaml, load_experiment_spec, load_sweep_spec, resolve_cli_path
 from sim.config.models import ConfigError, SweepSpec
 from sim.registry.topologies import build_network
 from sim.registry.workloads import iter_workload_items
@@ -173,12 +173,10 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
 
 def _cmd_plot_summary(args: argparse.Namespace) -> int:
     sweep = _require_sweep_spec(args.config)
-    summary_path = Path(args.summary)
-    if not summary_path.is_absolute():
-        summary_path = (_REPO_ROOT / summary_path).resolve()
+    summary_path = resolve_cli_path(args.summary)
     paths = visualize_sweep_time_comparison_from_yaml(
         str(summary_path),
-        out_dir=args.out_dir,
+        out_dir=str(resolve_cli_path(args.out_dir)),
         show=sweep.show_visualization_window,
         training_step_time_lower_zoom_percent=sweep.lower_zoom_percent,
         include_training_step_traffic_matrices=True,

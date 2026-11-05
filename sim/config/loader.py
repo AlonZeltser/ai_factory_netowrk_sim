@@ -11,6 +11,52 @@ from .models import ConfigError, ExperimentSpec, SweepSpec
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
+# Prefix that anchors a path at the repository root, e.g. `repo:results/logs`.
+REPO_PREFIX = "repo:"
+
+# Config keys whose values are paths. Inside a YAML file they are resolved relative to that file.
+_PATH_KEYS: tuple[tuple[str, ...], ...] = (
+    ("run", "log_dir"),
+    ("run", "results_dir"),
+    ("sweep", "summary_out"),
+)
+
+
+def resolve_path(raw: str, *, base_dir: Path) -> Path:
+    """Resolve a config or CLI path to an absolute path.
+
+    - `repo:<rel>` is relative to the repository root.
+    - An absolute path is kept as is.
+    - Any other path is relative to `base_dir`.
+    """
+    if raw.startswith(REPO_PREFIX):
+        return (_REPO_ROOT / raw[len(REPO_PREFIX):]).resolve()
+    path = Path(raw)
+    if path.is_absolute():
+        return path.resolve()
+    return (base_dir / path).resolve()
+
+
+def resolve_cli_path(raw: str) -> Path:
+    """Resolve a path typed on the command line (or given by a GUI) against the current directory."""
+    if not raw:
+        raise ConfigError("A path is required")
+    return resolve_path(raw, base_dir=Path.cwd())
+
+
+def _resolve_path_keys(data: dict[str, Any], *, base_dir: Path) -> None:
+    for section, key in _PATH_KEYS:
+        block = data.get(section)
+        if not isinstance(block, Mapping):
+            continue
+        value = block.get(key)
+        if not isinstance(value, str) or not value.strip():
+            # Missing, empty or non-string values are reported by the model validation.
+            continue
+        block = dict(block)
+        block[key] = str(resolve_path(value, base_dir=base_dir))
+        data[section] = block
+
 
 def _read_yaml(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
@@ -29,6 +75,8 @@ def _load_yaml_with_extends(path: Path, *, seen: tuple[Path, ...]) -> dict[str, 
         raise ConfigError(f"Config extends cycle detected: {cycle}")
 
     data = _read_yaml(path)
+    # Resolve this file's own paths now: after merging it is unknown which file a value came from.
+    _resolve_path_keys(data, base_dir=path.parent)
     extends = data.pop("extends", None)
     if extends is None:
         return data
@@ -38,11 +86,9 @@ def _load_yaml_with_extends(path: Path, *, seen: tuple[Path, ...]) -> dict[str, 
     for ref in refs:
         if not isinstance(ref, str) or not ref.strip():
             raise ConfigError(f"Invalid extends reference in {path}: {ref!r}")
-        ref_path = Path(ref)
-        if not ref_path.is_absolute():
-            ref_path = (path.parent / ref_path).resolve()
+        ref_path = resolve_path(ref, base_dir=path.parent)
         if not ref_path.exists():
-            raise FileNotFoundError(f"Extended config file not found: {ref_path}")
+            raise FileNotFoundError(f"Extended config file not found: {ref_path} (referenced from {path})")
         merged = _deep_merge(merged, _load_yaml_with_extends(ref_path, seen=(*seen, path)))
     return _deep_merge(merged, data)
 
@@ -93,9 +139,7 @@ def _load_config_file(config_path: str) -> tuple[Path, dict[str, Any]]:
     if not config_path:
         raise ConfigError("A config file path is required")
 
-    config_file = Path(config_path)
-    if not config_file.is_absolute():
-        config_file = (_REPO_ROOT / config_file).resolve()
+    config_file = resolve_cli_path(config_path)
     if not config_file.exists():
         raise FileNotFoundError(f"Config file not found: {config_file}")
     return config_file, _load_yaml_with_extends(config_file, seen=())
@@ -118,6 +162,8 @@ def load_experiment_spec(
 
     for override in overrides:
         _apply_override(merged, override)
+    # A path set by an override is relative to the top-level config file, like a path written in it.
+    _resolve_path_keys(merged, base_dir=config_file.parent)
 
     # The sweep plan is read separately by load_sweep_spec; a single run ignores it.
     merged.pop("sweep", None)

@@ -8,7 +8,7 @@ from sim.config.models import ConfigError
 from sim.config.loader import load_experiment_spec
 from sim.runners.experiment_runner import run_experiment, validate_experiment
 
-DP_SMALL = "tests/fixtures/dp_small.yaml"
+DP_SMALL = "repo:tests/fixtures/dp_small.yaml"
 
 
 def test_load_config_with_overrides() -> None:

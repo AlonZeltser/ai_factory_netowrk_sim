@@ -3,6 +3,7 @@ from __future__ import annotations
 from itertools import product
 from typing import Any
 
+from sim.config.loader import resolve_cli_path
 from sim.config.models import SweepSpec
 from sim.runners.sweep_executor import SweepInput, run_sweep_inputs
 
@@ -16,6 +17,8 @@ def _format_override_value(value: Any) -> str:
 
 def build_sweep_inputs(*, config_path: str, sweep: SweepSpec) -> list[SweepInput]:
     """One sweep input per combination of `sweep.vary` values, in file order."""
+    # Workers get an absolute path so they do not depend on the current directory.
+    config_file = str(resolve_cli_path(config_path))
     keys = [key for key, _ in sweep.vary]
     value_lists = [[_format_override_value(v) for v in values] for _, values in sweep.vary]
     inputs: list[SweepInput] = []
@@ -24,7 +27,7 @@ def build_sweep_inputs(*, config_path: str, sweep: SweepSpec) -> list[SweepInput
         inputs.append(
             SweepInput(
                 label=" | ".join([config_path, *overrides]),
-                config_path=config_path,
+                config_path=config_file,
                 overrides=overrides,
             )
         )

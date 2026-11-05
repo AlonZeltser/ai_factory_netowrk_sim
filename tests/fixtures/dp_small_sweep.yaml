@@ -6,7 +6,7 @@ sweep:
   vary:
     routing.mode: [ecmp, adaptive]
     workload.params.flow_redundancy_extra_packets: [0, 1]
-  summary_out: results/test-dp-small-sweep/summary.yaml
+  summary_out: repo:results/test-dp-small-sweep/summary.yaml
   visualize_summary: false
   plot_ring_heatmaps: false
   lower_zoom_percent: 15.0

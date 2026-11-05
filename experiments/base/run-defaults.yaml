@@ -23,10 +23,10 @@ run:
   collect_packet_timeline: false
   # Enable per-step deep flow chain textual logs for sweep analysis. Allowed values: true | false.
   deep_flow_chain_log: false
-  # Directory for per-run log files (relative to repo root or absolute).
-  log_dir: results/logs
-  # Directory for experiment result artefacts (relative to repo root or absolute).
-  results_dir: results
+  # Directory for per-run log files. Relative paths are relative to this file; `repo:` anchors at the repo root.
+  log_dir: repo:results/logs
+  # Directory for experiment result artefacts. Relative paths are relative to this file; `repo:` anchors at the repo root.
+  results_dir: repo:results
 routing:
   # Routing strategy. Allowed values: `ecmp` | `adaptive` | `flowlet`.
   mode: adaptive

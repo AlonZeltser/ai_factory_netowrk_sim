@@ -7,7 +7,7 @@ from sim.runners.sweep_executor import SweepInput, _build_flow_stall_stats, run_
 from sim.config.loader import load_sweep_spec
 from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 
-DP_SMALL = "tests/fixtures/dp_small.yaml"
+DP_SMALL = "repo:tests/fixtures/dp_small.yaml"
 
 
 def test_run_sweep_inputs_in_process() -> None:

@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-DP_SMALL = "tests/fixtures/dp_small.yaml"
+DP_SMALL = "repo:tests/fixtures/dp_small.yaml"
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def write_sweep_config(tmp_path: Path) -> Callable[..., str]:
             del sweep[key]
         cfg = tmp_path / "exp.yaml"
         cfg.write_text(
-            yaml.safe_dump({"extends": (_REPO_ROOT / DP_SMALL).as_posix(), "sweep": sweep}, sort_keys=False),
+            yaml.safe_dump({"extends": DP_SMALL, "sweep": sweep}, sort_keys=False),
             encoding="utf-8",
         )
         return str(cfg)

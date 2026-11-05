@@ -7,7 +7,7 @@ from sim.config.loader import load_sweep_spec
 from sim.runners.sweep_executor import SweepInput
 from sim.runners import sweep_executor, sweep_runner
 
-DP_SMALL = "tests/fixtures/dp_small.yaml"
+DP_SMALL = "repo:tests/fixtures/dp_small.yaml"
 
 
 def test_default_process_count_balances_tasks(monkeypatch) -> None:

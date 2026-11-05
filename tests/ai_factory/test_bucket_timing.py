@@ -11,7 +11,7 @@ from sim.registry.workloads import build_scenario
 from sim.runners.sweep_executor import SweepInput, _run_sweep_input
 from sim.runners.experiment_runner import run_experiment
 
-DP_SMALL = "tests/fixtures/dp_small.yaml"
+DP_SMALL = "repo:tests/fixtures/dp_small.yaml"
 PARTICIPANTS = [f"leaf{leaf}_srv{srv}" for leaf in range(2) for srv in range(2)]
 
 # 4 hosts (2 leaves x 2 servers), 3 buckets all released at once, no stalls.

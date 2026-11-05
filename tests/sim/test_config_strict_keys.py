@@ -5,12 +5,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from sim.config.loader import load_experiment_spec, load_sweep_spec
+from sim.config.loader import load_experiment_spec, load_sweep_spec, resolve_cli_path
 from sim.config.models import ConfigError
 from sim.runners.experiment_runner import validate_experiment
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-DP_SMALL = "tests/fixtures/dp_small.yaml"
+DP_SMALL = "repo:tests/fixtures/dp_small.yaml"
 
 # Every experiment the repo ships (base fragments are only building blocks).
 REPO_CONFIGS = sorted(
@@ -71,7 +71,7 @@ def _write_dp_small_without(tmp_path: Path, *key_path: str) -> str:
     """Write dp_small fully resolved (no extends) with one key removed."""
     from sim.config.loader import _load_yaml_with_extends
 
-    data = _load_yaml_with_extends((_REPO_ROOT / DP_SMALL).resolve(), seen=())
+    data = _load_yaml_with_extends(resolve_cli_path(DP_SMALL), seen=())
     cursor = data
     for key in key_path[:-1]:
         cursor = cursor[key]

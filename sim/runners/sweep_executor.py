@@ -18,9 +18,6 @@ from sim.runners.experiment_runner import run_experiment
 _log = logging.getLogger(__name__)
 
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
 def _metric_value(metric: Any, key: str, default: Any) -> Any:
     if isinstance(metric, dict):
         return metric.get(key, default)
@@ -172,13 +169,6 @@ class SweepInput:
     label: str
     config_path: str
     overrides: tuple[str, ...]
-
-
-def _normalize_config_path(path: str) -> Path:
-    p = Path(path)
-    if not p.is_absolute():
-        p = (_REPO_ROOT / p).resolve()
-    return p
 
 
 def _run_sweep_input(item: SweepInput) -> dict[str, Any]:
@@ -456,7 +446,8 @@ def run_sweep_inputs(
 
 
 def write_sweep_summary(summary: list[dict[str, Any]], output_path: str) -> Path:
-    path = _normalize_config_path(output_path)
+    # The loader already resolved `sweep.summary_out` to an absolute path.
+    path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(summary, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return path

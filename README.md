@@ -193,7 +193,7 @@ sweep:
   vary:                                         # dotted config key -> list of values
     routing.mode: [ecmp, adaptive]
     workload.params.flow_redundancy_extra_packets: [0, 1, 2]
-  summary_out: results/my_sweep/summary.yaml    # summary file; plots and deep logs go next to it
+  summary_out: repo:results/my_sweep/summary.yaml   # summary file; plots and deep logs go next to it
   visualize_summary: true                       # comparison plots
   plot_ring_heatmaps: false                     # per-training-step traffic heatmaps
   lower_zoom_percent: 15.0                      # extra training-step-time plot of the lowest 15% (0 = skip it)
@@ -252,7 +252,12 @@ workload:
     single_ring_only: true
 ```
 
-`extends` paths are relative to the file that contains them. Later entries override earlier ones, and the file's own values override everything it extends. Inheritance can be chained (`a -> b -> c`). Every option is documented with its allowed range in the `experiments/base/` fragments.
+Paths follow two rules, so a config behaves the same whether it is launched from a terminal in any directory, an IDE, or a GUI:
+
+- **Paths written in a YAML file** (`extends`, `run.log_dir`, `run.results_dir`, `sweep.summary_out`) are relative to the file that contains them. Start a path with `repo:` to anchor it at the repository root instead, e.g. `results_dir: repo:results`. Absolute paths are kept as is.
+- **Paths given on the command line** (`--config`, `--summary`, `--out-dir`) are relative to the current directory, like any other command-line tool. `repo:` works there too.
+
+Later `extends` entries override earlier ones, and the file's own values override everything it extends. Inheritance can be chained (`a -> b -> c`). Every option is documented with its allowed range in the `experiments/base/` fragments.
 
 There are no in-code defaults: after `extends` is resolved, every key must be present (including `meta.name`, `topology.family` and `run.seed`, where `seed: null` means an unseeded, non-reproducible run), and any key the simulator does not know is an error rather than being ignored.
 

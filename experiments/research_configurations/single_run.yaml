@@ -1,0 +1,13 @@
+extends:
+  - research_workload.yaml
+  - research_run.yaml
+  - ../base/topology-clos-small.yaml
+meta:
+  name: research-single-run
+workload:
+  params:
+    flow_redundancy_extra_packets: 0
+topology:
+  params:
+    fabric:
+      packet_stall_percent: 0

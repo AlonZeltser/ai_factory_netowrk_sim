@@ -9,8 +9,9 @@ from sim.config.loader import load_experiment_spec, load_sweep_spec
 from sim.config.models import ConfigError
 from sim.runners.sweep_runner import build_sweep_inputs
 
-DP_SMALL = "tests/fixtures/dp_small.yaml"
-DP_SMALL_SWEEP = "tests/fixtures/dp_small_sweep.yaml"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+DP_SMALL = "repo:tests/fixtures/dp_small.yaml"
+DP_SMALL_SWEEP = "repo:tests/fixtures/dp_small_sweep.yaml"
 
 _SWEEP_SETTING_KEYS = (
     "vary",
@@ -33,7 +34,7 @@ def test_sweep_section_is_parsed_in_file_order() -> None:
         ("workload.params.flow_redundancy_extra_packets", (0, 1)),
     )
     assert sweep.combination_count() == 4
-    assert sweep.summary_out == "results/test-dp-small-sweep/summary.yaml"
+    assert Path(sweep.summary_out) == _REPO_ROOT / "results" / "test-dp-small-sweep" / "summary.yaml"
     assert sweep.lower_zoom_percent == 15.0
     assert sweep.max_processes is None  # processes: auto
     assert not any(

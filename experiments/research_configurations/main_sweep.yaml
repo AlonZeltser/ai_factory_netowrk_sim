@@ -1,7 +1,7 @@
 
 extends:
   - research_workload.yaml
-  - research-run.yaml
+  - research_run.yaml
   - ../base/topology-clos-small.yaml
 meta:
   name: research-sweep
@@ -10,7 +10,7 @@ sweep:
     # routing.mode: [ecmp, adaptive]
     workload.params.flow_redundancy_extra_packets: [0, 1, 2, 4, 8]
     topology.params.fabric.packet_stall_percent: [0, 0.02, 0.05, 0.1, 0.25, 0.5, 1, 2, 4, 8]
-  summary_out: results/research-sweep/summary.yaml    # summary file; plots and deep logs go next to it
+  summary_out: repo:results/research-sweep/summary.yaml   # summary file; plots and deep logs go next to it
   visualize_summary: true                       # comparison plots
   plot_ring_heatmaps: false                     # per-training-step traffic heatmaps
   lower_zoom_percent: 15.0                      # extra training-step-time plot of the lowest 15% (0 = skip it)
