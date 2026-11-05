@@ -1,7 +1,7 @@
 
 extends:
   - research_workload.yaml
-  - ../base/run-defaults.yaml
+  - research-run.yaml
   - ../base/topology-clos-small.yaml
 meta:
   name: research-sweep

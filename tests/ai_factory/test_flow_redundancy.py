@@ -35,7 +35,7 @@ def test_apply_flow_redundancy_preserves_useful_bytes() -> None:
 
 def test_dp_heavy_job_marks_comm_flows_complete_after_useful_bytes() -> None:
     job = build_dp_heavy_workload_job(
-        participants=["h1", "h2", "h3", "h4"],
+        participants=["leaf0_srv0", "leaf0_srv1", "leaf1_srv0", "leaf1_srv1"],
         config=DPHeavyWorkloadConfig(
             steps=1,
             prolog_compute_ms=1.0,
@@ -63,7 +63,7 @@ def test_dp_heavy_job_marks_comm_flows_complete_after_useful_bytes() -> None:
 
 def test_dp_heavy_single_ring_only_skips_all_gather_flows() -> None:
     job = build_dp_heavy_workload_job(
-        participants=["h1", "h2", "h3", "h4"],
+        participants=["leaf0_srv0", "leaf0_srv1", "leaf1_srv0", "leaf1_srv1"],
         config=DPHeavyWorkloadConfig(
             steps=1,
             prolog_compute_ms=1.0,

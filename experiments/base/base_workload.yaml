@@ -10,7 +10,7 @@ workload:
     num_buckets: 8
     # Useful bytes contributed by each participant to each bucket before optional redundancy. Range: integer >= 1.
     bucket_bytes_per_participant: 4194304
-    # Gap between ring steps inside the collective in microseconds. Range: float >= 0.0.
+    # Gap between ring hops inside the collective in microseconds. Range: float >= 0.0.
     gap_us: 0.0
     # Compute time from step start until the first gradient bucket is ready (forward pass plus the
     # backward part that produces bucket 0), in milliseconds. Range: float >= 0.0.

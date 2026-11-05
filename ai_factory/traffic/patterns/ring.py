@@ -50,15 +50,9 @@ def build_ring_order(participants: list[str], *, seed: int) -> RingPlan:
 
 def _leaf_key(host_id: str) -> int:
     m = re.search(r"leaf(\d+)", host_id)
-    if m:
-        return int(m.group(1))
-
-    digits = "".join(ch for ch in host_id if ch.isdigit())
-    if digits:
-        n = int(digits)
-        return (n - 1) // 4
-
-    return 0
+    if m is None:
+        raise ValueError(f"Host id {host_id!r} has no 'leaf<N>' part; cannot place it in a leaf for ring ordering")
+    return int(m.group(1))
 
 
 def _chunk_sizes(bytes_per_participant: int, p: int) -> list[int]:

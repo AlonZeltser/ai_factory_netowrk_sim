@@ -5,29 +5,19 @@ workload:
   kind: dp-heavy
   params:
     # Number of training steps to simulate. Range: integer >= 1.
-    steps: 10
-    # Deterministic seed for training-job / ring-order generation. Range: integer >= 0.
-    seed: 1972
+    steps: 8
     # Number of gradient buckets synchronized per step. Range: integer >= 1.
     num_buckets: 1
     # Useful bytes contributed by each participant to each bucket before optional redundancy. Range: integer >= 1.
-    bucket_bytes_per_participant: 4194304
-    # Gap between ring steps inside the collective in microseconds. Range: float >= 0.0.
-    gap_us: 0.0
+    bucket_bytes_per_participant: 6553600
     # Compute time from step start until the first gradient bucket is ready (forward pass plus the
     # backward part that produces bucket 0), in milliseconds. Range: float >= 0.0.
     prolog_compute_ms: 0.0
     # Backward compute time between the release of bucket b and bucket b+1, in milliseconds;
     # bucket b is released b * bucket_interval_ms after gradient sync starts. Range: float >= 0.0.
     bucket_interval_ms: 0.0
-    # How released buckets share the network. `concurrent`: each bucket starts at its release time,
-    # independent of the others. `serialized`: bucket b starts no earlier than the completion of
-    # bucket b-1 (NCCL-style queue). Allowed values: concurrent | serialized.
-    bucket_scheduling: concurrent
     # Optimizer/update compute time after gradient synchronization, in milliseconds. Range: float >= 0.0.
     optimizer_ms: 0.0
-    # Number of extra redundant packets added per flow on top of the useful payload. Range: integer >= 0.
-    flow_redundancy_extra_packets: 0
     # If true, run only the reduce-scatter ring and skip all-gather. Allowed values: true | false.
     single_ring_only: true
 

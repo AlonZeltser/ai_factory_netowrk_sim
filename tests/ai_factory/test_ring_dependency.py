@@ -35,7 +35,7 @@ def _op_prefix(tag: str) -> str:
 
 
 def test_ring_steps_launch_only_after_prerequisite_flow_completion() -> None:
-    participants = ["h0", "h1", "h2"]
+    participants = ["leaf0_srv0", "leaf0_srv1", "leaf1_srv0"]
     job = build_dp_heavy_workload_job(
         participants=participants,
         config=DPHeavyWorkloadConfig(
@@ -88,7 +88,7 @@ def test_ring_steps_launch_only_after_prerequisite_flow_completion() -> None:
 
 
 def test_all_gather_step_zero_waits_for_reduce_scatter_last_arrival() -> None:
-    participants = ["h0", "h1", "h2", "h3"]
+    participants = ["leaf0_srv0", "leaf0_srv1", "leaf1_srv0", "leaf1_srv1"]
     job = build_dp_heavy_workload_job(
         participants=participants,
         config=DPHeavyWorkloadConfig(
