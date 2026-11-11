@@ -14,7 +14,7 @@ DP_SMALL = "repo:tests/fixtures/dp_small.yaml"
 
 # Every experiment the repo ships (base fragments are only building blocks).
 REPO_CONFIGS = sorted(
-    str(path.relative_to(_REPO_ROOT).as_posix())
+    f"repo:{path.relative_to(_REPO_ROOT).as_posix()}"
     for path in [
         *(_REPO_ROOT / "experiments").glob("*.yaml"),
         _REPO_ROOT / "experiments" / "research_configurations" / "main_sweep.yaml",
