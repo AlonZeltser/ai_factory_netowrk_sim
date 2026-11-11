@@ -1043,6 +1043,17 @@ def visualize_sweep_time_comparison(
             "stem": "flow_time",
         },
         {
+            # Ring messages only: sender injection to last useful packet at the receiver.
+            # Summaries written before these keys existed have no values, so the plot is skipped.
+            "avg": "ring_flow_time_avg_ms",
+            "std": "ring_flow_time_std_ms",
+            "min": "ring_flow_time_min_ms",
+            "max": "ring_flow_time_max_ms",
+            "title": "Ring flow time vs impairment",
+            "ylabel": "Average ring flow time (ms)",
+            "stem": "ring_flow_time",
+        },
+        {
             "avg": "gradient_bucket_time_avg_ms",
             "std": "gradient_bucket_time_std_ms",
             "min": "gradient_bucket_time_min_ms",

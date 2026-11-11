@@ -223,6 +223,8 @@ def _run_sweep_input(item: SweepInput) -> dict[str, Any]:
     flow_stats = _duration_stats_ms(flow_durations_ms)
 
     training_job_stats = stats.get("ai_factory_training_job_stats") or {}
+    # Ring message times (sender injection to last useful packet at receiver); absent when no ring flows ran.
+    ring_flow_time_stats = stats.get("ai_factory_ring_flow_time_stats") or {}
     training_job_duration_ms = training_job_stats.get("training_job_duration_ms")
     training_job_time_stats = _duration_stats_ms([float(training_job_duration_ms)] if training_job_duration_ms is not None else [])
 
@@ -333,6 +335,10 @@ def _run_sweep_input(item: SweepInput) -> dict[str, Any]:
         "flow_time_std_ms": flow_stats["std"],
         "flow_time_min_ms": flow_stats["min"],
         "flow_time_max_ms": flow_stats["max"],
+        "ring_flow_time_avg_ms": ring_flow_time_stats.get("ring_flow_time_avg_ms"),
+        "ring_flow_time_std_ms": ring_flow_time_stats.get("ring_flow_time_std_ms"),
+        "ring_flow_time_min_ms": ring_flow_time_stats.get("ring_flow_time_min_ms"),
+        "ring_flow_time_max_ms": ring_flow_time_stats.get("ring_flow_time_max_ms"),
         "gradient_bucket_time_avg_ms": bucket_stats["avg"],
         "gradient_bucket_time_std_ms": bucket_stats["std"],
         "gradient_bucket_time_min_ms": bucket_stats["min"],

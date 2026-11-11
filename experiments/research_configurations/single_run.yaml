@@ -10,4 +10,5 @@ workload:
 topology:
   params:
     fabric:
-      packet_stall_percent: 0
+      packet_stall_percent: 0.01
+      packet_stall_delay_ms: 32.0

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from ai_factory.core.entities import FlowMetrics
 from sim.runners.sweep_executor import SweepInput, _build_flow_stall_stats, run_sweep_inputs
 from sim.config.loader import load_sweep_spec
@@ -16,6 +18,13 @@ def test_run_sweep_inputs_in_process() -> None:
 
     assert len(summary) == 1
     assert all(item["ok"] for item in summary)
+
+    row = summary[0]
+    assert 0.0 < row["ring_flow_time_min_ms"] <= row["ring_flow_time_avg_ms"] <= row["ring_flow_time_max_ms"]
+    assert row["ring_flow_time_std_ms"] >= 0.0
+    # dp_small uses the ring algorithm only, so every flow is a ring flow.
+    for stat in ("avg", "std", "min", "max"):
+        assert row[f"ring_flow_time_{stat}_ms"] == pytest.approx(row[f"flow_time_{stat}_ms"])
 
 
 

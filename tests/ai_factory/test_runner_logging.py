@@ -6,7 +6,8 @@ from ai_factory.core.entities import CommPhase, ComputePhase, GradientBucket, Tr
 from ai_factory.core.runner import FlowInjector, TrainingJobRunner
 from ai_factory.traffic.flow import Flow
 from des.des import DiscreteEventSimulator
-from sim.runners.experiment_runner import _log_results_summary
+from sim.config.loader import load_experiment_spec
+from sim.runners.experiment_runner import _log_experiment_parameters, _log_results_summary
 
 
 class _NoopInjector(FlowInjector):
@@ -104,22 +105,52 @@ def test_training_step_finished_log_includes_max_per_flow_drops_for_step_flows(c
     assert "max_per_flow_drops=7" in step_finished_lines[0]
 
 
-def test_results_summary_logs_packet_time_statistics(caplog) -> None:
+def test_results_summary_groups_network_and_ai_factory_statistics(caplog) -> None:
     results = {
-        "topology summary": {},
-        "parameters summary": {},
+        "topology summary": {"hosts count": 16},
+        "parameters summary": {"packet_stall_percent": 1.0},
         "run statistics": {
             "min packet time (s)": 0.125,
             "max packet time (s)": 1.5,
             "avg packet time (s)": 0.625,
+            "some new statistic": 3,
+            "packet_stall_triggered_count_by_flow_id": {1: 2},
+            "ai_factory_ring_flow_time_stats": {"ring_flow_count": 4, "ring_flow_time_avg_ms": 0.5},
         },
     }
 
     with caplog.at_level(logging.INFO):
         _log_results_summary(results)
 
-    packet_time_lines = [rec.getMessage() for rec in caplog.records if "Packet time statistics" in rec.getMessage()]
-    assert packet_time_lines
-    assert "min=0.125000" in packet_time_lines[0]
-    assert "max=1.500000" in packet_time_lines[0]
-    assert "avg=0.625000" in packet_time_lines[0]
+    messages = [rec.getMessage() for rec in caplog.records]
+    network = next(m for m in messages if m.startswith("Results - network summary:"))
+    ai_factory = next(m for m in messages if m.startswith("Results - AI-factory summary:"))
+
+    assert "  topology:\n    hosts count: 16" in network
+    assert (
+        "  packet time (s):\n"
+        "    avg packet time (s): 0.625\n"
+        "    min packet time (s): 0.125\n"
+        "    max packet time (s): 1.5"
+    ) in network
+    # Unlisted statistics are still logged; the per-flow stall map and the parameters are not.
+    assert "  other:\n    some new statistic: 3" in network
+    assert "packet_stall_triggered_count_by_flow_id" not in network
+    assert "packet_stall_percent" not in network + ai_factory
+    assert "  ring flow time (ms, sender injection to last useful packet at receiver):\n    ring_flow_count: 4" in ai_factory
+
+
+def test_experiment_parameters_are_logged_one_line_per_value_by_section(caplog) -> None:
+    spec = load_experiment_spec(config_path="repo:tests/fixtures/dp_small.yaml", overrides=[])
+
+    with caplog.at_level(logging.INFO):
+        _log_experiment_parameters(spec)
+
+    (message,) = [rec.getMessage() for rec in caplog.records]
+    lines = message.split("\n")
+    assert lines[0].startswith("Experiment parameters (config: ")
+    assert "  workload:" in lines
+    assert "    params:" in lines
+    assert "      flow_redundancy_extra_packets: 0" in lines
+    assert "        packet_stall_percent: 0.01" in lines  # topology.params.fabric
+    assert "  routing:" in lines

@@ -11,29 +11,94 @@ from ..registry.topologies import build_network
 from ..registry.workloads import build_scenario
 
 
+# Too large for the log (one entry per flow).
 _RUN_STATS_LOG_OMIT_KEYS = {"packet_stall_triggered_count_by_flow_id"}
+
+# Network-level run statistics, grouped for the end-of-run summary. Keys not listed here
+# still get logged, under "other" (or under the AI-factory summary for `ai_factory_*` keys).
+_NETWORK_STAT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("simulation", ("total run time (simulator time in seconds)",)),
+    (
+        "packets",
+        (
+            "total packets count",
+            "delivered packets count",
+            "delivered packets percentage",
+            "dropped packets count",
+            "dropped packets percentage",
+            "max per flow drops",
+            "hosts received counts",
+        ),
+    ),
+    ("packet time (s)", ("avg packet time (s)", "min packet time (s)", "max packet time (s)")),
+    ("route length (hops)", ("avg route length", "min route length", "max route length")),
+    (
+        "links",
+        (
+            "links min delivery time",
+            "links max delivery time",
+            "links average delivery time (2 directions)",
+            "link average utilization percentage",
+            "link_min_bytes_transmitted",
+            "link_max_bytes_transmitted",
+        ),
+    ),
+    ("queues", ("global_max_port_peak_queue_len (packets)", "avg_node_peak_egress_queue_len (packets)")),
+    ("packet stalls", ("packet_stall_marked_count", "packet_stall_triggered_count")),
+)
+
+# Titles for the AI-factory statistics blocks.
+_AI_FACTORY_STAT_TITLES = {
+    "ai_factory_training_job_stats": "training job",
+    "ai_factory_ring_flow_time_stats": "ring flow time (ms, sender injection to last useful packet at receiver)",
+}
+
+
+def _format_tree(value: dict[str, Any], indent: int = 1) -> list[str]:
+    """One line per leaf value; nested mappings become an indented title line."""
+    lines: list[str] = []
+    pad = "  " * indent
+    for key, item in value.items():
+        if isinstance(item, dict) and item:
+            lines.append(f"{pad}{key}:")
+            lines.extend(_format_tree(item, indent + 1))
+        else:
+            lines.append(f"{pad}{key}: {item}")
+    return lines
+
+
+def _log_block(title: str, tree: dict[str, Any]) -> None:
+    logging.info("%s:\n%s", title, "\n".join(_format_tree(tree)) if tree else "  (empty)")
+
+
+def _log_experiment_parameters(spec: ExperimentSpec) -> None:
+    """Log every resolved config value (after `extends`), grouped by config section."""
+    _log_block(f"Experiment parameters (config: {spec.source_config_path})", spec.to_mapping())
 
 
 def _log_results_summary(results: dict[str, Any]) -> None:
-    def _fmt_block(value: Any) -> str:
-        return "\n".join(f"\t{k}: {v}" for k, v in value.items()) if isinstance(value, dict) and value else "(empty)"
-
-    logging.info("Results summary - Topology:\n%s", _fmt_block(results.get("topology summary", {})))
-    logging.info("Results summary - Parameters:\n%s", _fmt_block(results.get("parameters summary", {})))
-    run_statistics = results.get("run statistics", {})
-    run_statistics_for_log = {
+    run_statistics = {
         key: value
-        for key, value in run_statistics.items()
+        for key, value in results.get("run statistics", {}).items()
         if key not in _RUN_STATS_LOG_OMIT_KEYS
-    } if isinstance(run_statistics, dict) else run_statistics
-    if isinstance(run_statistics_for_log, dict) and run_statistics_for_log:
-        logging.info("Results summary - Run statistics:\n%s", _fmt_block(run_statistics_for_log))
-        logging.info(
-            "Packet time statistics (seconds): min=%.6f max=%.6f avg=%.6f",
-            float(run_statistics_for_log.get("min packet time (s)", 0.0) or 0.0),
-            float(run_statistics_for_log.get("max packet time (s)", 0.0) or 0.0),
-            float(run_statistics_for_log.get("avg packet time (s)", 0.0) or 0.0),
-        )
+    }
+
+    network: dict[str, Any] = {"topology": dict(results.get("topology summary", {}))}
+    for group, keys in _NETWORK_STAT_GROUPS:
+        block = {key: run_statistics.pop(key) for key in keys if key in run_statistics}
+        if block:
+            network[group] = block
+
+    ai_factory: dict[str, Any] = {}
+    for key in [k for k in run_statistics if k.startswith("ai_factory_")]:
+        ai_factory[_AI_FACTORY_STAT_TITLES.get(key, key)] = run_statistics.pop(key)
+
+    if run_statistics:
+        network["other"] = run_statistics
+
+    _log_block("Results - network summary", network)
+    if ai_factory:
+        _log_block("Results - AI-factory summary", ai_factory)
 
 
 def validate_experiment(spec: ExperimentSpec) -> dict[str, str]:
@@ -65,6 +130,7 @@ def run_experiment(spec: ExperimentSpec) -> dict[str, Any]:
     )
     logging.info("Logging to console and file: %s", logfile_path)
     logging.info("Resolved experiment: %s", spec.display_name)
+    _log_experiment_parameters(spec)
 
     network = build_network(spec)
     network.entities["deep_flow_chain_log"] = bool(spec.run.deep_flow_chain_log)

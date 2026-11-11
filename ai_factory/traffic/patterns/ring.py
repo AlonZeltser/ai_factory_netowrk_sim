@@ -100,7 +100,7 @@ def expand_ring_neighbor_sends(
     if write_to_log:
         logger.info("chunks:")
         logger.info(chunk_per_step)
-        logger.info(f"[{op_tag}] Ring order (job_id={job_id}, step_id={step_id}, bucket_id={bucket_id}): {' → '.join(ring.participants)} → {ring.participants[0]}")
+        logger.info(f"[{op_tag}] Ring order (job_id={job_id}, step_id={step_id}, bucket_id={bucket_id}): {' -> '.join(ring.participants)} -> {ring.participants[0]}")
 
     flows: list[Flow] = []
     for s in range(steps):
@@ -126,7 +126,7 @@ def expand_ring_neighbor_sends(
                     metadata={"ring_step": s, "participants": p},
                 )
             )
-            step_sends.append(f"{sender}→{receiver}")
+            step_sends.append(f"{sender}->{receiver}")
         # Log each step's send pattern
         #logger.info(f"[{op_tag}] Step {s}: {', '.join(step_sends)}")
 

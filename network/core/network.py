@@ -261,6 +261,24 @@ class Network(ABC):
             # Never break results collection because of optional AI-factory metrics.
             pass
 
+        # --- Ring message (flow) times: from injection at the sender until the last
+        # useful packet reaches the receiver. Only ring flows (tag ".../ring_step_<s>").
+        ring_flow_times_ms = [
+            (float(m.end_time) - float(m.start_time)) * 1000.0
+            for m in self.entities.get("ai_factory_flow_metrics", [])
+            if "/ring_step_" in m.tag
+        ]
+        if ring_flow_times_ms:
+            avg_ms = sum(ring_flow_times_ms) / len(ring_flow_times_ms)
+            var_ms = sum((t - avg_ms) ** 2 for t in ring_flow_times_ms) / len(ring_flow_times_ms)
+            run_statistics["ai_factory_ring_flow_time_stats"] = {
+                "ring_flow_count": len(ring_flow_times_ms),
+                "ring_flow_time_avg_ms": avg_ms,
+                "ring_flow_time_std_ms": var_ms ** 0.5,
+                "ring_flow_time_min_ms": min(ring_flow_times_ms),
+                "ring_flow_time_max_ms": max(ring_flow_times_ms),
+            }
+
         # Collect packet timeline data for visualization (birth_time, size_bytes)
         # Only available when store_packets=True on the simulator
         packet_timeline = []
