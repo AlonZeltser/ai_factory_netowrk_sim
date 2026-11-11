@@ -2,7 +2,7 @@ extends:
   - ../base/ai_workload-default.yaml
 ai_workload:
   # Number of training steps to simulate. Range: integer >= 1.
-  steps: 30
+  steps: 2
   # Number of gradient buckets synchronized per step. Range: integer >= 1.
   num_buckets: 1
   # Useful bytes contributed by each participant to each bucket before optional redundancy. Range: integer >= 1.
