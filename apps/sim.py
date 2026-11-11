@@ -28,6 +28,7 @@ from sim.registry.topologies import build_network
 from sim.runners.sweep_executor import write_sweep_summary
 from sim.runners.deep_flow_log import write_sweep_deep_flow_logs
 from sim.runners.experiment_runner import run_experiment, validate_experiment
+from sim.runners.gantt_export import check_gantt_export_ready, export_gantt_pdfs
 from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 from visualization.experiment_visualizer import (
     visualize_summary_training_step_traffic_matrices,
@@ -36,7 +37,7 @@ from visualization.experiment_visualizer import (
 )
 
 
-_CONSOLE_SUMMARY_OMIT_KEYS = {"packet_stall_triggered_count_by_flow_id"}
+_CONSOLE_SUMMARY_OMIT_KEYS = {"packet_stall_triggered_count_by_flow_id", "deep_flow_chain_diagnostics"}
 
 
 def _sanitize_for_console(value):
@@ -107,6 +108,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         print(f"Sweep plan: {sweep.combination_count()} combinations")
         for key, values in sweep.vary:
             print(f"  {key}: {list(values)}")
+        _check_gantt_settings(args.config, sweep)
     return 0
 
 
@@ -115,6 +117,16 @@ def _require_sweep_spec(config_path: str) -> SweepSpec:
     if sweep is None:
         raise ConfigError(f"Config has no 'sweep' section: {config_path}")
     return sweep
+
+
+def _check_gantt_settings(config_path: str, sweep: SweepSpec) -> None:
+    """sweep.gantt_pdfs draws from the chain logs, so every run must write them."""
+    if not sweep.gantt_pdfs:
+        return
+    for item in build_sweep_inputs(config_path=config_path, sweep=sweep):
+        spec = load_experiment_spec(config_path=item.config_path, overrides=list(item.overrides))
+        if not spec.run.deep_flow_chain_log:
+            raise ConfigError(f"sweep.gantt_pdfs needs deep_flow_chain_log: true (run {item.label!r} has false)")
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
@@ -130,6 +142,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
 def _cmd_sweep(args: argparse.Namespace) -> int:
     sweep = _require_sweep_spec(args.config)
+    _check_gantt_settings(args.config, sweep)
+    if sweep.gantt_pdfs:
+        check_gantt_export_ready()
     if sweep.plot_topology_once:
         first_input = build_sweep_inputs(config_path=args.config, sweep=sweep)[0]
         topo_spec = load_experiment_spec(
@@ -147,6 +162,14 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
     deep_log_paths = write_sweep_deep_flow_logs(summary, out_dir=str(sweep_out_dir / "deep_flow_chain_logs"))
     for path in deep_log_paths:
         print(f"Wrote deep flow chain log to {path}")
+    if sweep.gantt_pdfs:
+        gantt_paths = export_gantt_pdfs(
+            summary,
+            sweep=sweep,
+            chain_log_root=sweep_out_dir / "deep_flow_chain_logs",
+            out_dir=sweep_out_dir / "gantt_pdfs",
+        )
+        print(f"Wrote {len(gantt_paths)} Gantt PDFs to {sweep_out_dir / 'gantt_pdfs'}")
     if sweep.visualize_summary or sweep.plot_ring_heatmaps:
         out_dir = str(sweep_out_dir)
         paths: list[str] = []

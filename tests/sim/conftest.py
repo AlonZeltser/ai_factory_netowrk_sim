@@ -29,6 +29,9 @@ def write_sweep_config(tmp_path: Path) -> Callable[..., str]:
             "processes": "auto",
             "plot_topology_once": False,
             "show_visualization_window": False,
+            "gantt_pdfs": False,
+            "gantt_chain_limit": 40,
+            "gantt_compare": {},
         }
         sweep.update(settings)
         for key in drop:

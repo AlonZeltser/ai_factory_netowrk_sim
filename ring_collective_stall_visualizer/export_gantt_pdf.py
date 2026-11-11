@@ -15,7 +15,7 @@ from ringviz.parser import parse_log_text
 from ringviz.plots import make_gantt, make_gantt_comparison
 
 
-def _load_log(path: Path) -> pd.DataFrame:
+def load_log(path: Path) -> pd.DataFrame:
     text = path.read_text(encoding="utf-8", errors="replace")
     return parse_log_text(text)
 
@@ -92,6 +92,24 @@ def _build_export_figure(fig: go.Figure) -> tuple[go.Figure, int, int]:
     return export_fig, export_width, export_height
 
 
+def build_gantt_export_figure(
+    frames: list[pd.DataFrame],
+    *,
+    color_by: str,
+    chain_limit: int,
+    labels: list[str] | None = None,
+    title: str | None = None,
+) -> tuple[go.Figure, int, int]:
+    """The PDF-sized Gantt figure of one log, or of up to four logs side by side; returns (figure, width, height)."""
+    if len(frames) == 1:
+        fig = make_gantt(frames[0], color_by=color_by, chain_limit=chain_limit)
+    else:
+        fig = make_gantt_comparison(frames, labels=labels, color_by=color_by, chain_limit=chain_limit)
+    if title:
+        fig.update_layout(title_text=title)
+    return _build_export_figure(fig)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Export ring-collective Gantt directly to PDF (no Streamlit UI).")
     parser.add_argument("logs", nargs="+", help="One to four input .log/.txt files")
@@ -129,7 +147,7 @@ def main(argv: list[str]) -> int:
     for p in input_paths:
         if not p.exists():
             raise FileNotFoundError(f"Input log not found: {p}")
-        df = _load_log(p)
+        df = load_log(p)
         if df.empty:
             raise ValueError(f"No flow records parsed from: {p}")
         filtered = _apply_filters(df, args.filter)
@@ -137,18 +155,10 @@ def main(argv: list[str]) -> int:
             raise ValueError(f"All rows filtered out for: {p}")
         frames.append(filtered)
 
-    if len(frames) == 1:
-        fig = make_gantt(frames[0], color_by=args.color_by, chain_limit=args.chain_limit)
-    else:
-        labels = [part.strip() for part in args.labels.split(",") if part.strip()] if args.labels else None
-        fig = make_gantt_comparison(
-            frames,
-            labels=labels,
-            color_by=args.color_by,
-            chain_limit=args.chain_limit,
-        )
-
-    export_fig, export_width, export_height = _build_export_figure(fig)
+    labels = [part.strip() for part in args.labels.split(",") if part.strip()] if args.labels else None
+    export_fig, export_width, export_height = build_gantt_export_figure(
+        frames, color_by=args.color_by, chain_limit=args.chain_limit, labels=labels
+    )
 
     out_path = Path(args.out).expanduser().resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)

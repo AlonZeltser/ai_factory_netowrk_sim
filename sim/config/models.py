@@ -250,7 +250,12 @@ _SWEEP_KEYS = (
     "processes",
     "plot_topology_once",
     "show_visualization_window",
+    "gantt_pdfs",
+    "gantt_chain_limit",
+    "gantt_compare",
 )
+# Most logs one Gantt comparison page can show side by side (the visualizer's limit).
+GANTT_MAX_PANELS = 4
 _SCALAR_TYPES = (str, int, float, bool)
 # `sweep.processes: auto` picks a worker count that balances the runs across the CPUs.
 SWEEP_PROCESSES_AUTO = "auto"
@@ -273,6 +278,27 @@ def _require_processes(data: dict[str, Any]) -> int | None:
     return value
 
 
+def _require_gantt_compare(
+    data: dict[str, Any], vary: tuple[tuple[str, tuple[Any, ...]], ...]
+) -> tuple[str, tuple[Any, ...]] | None:
+    """Return (vary key, values to put side by side), or None for `{}`."""
+    compare = _require_mapping(_require_key(data, "gantt_compare", "sweep"), "sweep.gantt_compare")
+    if not compare:
+        return None
+    if len(compare) != 1:
+        raise ConfigError(f"'sweep.gantt_compare' takes one vary key, got {', '.join(map(str, compare))}")
+    key, values = next(iter(compare.items()))
+    vary_values = dict(vary).get(key)
+    if vary_values is None:
+        raise ConfigError(f"'sweep.gantt_compare' key {key!r} must be one of the 'sweep.vary' keys")
+    if not isinstance(values, list) or not 2 <= len(values) <= GANTT_MAX_PANELS:
+        raise ConfigError(f"'sweep.gantt_compare.{key}' must list 2 to {GANTT_MAX_PANELS} values, got {values!r}")
+    missing = [v for v in values if v not in vary_values]
+    if missing:
+        raise ConfigError(f"'sweep.gantt_compare.{key}' values {missing!r} are not in 'sweep.vary.{key}'")
+    return key, tuple(values)
+
+
 @dataclass(frozen=True)
 class SweepSpec:
     """The `sweep:` section of an experiment file, the only interface for a sweep.
@@ -292,6 +318,11 @@ class SweepSpec:
     max_processes: int | None
     plot_topology_once: bool
     show_visualization_window: bool
+    # Gantt PDFs of sample training steps (first, middle, slowest) of every run, made without the web app.
+    gantt_pdfs: bool
+    gantt_chain_limit: int
+    # (vary key, values): also put the runs that differ only in this key side by side. None = no comparisons.
+    gantt_compare: tuple[str, tuple[Any, ...]] | None
 
     @staticmethod
     def from_mapping(value: Any) -> "SweepSpec":
@@ -316,6 +347,10 @@ class SweepSpec:
         if not 0.0 <= lower_zoom_percent <= 100.0:
             raise ConfigError(f"'sweep.lower_zoom_percent' must be between 0 and 100, got {lower_zoom_percent!r}")
 
+        gantt_chain_limit = _require_key(data, "gantt_chain_limit", "sweep")
+        if isinstance(gantt_chain_limit, bool) or not isinstance(gantt_chain_limit, int) or gantt_chain_limit < 1:
+            raise ConfigError(f"'sweep.gantt_chain_limit' must be an integer >= 1, got {gantt_chain_limit!r}")
+
         return SweepSpec(
             vary=tuple(vary),
             summary_out=_require_str(data, "summary_out", "sweep", allow_empty=False),
@@ -326,6 +361,9 @@ class SweepSpec:
             max_processes=_require_processes(data),
             plot_topology_once=bool(_require_key(data, "plot_topology_once", "sweep")),
             show_visualization_window=bool(_require_key(data, "show_visualization_window", "sweep")),
+            gantt_pdfs=bool(_require_key(data, "gantt_pdfs", "sweep")),
+            gantt_chain_limit=gantt_chain_limit,
+            gantt_compare=_require_gantt_compare(data, tuple(vary)),
         )
 
     def combination_count(self) -> int:

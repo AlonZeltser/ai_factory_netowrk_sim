@@ -23,6 +23,9 @@ _SWEEP_SETTING_KEYS = (
     "processes",
     "plot_topology_once",
     "show_visualization_window",
+    "gantt_pdfs",
+    "gantt_chain_limit",
+    "gantt_compare",
 )
 
 

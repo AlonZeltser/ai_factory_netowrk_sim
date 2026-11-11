@@ -17,3 +17,7 @@ sweep:
   processes: auto                               # worker processes: an integer, or auto (balanced across CPUs)
   plot_topology_once: false                     # draw the topology of the first combination before running
   show_visualization_window: false              # open the plots in a window as well as saving them
+  gantt_pdfs: true                              # visualizer Gantt PDFs of the first, middle and slowest step of each run (needs deep_flow_chain_log: true)
+  gantt_chain_limit: 40                         # most ring chains drawn in one Gantt
+  gantt_compare:                                # also put runs that differ only in this vary key side by side (2 to 4 values; {} = none)
+    ai_workload.flow_redundancy_extra_packets: [0, 2, 8, 16]

@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 
 from sim.config.loader import load_experiment_spec
+from sim.runners.deep_flow_log import keep_sampled_steps, sample_chain_log_steps
 from sim.runners.experiment_runner import run_experiment
 
 _log = logging.getLogger(__name__)
@@ -169,6 +170,8 @@ class SweepInput:
     label: str
     config_path: str
     overrides: tuple[str, ...]
+    # Keep the chain-log records of the sample steps only (first, middle, slowest), for the Gantt PDFs.
+    sample_chain_log_steps: bool = False
 
 
 def _run_sweep_input(item: SweepInput) -> dict[str, Any]:
@@ -193,7 +196,12 @@ def _run_sweep_input(item: SweepInput) -> dict[str, Any]:
     params = results.get("parameters summary", {})
     bucket_metrics = results.get("ai_factory_gradient_bucket_metrics", [])
     flow_metrics = results.get("ai_factory_flow_metrics", [])
-    flow_chain_diagnostics = results.get("ai_factory_flow_chain_diagnostics", [])
+    flow_chain_diagnostics = results.get("ai_factory_flow_chain_diagnostics", []) if spec.run.deep_flow_chain_log else []
+    chain_log_samples: list[dict[str, Any]] = []
+    if item.sample_chain_log_steps and flow_chain_diagnostics:
+        # Sample here, in the worker, so the full records of every step never travel back to the main process.
+        chain_log_samples = sample_chain_log_steps(flow_chain_diagnostics)
+        flow_chain_diagnostics = keep_sampled_steps(flow_chain_diagnostics, chain_log_samples)
 
     bucket_durations_ms = [
         (float(getattr(m, "end_time", 0.0)) - float(getattr(m, "start_time", 0.0))) * 1000.0
@@ -374,7 +382,8 @@ def _run_sweep_input(item: SweepInput) -> dict[str, Any]:
         "sim_time_s": stats.get("total run time (simulator time in seconds)"),
         "training_step_traffic_matrices": _build_training_step_traffic_matrices(flow_metrics),
         "deep_flow_chain_log_enabled": bool(spec.run.deep_flow_chain_log),
-        "deep_flow_chain_diagnostics": flow_chain_diagnostics if spec.run.deep_flow_chain_log else [],
+        "deep_flow_chain_diagnostics": flow_chain_diagnostics,
+        "deep_flow_chain_sample_steps": chain_log_samples,
     }
 
 
@@ -448,9 +457,17 @@ def run_sweep_inputs(
     return summary
 
 
+# Raw per-flow records; the chain logs hold the same data, so the summary file leaves them out.
+_SUMMARY_FILE_OMIT_KEYS = ("deep_flow_chain_diagnostics",)
+
+
 def write_sweep_summary(summary: list[dict[str, Any]], output_path: str) -> Path:
     # The loader already resolved `sweep.summary_out` to an absolute path.
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(summary, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    rows = [
+        {key: value for key, value in row.items() if key not in _SUMMARY_FILE_OMIT_KEYS} if isinstance(row, dict) else row
+        for row in summary
+    ]
+    path.write_text(yaml.safe_dump(rows, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return path

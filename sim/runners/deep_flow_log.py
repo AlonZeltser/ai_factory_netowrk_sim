@@ -124,6 +124,69 @@ def _write_step_file(path: Path, records: list[dict[str, Any]]) -> None:
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+# Which training steps of each run get a Gantt PDF, in this order.
+SAMPLE_KINDS = ("first", "middle", "slowest")
+
+
+def _record_job_step(record: Any) -> tuple[int, int] | None:
+    if not isinstance(record, dict):
+        return None
+    try:
+        step_id = int(record.get("step_id"))
+        job_id = int(record.get("job_id", 0) or 0)
+    except (TypeError, ValueError):
+        return None
+    return (job_id, step_id) if step_id >= 0 else None
+
+
+def sample_chain_log_steps(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Pick the first, middle and slowest training step of each job.
+
+    "Slowest" is the step whose ring flows span the longest time (first flow start to
+    last flow end). Returns one entry per picked step: {"job_id", "step_id", "kinds"},
+    where `kinds` lists every sample kind that step was picked as.
+    """
+    span: dict[tuple[int, int], list[float]] = {}
+    for record in records:
+        job_step = _record_job_step(record)
+        if job_step is None:
+            continue
+        try:
+            start, end = float(record["sim_start_time"]), float(record["sim_end_time"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        bounds = span.setdefault(job_step, [start, end])
+        bounds[0], bounds[1] = min(bounds[0], start), max(bounds[1], end)
+
+    samples: list[dict[str, Any]] = []
+    for job_id in sorted({job for job, _ in span}):
+        steps = sorted(step for job, step in span if job == job_id)
+        picked = {
+            "first": steps[0],
+            "middle": steps[len(steps) // 2],
+            # Ties go to the earliest step.
+            "slowest": max(steps, key=lambda step: (span[(job_id, step)][1] - span[(job_id, step)][0], -step)),
+        }
+        for step_id in sorted(set(picked.values())):
+            kinds = [kind for kind in SAMPLE_KINDS if picked[kind] == step_id]
+            samples.append({"job_id": job_id, "step_id": step_id, "kinds": kinds})
+    return samples
+
+
+def keep_sampled_steps(records: list[dict[str, Any]], samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    keep = {(sample["job_id"], sample["step_id"]) for sample in samples}
+    return [record for record in records if _record_job_step(record) in keep]
+
+
+def run_chain_log_dir(root: Path, run_label: str) -> Path:
+    return root / (label_slug(run_label) or "run")
+
+
+def chain_log_path(root: Path, run_label: str, job_id: int, step_id: int) -> Path:
+    """Where write_sweep_deep_flow_logs puts the chain log of one run step."""
+    return run_chain_log_dir(root, run_label) / f"job_{job_id}_step_{step_id}.txt"
+
+
 def write_sweep_deep_flow_logs(summary: list[dict[str, Any]], *, out_dir: str) -> list[Path]:
     root = Path(out_dir)
     root.mkdir(parents=True, exist_ok=True)
@@ -140,27 +203,16 @@ def write_sweep_deep_flow_logs(summary: list[dict[str, Any]], *, out_dir: str) -
             continue
 
         run_label = str(row.get("label") or "run")
-        run_dir = root / (label_slug(run_label) or "run")
-        run_dir.mkdir(parents=True, exist_ok=True)
+        run_chain_log_dir(root, run_label).mkdir(parents=True, exist_ok=True)
 
         by_step: dict[tuple[int, int], list[dict[str, Any]]] = {}
         for record in raw_records:
-            if not isinstance(record, dict):
-                continue
-            try:
-                step_id = int(record.get("step_id"))
-            except (TypeError, ValueError):
-                continue
-            if step_id < 0:
-                continue
-            try:
-                job_id = int(record.get("job_id", 0) or 0)
-            except (TypeError, ValueError):
-                job_id = 0
-            by_step.setdefault((job_id, step_id), []).append(record)
+            job_step = _record_job_step(record)
+            if job_step is not None:
+                by_step.setdefault(job_step, []).append(record)
 
         for (job_id, step_id), records in sorted(by_step.items()):
-            step_path = run_dir / f"job_{job_id}_step_{step_id}.txt"
+            step_path = chain_log_path(root, run_label, job_id, step_id)
             _write_step_file(step_path, records)
             written.append(step_path)
 

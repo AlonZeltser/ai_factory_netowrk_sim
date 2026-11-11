@@ -3,3 +3,5 @@ extends:
 # Seed for the global random generator (packet stalls, routing tie-breaks). Range: integer, or null.
 # null leaves the generator unseeded, so repeated runs give different results.
 seed: 42
+# Enable per-step deep flow chain textual logs for sweep analysis. Allowed values: true | false.
+deep_flow_chain_log: true
