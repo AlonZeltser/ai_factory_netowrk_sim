@@ -31,7 +31,8 @@ class FiveTupleExt:
         object.__setattr__(self, 'src_ip_int', IPAddress.parse(self.src_ip).to_int())
         object.__setattr__(self, 'dst_ip_int', IPAddress.parse(self.dst_ip).to_int())
         # Cache hash once; __hash__ should be stable and fast.
-        object.__setattr__(self, '_hash', xxhash.xxh64(str(self)).intdigest())
+        # Encode explicitly: newer xxhash versions reject str (same hash value as before).
+        object.__setattr__(self, '_hash', xxhash.xxh64(str(self).encode("utf-8")).intdigest())
 
     def __str__(self) -> str:
         return (f"{self.src_ip}:{self.src_protocol_port} -> "
