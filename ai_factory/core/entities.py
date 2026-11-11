@@ -33,7 +33,7 @@ BUCKET_SCHEDULING_MODES = ("concurrent", "serialized")
 @dataclass(frozen=True)
 class CommPhase(Phase):
     buckets: list[GradientBucket]
-    # From workload.params.bucket_scheduling.
+    # From ai_workload.bucket_scheduling.
     bucket_scheduling: str
 
 

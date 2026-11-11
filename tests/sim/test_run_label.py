@@ -14,8 +14,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 LONG_LABEL = (
     "C:/Users/someone/AppData/Local/Temp/a-very-long-scratch-directory-name-that-goes-on/"
     "and-on-3f98e8d5-84a9-4182-a482-099c6e85d08c/scratchpad/smoke/tiny_sweep.yaml"
-    " | topology.params.fabric.packet_stall_percent=0.0"
-    " | workload.params.flow_redundancy_extra_packets=0"
+    " | stall_regime.packet_stall_percent=0.0"
+    " | ai_workload.flow_redundancy_extra_packets=0"
 )
 
 
@@ -29,7 +29,7 @@ def test_long_label_is_shortened_but_keeps_file_name_values_and_stays_unique() -
     slug = label_slug(LONG_LABEL)
 
     assert len(slug) <= MAX_LABEL_SLUG_LEN
-    assert slug.startswith("tiny_sweep.yaml_topology.params.fabric.packet_stall_percent_0.0")
+    assert slug.startswith("tiny_sweep.yaml_stall_regime.packet_stall_percent_0.0")
     assert label_slug(LONG_LABEL) == slug
     assert label_slug(LONG_LABEL.replace("percent=0.0", "percent=1.0")) != slug
 
@@ -59,7 +59,7 @@ def test_build_topology_viz_writes_to_the_requested_output(tmp_path: Path, monke
         yaml.safe_dump(
             {
                 "extends": (_REPO_ROOT / "tests" / "fixtures" / "dp_small.yaml").as_posix(),
-                "topology": {"params": {"leaf_count": 2, "spine_count": 2, "fabric": {"servers_per_leaf": 2}}},
+                "topology": {"leaf_count": 2, "spine_count": 2, "servers_per_leaf": 2},
             }
         ),
         encoding="utf-8",

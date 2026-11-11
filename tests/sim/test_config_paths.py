@@ -45,11 +45,11 @@ def test_yaml_paths_are_relative_to_the_file_that_contains_them(tmp_path: Path, 
     # Two levels of extends: each file's own relative paths resolve against its own directory.
     _write(
         tmp_path / "base" / "paths.yaml",
-        {"extends": (_FIXTURES / "dp_small.yaml").as_posix(), "run": {"log_dir": "logs"}},
+        {"extends": (_FIXTURES / "dp_small.yaml").as_posix(), "log_dir": "logs"},
     )
     top = _write(
         tmp_path / "exp" / "top.yaml",
-        {"extends": "../base/paths.yaml", "run": {"results_dir": "out"}},
+        {"extends": "../base/paths.yaml", "results_dir": "out"},
     )
 
     monkeypatch.chdir(_REPO_ROOT)
@@ -62,7 +62,7 @@ def test_yaml_paths_are_relative_to_the_file_that_contains_them(tmp_path: Path, 
 def test_override_path_is_relative_to_the_top_level_config(tmp_path: Path) -> None:
     top = _write(tmp_path / "exp" / "top.yaml", {"extends": (_FIXTURES / "dp_small.yaml").as_posix()})
 
-    spec = load_experiment_spec(config_path=str(top), overrides=["run.results_dir=out", "run.log_dir=repo:results/x"])
+    spec = load_experiment_spec(config_path=str(top), overrides=["results_dir=out", "log_dir=repo:results/x"])
 
     assert Path(spec.run.results_dir) == (tmp_path / "exp" / "out").resolve()
     assert Path(spec.run.log_dir) == _REPO_ROOT / "results" / "x"

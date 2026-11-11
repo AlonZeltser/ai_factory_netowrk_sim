@@ -1,35 +1,24 @@
-# Unified experiment config kind. Allowed values: `experiment` only.
-kind: experiment
-meta:
-  # Human-readable description inherited by experiments that do not override it.
-  description: Base defaults for AI workloads on the two-layer clos AI scale-unit fabric
-run:
-  # Seed for the global random generator (packet stalls, routing tie-breaks). Range: integer, or null.
-  # null leaves the generator unseeded, so repeated runs give different results.
-  seed: null
-  # Whether to log DEBUG-level details to the run log file. Allowed values: true | false.
-  file_debug: false
-  # Whether to emit verbose packet/logging messages during the run. Allowed values: true | false.
-  message_verbose: false
-  # Whether to track and log verbose per-packet routes. Allowed values: true | false.
-  verbose_route: false
-  # Whether to launch visualization after the run completes. Allowed values: true | false.
-  visualize: false
-  # Whether to open matplotlib windows interactively in addition to saving files. Allowed values: true | false.
-  show_visualization_window: false
-  # Whether to store individual packet objects in memory during the run. Allowed values: true | false.
-  store_packets: false
-  # Whether to collect a per-packet timeline for post-run analysis; requires store_packets: true. Allowed values: true | false.
-  collect_packet_timeline: false
-  # Enable per-step deep flow chain textual logs for sweep analysis. Allowed values: true | false.
-  deep_flow_chain_log: false
-  # Directory for per-run log files. Relative paths are relative to this file; `repo:` anchors at the repo root.
-  log_dir: repo:results/logs
-  # Directory for experiment result artefacts. Relative paths are relative to this file; `repo:` anchors at the repo root.
-  results_dir: repo:results
-routing:
-  # Routing strategy. Allowed values: `ecmp` | `adaptive` | `flowlet`.
-  mode: adaptive
-  # Flowlet rehash period in packets. Range: integer >= 0. Used only by `flowlet` / flowlet-style ECMP.
-  ecmp_flowlet_n_packets: 0
-
+# Run settings shared by all experiments. These are top-level keys (no `run:` section).
+# Seed for the global random generator (packet stalls, routing tie-breaks). Range: integer, or null.
+# null leaves the generator unseeded, so repeated runs give different results.
+seed: null
+# Whether to log DEBUG-level details to the run log file. Allowed values: true | false.
+file_debug: false
+# Whether to emit verbose packet/logging messages during the run. Allowed values: true | false.
+message_verbose: false
+# Whether to track and log verbose per-packet routes. Allowed values: true | false.
+verbose_route: false
+# Whether to launch visualization after the run completes. Allowed values: true | false.
+visualize: false
+# Whether to open matplotlib windows interactively in addition to saving files. Allowed values: true | false.
+show_visualization_window: false
+# Whether to store individual packet objects in memory during the run. Allowed values: true | false.
+store_packets: false
+# Whether to collect a per-packet timeline for post-run analysis; requires store_packets: true. Allowed values: true | false.
+collect_packet_timeline: false
+# Enable per-step deep flow chain textual logs for sweep analysis. Allowed values: true | false.
+deep_flow_chain_log: false
+# Directory for per-run log files. Relative paths are relative to this file; `repo:` anchors at the repo root.
+log_dir: repo:results/logs
+# Directory for experiment result artefacts. Relative paths are relative to this file; `repo:` anchors at the repo root.
+results_dir: repo:results

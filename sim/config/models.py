@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, fields
 from typing import Any, Mapping
 
 
@@ -14,9 +14,14 @@ def _require_mapping(value: Any, path: str) -> dict[str, Any]:
     return dict(value)
 
 
+def _key_path(section: str, key: str) -> str:
+    # Top-level keys (section "/") are named without a prefix.
+    return key if section == "/" else f"{section}.{key}"
+
+
 def _require_key(data: dict[str, Any], key: str, section: str) -> Any:
     if key not in data:
-        raise ConfigError(f"Missing required key '{section}.{key}'")
+        raise ConfigError(f"Missing required key '{_key_path(section, key)}'")
     return data[key]
 
 
@@ -29,9 +34,40 @@ def reject_unknown_keys(data: Mapping[str, Any], allowed: tuple[str, ...], secti
         )
 
 
-# Keys each section accepts.
-_EXPERIMENT_KEYS = ("kind", "meta", "run", "topology", "routing", "workload")
-_META_KEYS = ("name", "description")
+def _require_section(data: dict[str, Any], key: str) -> dict[str, Any]:
+    if key not in data:
+        raise ConfigError(f"Missing required section '{key}'")
+    return _require_mapping(data[key], key)
+
+
+def _require_str(data: dict[str, Any], key: str, section: str, *, allow_empty: bool) -> str:
+    value = _require_key(data, key, section)
+    if not isinstance(value, str):
+        raise ConfigError(f"'{_key_path(section, key)}' must be a string, got {value!r}")
+    if not allow_empty and not value.strip():
+        raise ConfigError(f"'{_key_path(section, key)}' must not be empty")
+    return value
+
+
+# Converters for the field types of the plain config sections below.
+_CONVERTERS = {"int": int, "float": float, "bool": bool, "str": str}
+
+
+def _parse_fields(cls: type, data: dict[str, Any], section: str) -> dict[str, Any]:
+    """Read every field of dataclass `cls` from `data`; all keys are required and no others are allowed."""
+    names = tuple(f.name for f in fields(cls))
+    reject_unknown_keys(data, names, section)
+    values: dict[str, Any] = {}
+    for f in fields(cls):
+        raw = _require_key(data, f.name, section)
+        try:
+            values[f.name] = _CONVERTERS[f.type](raw)
+        except (TypeError, ValueError):
+            raise ConfigError(f"'{_key_path(section, f.name)}' must be {f.type}, got {raw!r}") from None
+    return values
+
+
+# Top-level keys that hold run settings (the config has no `run:` section).
 _RUN_KEYS = (
     "seed",
     "file_debug",
@@ -45,45 +81,8 @@ _RUN_KEYS = (
     "log_dir",
     "results_dir",
 )
-_ROUTING_KEYS = ("mode", "ecmp_flowlet_n_packets")
-_TOPOLOGY_KEYS = ("family", "params")
-_WORKLOAD_KEYS = ("kind", "params")
-
-
-def _require_section(data: dict[str, Any], key: str) -> dict[str, Any]:
-    if key not in data:
-        raise ConfigError(f"Missing required section '{key}'")
-    return _require_mapping(data[key], key)
-
-
-def _require_str(data: dict[str, Any], key: str, section: str, *, allow_empty: bool) -> str:
-    value = _require_key(data, key, section)
-    if not isinstance(value, str):
-        raise ConfigError(f"'{section}.{key}' must be a string, got {value!r}")
-    if not allow_empty and not value.strip():
-        raise ConfigError(f"'{section}.{key}' must not be empty")
-    return value
-
-
-def _require_params(data: dict[str, Any], section: str) -> dict[str, Any]:
-    return _require_mapping(_require_key(data, "params", section), f"{section}.params")
-
-
-@dataclass(frozen=True)
-class MetaSpec:
-    name: str
-    description: str
-
-    @staticmethod
-    def from_mapping(data: dict[str, Any]) -> "MetaSpec":
-        reject_unknown_keys(data, _META_KEYS, "meta")
-        return MetaSpec(
-            name=_require_str(data, "name", "meta", allow_empty=False),
-            description=_require_str(data, "description", "meta", allow_empty=True),
-        )
-
-    def to_mapping(self) -> dict[str, Any]:
-        return {"name": self.name, "description": self.description}
+_SECTION_KEYS = ("topology", "routing", "stall_regime", "ai_workload")
+_EXPERIMENT_KEYS = ("name", *_RUN_KEYS, *_SECTION_KEYS)
 
 
 @dataclass(frozen=True)
@@ -103,137 +102,141 @@ class RunSpec:
 
     @staticmethod
     def from_mapping(data: dict[str, Any]) -> "RunSpec":
-        reject_unknown_keys(data, _RUN_KEYS, "run")
-        seed = _require_key(data, "seed", "run")
+        """Read the run settings from the top level of the config."""
+        seed = _require_key(data, "seed", "/")
         if seed is not None and (isinstance(seed, bool) or not isinstance(seed, int)):
-            raise ConfigError(f"'run.seed' must be an integer or null, got {seed!r}")
-        store_packets = bool(_require_key(data, "store_packets", "run"))
-        collect_packet_timeline = bool(_require_key(data, "collect_packet_timeline", "run"))
+            raise ConfigError(f"'seed' must be an integer or null, got {seed!r}")
+        store_packets = bool(_require_key(data, "store_packets", "/"))
+        collect_packet_timeline = bool(_require_key(data, "collect_packet_timeline", "/"))
         if collect_packet_timeline and not store_packets:
-            raise ConfigError("'run.collect_packet_timeline: true' requires 'run.store_packets: true'")
+            raise ConfigError("'collect_packet_timeline: true' requires 'store_packets: true'")
         return RunSpec(
             seed=seed,
-            file_debug=bool(_require_key(data, "file_debug", "run")),
-            message_verbose=bool(_require_key(data, "message_verbose", "run")),
-            verbose_route=bool(_require_key(data, "verbose_route", "run")),
-            visualize=bool(_require_key(data, "visualize", "run")),
-            show_visualization_window=bool(_require_key(data, "show_visualization_window", "run")),
+            file_debug=bool(_require_key(data, "file_debug", "/")),
+            message_verbose=bool(_require_key(data, "message_verbose", "/")),
+            verbose_route=bool(_require_key(data, "verbose_route", "/")),
+            visualize=bool(_require_key(data, "visualize", "/")),
+            show_visualization_window=bool(_require_key(data, "show_visualization_window", "/")),
             store_packets=store_packets,
             collect_packet_timeline=collect_packet_timeline,
-            deep_flow_chain_log=bool(_require_key(data, "deep_flow_chain_log", "run")),
-            log_dir=str(_require_key(data, "log_dir", "run")),
-            results_dir=str(_require_key(data, "results_dir", "run")),
+            deep_flow_chain_log=bool(_require_key(data, "deep_flow_chain_log", "/")),
+            log_dir=str(_require_key(data, "log_dir", "/")),
+            results_dir=str(_require_key(data, "results_dir", "/")),
         )
 
-    def to_mapping(self) -> dict[str, Any]:
-        return {
-            "seed": self.seed,
-            "file_debug": self.file_debug,
-            "message_verbose": self.message_verbose,
-            "verbose_route": self.verbose_route,
-            "visualize": self.visualize,
-            "show_visualization_window": self.show_visualization_window,
-            "store_packets": self.store_packets,
-            "collect_packet_timeline": self.collect_packet_timeline,
-            "deep_flow_chain_log": self.deep_flow_chain_log,
-            "log_dir": self.log_dir,
-            "results_dir": self.results_dir,
-        }
+
+@dataclass(frozen=True)
+class TopologySpec:
+    """`topology:` - the two-layer clos (leaf-spine) fabric."""
+
+    layers: int
+    leaf_count: int
+    spine_count: int
+    servers_per_leaf: int
+    host_links_per_server: int
+    parallel_leaf_to_spine_links: int
+    link_failure_percent: float
+    server_to_leaf_bandwidth_bps: float
+    leaf_to_spine_bandwidth_bps: float
+
+    @staticmethod
+    def from_mapping(data: dict[str, Any]) -> "TopologySpec":
+        spec = TopologySpec(**_parse_fields(TopologySpec, data, "topology"))
+        if spec.layers != 2:
+            raise ConfigError("The clos implementation supports only topology.layers=2 (leaf-spine)")
+        if spec.leaf_count <= 0:
+            raise ConfigError("topology.leaf_count must be >= 1")
+        if spec.spine_count <= 0:
+            raise ConfigError("topology.spine_count must be >= 1")
+        return spec
 
 
 @dataclass(frozen=True)
 class RoutingSpec:
+    """`routing:` - path selection and packet limits."""
+
+    max_path: int
+    mtu: int
+    ttl: int
     mode: str
     ecmp_flowlet_n_packets: int
 
     @staticmethod
     def from_mapping(data: dict[str, Any]) -> "RoutingSpec":
-        reject_unknown_keys(data, _ROUTING_KEYS, "routing")
-        return RoutingSpec(
-            mode=str(_require_key(data, "mode", "routing")),
-            ecmp_flowlet_n_packets=int(_require_key(data, "ecmp_flowlet_n_packets", "routing")),
-        )
-
-    def to_mapping(self) -> dict[str, Any]:
-        return {
-            "mode": self.mode,
-            "ecmp_flowlet_n_packets": self.ecmp_flowlet_n_packets,
-        }
+        return RoutingSpec(**_parse_fields(RoutingSpec, data, "routing"))
 
 
 @dataclass(frozen=True)
-class TopologySpec:
-    # Topology family, from the `topology.family` key.
-    name: str
-    params: dict[str, Any]
+class StallRegimeSpec:
+    """`stall_regime:` - retransmit-like packet stalls injected at switches."""
+
+    packet_stall_percent: float
+    packet_stall_delay_ms: float
+    packet_stall_max_switch_hop: int
+    packet_stall_retransmit_priority: bool
 
     @staticmethod
-    def from_mapping(data: dict[str, Any]) -> "TopologySpec":
-        reject_unknown_keys(data, _TOPOLOGY_KEYS, "topology")
-        return TopologySpec(
-            name=_require_str(data, "family", "topology", allow_empty=False),
-            params=_require_params(data, "topology"),
-        )
-
-    def to_mapping(self) -> dict[str, Any]:
-        return {"family": self.name, "params": dict(self.params)}
+    def from_mapping(data: dict[str, Any]) -> "StallRegimeSpec":
+        return StallRegimeSpec(**_parse_fields(StallRegimeSpec, data, "stall_regime"))
 
 
 @dataclass(frozen=True)
-class WorkloadSpec:
-    # Workload kind, from the `workload.kind` key.
-    name: str
-    params: dict[str, Any]
+class AIWorkloadSpec:
+    """`ai_workload:` - the DP-heavy training job."""
+
+    steps: int
+    seed: int
+    num_buckets: int
+    bucket_bytes_per_participant: int
+    gap_us: float
+    prolog_compute_ms: float
+    bucket_interval_ms: float
+    bucket_scheduling: str
+    optimizer_ms: float
+    flow_redundancy_extra_packets: int
+    single_ring_only: bool
 
     @staticmethod
-    def from_mapping(data: dict[str, Any]) -> "WorkloadSpec":
-        reject_unknown_keys(data, _WORKLOAD_KEYS, "workload")
-        return WorkloadSpec(
-            name=_require_str(data, "kind", "workload", allow_empty=False),
-            params=_require_params(data, "workload"),
-        )
-
-    def to_mapping(self) -> dict[str, Any]:
-        return {"kind": self.name, "params": dict(self.params)}
+    def from_mapping(data: dict[str, Any]) -> "AIWorkloadSpec":
+        return AIWorkloadSpec(**_parse_fields(AIWorkloadSpec, data, "ai_workload"))
 
 
 @dataclass(frozen=True)
 class ExperimentSpec:
-    meta: MetaSpec
+    name: str
     run: RunSpec
     topology: TopologySpec
     routing: RoutingSpec
-    workload: WorkloadSpec
+    stall_regime: StallRegimeSpec
+    ai_workload: AIWorkloadSpec
     source_config_path: str
 
     @staticmethod
     def from_mapping(value: Any, *, source_config_path: str) -> "ExperimentSpec":
         data = _require_mapping(value, "/")
         reject_unknown_keys(data, _EXPERIMENT_KEYS, "/")
-        kind = _require_key(data, "kind", "/")
-        if kind != "experiment":
-            raise ConfigError(f"Unsupported config kind: {kind!r}. Expected 'experiment'.")
         return ExperimentSpec(
-            meta=MetaSpec.from_mapping(_require_section(data, "meta")),
-            run=RunSpec.from_mapping(_require_section(data, "run")),
+            name=_require_str(data, "name", "/", allow_empty=False),
+            run=RunSpec.from_mapping(data),
             topology=TopologySpec.from_mapping(_require_section(data, "topology")),
             routing=RoutingSpec.from_mapping(_require_section(data, "routing")),
-            workload=WorkloadSpec.from_mapping(_require_section(data, "workload")),
+            stall_regime=StallRegimeSpec.from_mapping(_require_section(data, "stall_regime")),
+            ai_workload=AIWorkloadSpec.from_mapping(_require_section(data, "ai_workload")),
             source_config_path=source_config_path,
         )
 
     @property
     def display_name(self) -> str:
-        return self.meta.name
+        return self.name
 
     def to_mapping(self) -> dict[str, Any]:
         return {
-            "kind": "experiment",
-            "meta": self.meta.to_mapping(),
-            "run": self.run.to_mapping(),
-            "topology": self.topology.to_mapping(),
-            "routing": self.routing.to_mapping(),
-            "workload": self.workload.to_mapping(),
+            "name": self.name,
+            **asdict(self.run),
+            "topology": asdict(self.topology),
+            "routing": asdict(self.routing),
+            "stall_regime": asdict(self.stall_regime),
+            "ai_workload": asdict(self.ai_workload),
         }
 
 

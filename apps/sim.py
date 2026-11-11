@@ -25,7 +25,6 @@ if _loaded_sim is not None and not hasattr(_loaded_sim, "__path__"):
 from sim.config.loader import dump_experiment_yaml, load_experiment_spec, load_sweep_spec, resolve_cli_path
 from sim.config.models import ConfigError, SweepSpec
 from sim.registry.topologies import build_network
-from sim.registry.workloads import iter_workload_items
 from sim.runners.sweep_executor import write_sweep_summary
 from sim.runners.deep_flow_log import write_sweep_deep_flow_logs
 from sim.runners.experiment_runner import run_experiment, validate_experiment
@@ -68,8 +67,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sweep_p.add_argument("--config", required=True, help="Path to an experiment YAML file with a sweep section")
 
-    list_p = sub.add_parser("list", help="List supported workloads/routing modes")
-    list_p.add_argument("target", choices=["workloads", "routing"])
+    list_p = sub.add_parser("list", help="List supported routing modes")
+    list_p.add_argument("target", choices=["routing"])
 
     plot_summary_p = sub.add_parser("plot-summary", help="Generate aggregate comparison plots from an existing sweep summary YAML")
     plot_summary_p.add_argument("--summary", required=True, help="Path to a sweep summary YAML file")
@@ -87,10 +86,6 @@ def _load_from_args(args: argparse.Namespace):
 
 
 def _cmd_list(target: str) -> int:
-    if target == "workloads":
-        for item in iter_workload_items():
-            print(f"{item.name:16} {item.description}")
-        return 0
     if target == "routing":
         print("ecmp             Stable hash-based ECMP selection")
         print("adaptive         Queue-aware selection among equal-cost ports")

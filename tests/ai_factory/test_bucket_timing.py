@@ -16,13 +16,13 @@ PARTICIPANTS = [f"leaf{leaf}_srv{srv}" for leaf in range(2) for srv in range(2)]
 
 # 4 hosts (2 leaves x 2 servers), 3 buckets all released at once, no stalls.
 FOUR_HOST_OVERRIDES = [
-    "topology.params.leaf_count=2",
-    "topology.params.spine_count=2",
-    "topology.params.fabric.servers_per_leaf=2",
-    "topology.params.fabric.packet_stall_percent=0.0",
-    "workload.params.steps=1",
-    "workload.params.num_buckets=3",
-    "workload.params.bucket_interval_ms=0.0",
+    "topology.leaf_count=2",
+    "topology.spine_count=2",
+    "topology.servers_per_leaf=2",
+    "stall_regime.packet_stall_percent=0.0",
+    "ai_workload.steps=1",
+    "ai_workload.num_buckets=3",
+    "ai_workload.bucket_interval_ms=0.0",
 ]
 
 
@@ -70,7 +70,7 @@ def test_prolog_sets_phase_zero_and_interval_spaces_bucket_releases() -> None:
 def _bucket_metrics(scheduling: str) -> list:
     spec = load_experiment_spec(
         config_path=DP_SMALL,
-        overrides=FOUR_HOST_OVERRIDES + [f"workload.params.bucket_scheduling={scheduling}"],
+        overrides=FOUR_HOST_OVERRIDES + [f"ai_workload.bucket_scheduling={scheduling}"],
     )
     results = run_experiment(spec)
     metrics = sorted(results["ai_factory_gradient_bucket_metrics"], key=lambda m: m.bucket_id)
@@ -83,7 +83,7 @@ def _summary(scheduling: str) -> dict:
         SweepInput(
             label=scheduling,
             config_path=DP_SMALL,
-            overrides=tuple(FOUR_HOST_OVERRIDES + [f"workload.params.bucket_scheduling={scheduling}"]),
+            overrides=tuple(FOUR_HOST_OVERRIDES + [f"ai_workload.bucket_scheduling={scheduling}"]),
         )
     )
     assert row["ok"]
@@ -118,17 +118,16 @@ def test_concurrent_buckets_overlap_and_never_wait() -> None:
     ("overrides", "message"),
     [
         # The old single timing key was removed; it must fail loudly, not be ignored.
-        (["workload.params.t_fwd_bwd_ms=1.0"], "Unknown key.*t_fwd_bwd_ms"),
-        (["workload.params.prolog_compute_ms=-1.0"], "prolog_compute_ms must be >= 0"),
-        (["workload.params.bucket_interval_ms=-0.5"], "bucket_interval_ms must be >= 0"),
-        (["workload.params.bucket_scheduling=parallel"], "bucket_scheduling must be one of"),
+        (["ai_workload.t_fwd_bwd_ms=1.0"], "Unknown key.*t_fwd_bwd_ms"),
+        (["ai_workload.prolog_compute_ms=-1.0"], "prolog_compute_ms must be >= 0"),
+        (["ai_workload.bucket_interval_ms=-0.5"], "bucket_interval_ms must be >= 0"),
+        (["ai_workload.bucket_scheduling=parallel"], "bucket_scheduling must be one of"),
     ],
 )
 def test_invalid_bucket_timing_config_is_rejected(overrides: list[str], message: str) -> None:
-    spec = load_experiment_spec(config_path=DP_SMALL, overrides=overrides)
-
+    # Unknown keys fail on load; invalid values fail when the scenario is built.
     with pytest.raises(ConfigError, match=message):
-        build_scenario(spec)
+        build_scenario(load_experiment_spec(config_path=DP_SMALL, overrides=overrides))
 
 
 def test_workload_config_rejects_invalid_values_directly() -> None:

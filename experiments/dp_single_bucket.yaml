@@ -1,34 +1,31 @@
+# Low-load DP-heavy experiment on the AI scale-unit clos profile with reduce-scatter only.
 extends:
   - base/run-defaults.yaml
   - base/topology-clos-small.yaml
-  - base/base_workload.yaml
-meta:
-  name: dp-single-bucket
-  description: low-load DP-heavy experiment on the AI scale-unit clos profile with reduce-scatter only
-run:
-  deep_flow_chain_log: true
+  - base/routing-default.yaml
+  - base/stall_regime-default.yaml
+  - base/ai_workload-default.yaml
+name: dp-single-bucket
+deep_flow_chain_log: true
 topology:
-  params:
-    mtu: 4096
-    fabric:
-      packet_stall_delay_ms: 2
-      packet_stall_retransmit_priority: true
-      # Bandwidth in bits/sec for each server-to-leaf link. Range: float > 0.
-      server_to_leaf_bandwidth_bps: 1000000000
-      # Bandwidth in bits/sec for each leaf-to-spine link. Range: float > 0.
-      leaf_to_spine_bandwidth_bps: 1000000000
-workload:
-  params:
-    steps: 30
-    seed: 1972
-    prolog_compute_ms: 0.0
-    bucket_interval_ms: 0.0
-    bucket_scheduling: concurrent
-    optimizer_ms: 0.0
-    #bucket_bytes_per_participant: 2097152
-    #bucket_bytes_per_participant: 16777216
-    bucket_bytes_per_participant: 6553600 # = 100 packets in flow
-    num_buckets: 1
-    single_ring_only: true
-
-
+  # Bandwidth in bits/sec for each server-to-leaf link. Range: float > 0.
+  server_to_leaf_bandwidth_bps: 1000000000
+  # Bandwidth in bits/sec for each leaf-to-spine link. Range: float > 0.
+  leaf_to_spine_bandwidth_bps: 1000000000
+routing:
+  mtu: 4096
+stall_regime:
+  packet_stall_delay_ms: 2
+  packet_stall_retransmit_priority: true
+ai_workload:
+  steps: 30
+  seed: 1972
+  prolog_compute_ms: 0.0
+  bucket_interval_ms: 0.0
+  bucket_scheduling: concurrent
+  optimizer_ms: 0.0
+  #bucket_bytes_per_participant: 2097152
+  #bucket_bytes_per_participant: 16777216
+  bucket_bytes_per_participant: 6553600 # = 100 packets in flow
+  num_buckets: 1
+  single_ring_only: true

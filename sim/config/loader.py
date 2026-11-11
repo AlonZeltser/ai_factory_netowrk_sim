@@ -14,10 +14,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 # Prefix that anchors a path at the repository root, e.g. `repo:results/logs`.
 REPO_PREFIX = "repo:"
 
-# Config keys whose values are paths. Inside a YAML file they are resolved relative to that file.
-_PATH_KEYS: tuple[tuple[str, ...], ...] = (
-    ("run", "log_dir"),
-    ("run", "results_dir"),
+# Config keys whose values are paths, as (section, key); section None means a top-level key.
+# Inside a YAML file they are resolved relative to that file.
+_PATH_KEYS: tuple[tuple[str | None, str], ...] = (
+    (None, "log_dir"),
+    (None, "results_dir"),
     ("sweep", "summary_out"),
 )
 
@@ -46,16 +47,19 @@ def resolve_cli_path(raw: str) -> Path:
 
 def _resolve_path_keys(data: dict[str, Any], *, base_dir: Path) -> None:
     for section, key in _PATH_KEYS:
-        block = data.get(section)
+        block = data if section is None else data.get(section)
         if not isinstance(block, Mapping):
             continue
         value = block.get(key)
         if not isinstance(value, str) or not value.strip():
             # Missing, empty or non-string values are reported by the model validation.
             continue
-        block = dict(block)
-        block[key] = str(resolve_path(value, base_dir=base_dir))
-        data[section] = block
+        if section is None:
+            data[key] = str(resolve_path(value, base_dir=base_dir))
+        else:
+            block = dict(block)
+            block[key] = str(resolve_path(value, base_dir=base_dir))
+            data[section] = block
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:

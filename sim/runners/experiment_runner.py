@@ -102,14 +102,10 @@ def _log_results_summary(results: dict[str, Any]) -> None:
 
 
 def validate_experiment(spec: ExperimentSpec) -> dict[str, str]:
-    topology_item = spec.topology.name
-    workload_item = spec.workload.name
     build_network(spec)
     build_scenario(spec)
     summary = {
         "name": spec.display_name,
-        "topology": topology_item,
-        "workload": workload_item,
         "routing_mode": spec.routing.mode,
     }
     if spec.source_config_path:

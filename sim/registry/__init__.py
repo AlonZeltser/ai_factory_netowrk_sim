@@ -1,8 +1,7 @@
-from .workloads import get_workload_item, iter_workload_items
+from .topologies import build_network
+from .workloads import build_scenario
 
 __all__ = [
-    "get_workload_item",
-    "iter_workload_items",
+    "build_network",
+    "build_scenario",
 ]
-
-

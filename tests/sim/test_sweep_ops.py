@@ -108,7 +108,7 @@ def test_build_flow_stall_stats_aggregates_training_flows_and_gradient_bucket_bo
 
 
 def test_build_and_run_sweep(write_sweep_config) -> None:
-    cfg = write_sweep_config({"workload.kind": ["dp-heavy", "none"], "topology.params.leaf_count": [8, 16]}, drop=())
+    cfg = write_sweep_config({"ai_workload.flow_redundancy_extra_packets": [0, 1], "topology.leaf_count": [8, 16]}, drop=())
     sweep = load_sweep_spec(cfg)
     inputs = build_sweep_inputs(config_path=cfg, sweep=sweep)
     assert len(inputs) == 4
@@ -116,6 +116,6 @@ def test_build_and_run_sweep(write_sweep_config) -> None:
     summary = run_sweep(config_path=cfg, sweep=sweep)
     assert len(summary) == 4
     assert all(item["ok"] for item in summary)
-    assert {item["workload"] for item in summary} == {"dp-heavy", "none"}
+    assert {item["flow_redundancy_extra_packets"] for item in summary} == {0, 1}
 
 

@@ -1,15 +1,17 @@
-
 extends:
-  - research_workload.yaml
-  - research_run.yaml
+  - run-research.yaml
   - ../base/topology-clos-small.yaml
-meta:
-  name: research-sweep
+  - ../base/routing-default.yaml
+  - ../base/stall_regime-default.yaml
+  - ai_workload-research.yaml
+name: research-sweep
 sweep:
   vary:                                         # dotted config key -> list of values
     # routing.mode: [ecmp, adaptive]
-    workload.params.flow_redundancy_extra_packets: [0, 1, 2, 4, 8, 12, 16]
-    topology.params.fabric.packet_stall_percent: [0, 0.02, 0.05, 0.1, 0.25, 0.5, 1, 2, 4, 8]
+    # ai_workload.flow_redundancy_extra_packets: [0, 1, 2, 4, 8, 12, 16]
+    ai_workload.flow_redundancy_extra_packets: [0, 1, 2]
+    # stall_regime.packet_stall_percent: [0, 0.02, 0.05, 0.1, 0.25, 0.5, 1, 2, 4, 8]
+    stall_regime.packet_stall_percent: [0, 0.02, 0.05]
   summary_out: repo:results/research-sweep/main_sweep_summary.yaml   # summary file; plots and deep logs go next to it
   visualize_summary: true                       # comparison plots
   plot_ring_heatmaps: false                     # per-training-step traffic heatmaps

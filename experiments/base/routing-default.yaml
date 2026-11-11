@@ -1,0 +1,11 @@
+routing:
+  # Maximum allowed hop count recorded in the network model. Range: integer >= 1.
+  max_path: 64
+  # Packet MTU in bytes used when hosts packetize bulk flows. Range: integer >= 64.
+  mtu: 4096
+  # Packet time-to-live in hops before a packet is dropped as expired. Range: integer >= 1.
+  ttl: 1000
+  # Routing strategy. Allowed values: `ecmp` | `adaptive` | `flowlet`.
+  mode: adaptive
+  # Flowlet rehash period in packets. Range: integer >= 0. Used only by `flowlet` / flowlet-style ECMP.
+  ecmp_flowlet_n_packets: 0

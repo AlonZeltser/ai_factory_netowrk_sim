@@ -233,7 +233,7 @@ def _run_sweep_input(item: SweepInput) -> dict[str, Any]:
     flow_stall_stats = _build_flow_stall_stats(flow_metrics, stall_counts_by_flow_id)
     
     # Calculate ring-flow redundancy/packetization metrics over ring-step flows.
-    mtu_bytes = int(spec.topology.params["mtu"])
+    mtu_bytes = spec.routing.mtu
     total_redundant_packets = 0
     total_redundant_bytes = 0
     ring_flow_count = 0
@@ -322,13 +322,10 @@ def _run_sweep_input(item: SweepInput) -> dict[str, Any]:
     return {
         "label": item.label,
         "ok": True,
-        "topology": spec.topology.name,
-        "workload": spec.workload.name,
         "routing_mode": spec.routing.mode,
         "link_failure_percent": params.get("link_failure_percent"),
         "packet_stall_percent": params["packet_stall_percent"],
-        # A topology-only run (`none` workload) sends no flows, so it has no redundant packets.
-        "flow_redundancy_extra_packets": params["flow_redundancy_extra_packets"] if spec.workload.name != "none" else 0,
+        "flow_redundancy_extra_packets": params["flow_redundancy_extra_packets"],
         # Keep historical key for compatibility with older dashboards.
         "chunk_time_avg_ms": flow_stats["avg"],
         "flow_time_avg_ms": flow_stats["avg"],

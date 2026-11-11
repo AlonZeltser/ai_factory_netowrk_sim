@@ -28,11 +28,9 @@ This script makes it easy to visualize network topologies without running a full
 
      extends: dp_single_bucket.yaml
      topology:
-       params:
-         leaf_count: 2
-         spine_count: 2
-         fabric:
-           link_failure_percent: 20
+       leaf_count: 2
+       spine_count: 2
+       link_failure_percent: 20
 
    then run:
    python visualization/build_topology_viz.py --config experiments/small_failures.yaml
@@ -65,12 +63,12 @@ Link Status:
 PARAMETERS = """
 Common topology keys to change in a YAML file that extends the experiment:
 
-  topology.params.leaf_count                          Number of leaf switches
-  topology.params.spine_count                         Number of spine switches
-  topology.params.fabric.servers_per_leaf             Number of servers per leaf switch
-  topology.params.fabric.host_links_per_server        Parallel NIC connections per server
-  topology.params.fabric.parallel_leaf_to_spine_links Parallel links between each leaf-spine pair
-  topology.params.fabric.link_failure_percent         Percentage of links to fail (0-100)
+  topology.leaf_count                    Number of leaf switches
+  topology.spine_count                   Number of spine switches
+  topology.servers_per_leaf              Number of servers per leaf switch
+  topology.host_links_per_server         Parallel NIC connections per server
+  topology.parallel_leaf_to_spine_links  Parallel links between each leaf-spine pair
+  topology.link_failure_percent          Percentage of links to fail (0-100)
 
 Tool options:
 
@@ -87,10 +85,11 @@ Tool options:
 EXPERIMENTS = """
 Experiment configs live in experiments/ (one YAML file per experiment).
 Shared fragments live in experiments/base/:
-  - run-defaults.yaml        : run, routing and logging defaults
-  - topology-clos-small.yaml : 4 leaf, 4 spine, 16 hosts
-  - topology-clos-large.yaml : 8 leaf, 4 spine, 32 hosts
-  - base_workload.yaml         : DP-heavy workload defaults
+  - run-defaults.yaml          : run and logging settings
+  - topology-clos-small.yaml   : 4 leaf, 4 spine, 16 hosts
+  - routing-default.yaml       : routing mode, MTU, TTL, max path
+  - stall_regime-default.yaml  : packet stall settings
+  - ai_workload-default.yaml   : DP-heavy workload defaults
 """
 
 

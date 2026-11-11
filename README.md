@@ -131,7 +131,6 @@ Every command takes an experiment YAML file via `--config`. Paths are relative t
 #### Discover what is available
 
 ```bash
-python -m apps.sim list workloads
 python -m apps.sim list routing
 ```
 
@@ -151,8 +150,7 @@ extends: dp_single_bucket.yaml
 routing:
   mode: adaptive
 topology:
-  params:
-    leaf_count: 12
+  leaf_count: 12
 ```
 
 ```bash
@@ -172,9 +170,8 @@ python -m apps.sim validate --config experiments/dp_single_bucket.yaml
 To save communication-distribution plots and open them in a window after a run:
 
 ```yaml
-run:
-  visualize: true
-  show_visualization_window: true
+visualize: true
+show_visualization_window: true
 ```
 
 ### 2. Sweep Execution
@@ -186,13 +183,14 @@ A sweep runs every combination of a set of parameter values on top of one experi
 extends:
   - base/run-defaults.yaml
   - base/topology-clos-small.yaml
-  - base/base_workload.yaml
-meta:
-  name: my-sweep
+  - base/routing-default.yaml
+  - base/stall_regime-default.yaml
+  - base/ai_workload-default.yaml
+name: my-sweep
 sweep:
   vary:                                         # dotted config key -> list of values
     routing.mode: [ecmp, adaptive]
-    workload.params.flow_redundancy_extra_packets: [0, 1, 2]
+    ai_workload.flow_redundancy_extra_packets: [0, 1, 2]
   summary_out: repo:results/my_sweep/summary.yaml   # summary file; plots and deep logs go next to it
   visualize_summary: true                       # comparison plots
   plot_ring_heatmaps: false                     # per-training-step traffic heatmaps
@@ -204,8 +202,8 @@ sweep:
 ```
 
 ```bash
-python -m apps.sim validate --config experiments/my_sweep.yaml   # prints the sweep plan
-python -m apps.sim sweep --config experiments/my_sweep.yaml      # runs all 6 combinations
+python -m apps.sim validate --config experiments/research_configurations/main_sweep.yaml   # prints the sweep plan
+python -m apps.sim sweep --config experiments/research_configurations/main_sweep.yaml      # runs all combinations
 ```
 
 - `run` and `validate` ignore the `sweep` section and use the base values.
@@ -226,70 +224,67 @@ Each experiment is one YAML file under `experiments/`. Shared defaults live in `
 ```
 experiments/
   base/
-    run-defaults.yaml          # run, routing and logging defaults
-    topology-clos-small.yaml   # 4 leaf, 4 spine, 16 hosts
-    topology-clos-large.yaml   # 8 leaf, 4 spine, 32 hosts
-    workload-dp.yaml           # DP-heavy workload defaults
+    run-defaults.yaml          # run and logging settings (top-level keys)
+    topology-clos-small.yaml   # topology: 4 leaf, 4 spine, 16 hosts
+    topology-clos-large.yaml   # topology: 8 leaf, 4 spine, 32 hosts
+    routing-default.yaml       # routing: mode, MTU, TTL, max path
+    stall_regime-default.yaml  # stall_regime: retransmit-like packet stalls
+    ai_workload-default.yaml   # ai_workload: DP-heavy training job
+  research_configurations/     # research sweep and single run, with their own run/workload fragments
   dp_single_bucket.yaml        # a concrete experiment
 ```
 
-A concrete experiment lists its fragments and overrides only what it changes:
+A config has these parts: the experiment `name` and the run settings as top-level keys, then the `topology`, `routing`, `stall_regime` and `ai_workload` sections (plus an optional `sweep`). A concrete experiment lists one fragment per part and overrides only what it changes:
 
 ```yaml
 extends:
   - base/run-defaults.yaml
   - base/topology-clos-small.yaml
-  - base/base_workload.yaml
-meta:
-  name: dp-single-bucket
-topology:
-  params:
-    mtu: 4096
-workload:
-  params:
-    steps: 30
-    num_buckets: 1
-    single_ring_only: true
+  - base/routing-default.yaml
+  - base/stall_regime-default.yaml
+  - base/ai_workload-default.yaml
+name: dp-single-bucket
+deep_flow_chain_log: true
+stall_regime:
+  packet_stall_delay_ms: 2
+ai_workload:
+  steps: 30
+  num_buckets: 1
+  single_ring_only: true
 ```
 
 Paths follow two rules, so a config behaves the same whether it is launched from a terminal in any directory, an IDE, or a GUI:
 
-- **Paths written in a YAML file** (`extends`, `run.log_dir`, `run.results_dir`, `sweep.summary_out`) are relative to the file that contains them. Start a path with `repo:` to anchor it at the repository root instead, e.g. `results_dir: repo:results`. Absolute paths are kept as is.
+- **Paths written in a YAML file** (`extends`, `log_dir`, `results_dir`, `sweep.summary_out`) are relative to the file that contains them. Start a path with `repo:` to anchor it at the repository root instead, e.g. `results_dir: repo:results`. Absolute paths are kept as is.
 - **Paths given on the command line** (`--config`, `--summary`, `--out-dir`) are relative to the current directory, like any other command-line tool. `repo:` works there too.
 
 Later `extends` entries override earlier ones, and the file's own values override everything it extends. Inheritance can be chained (`a -> b -> c`). Every option is documented with its allowed range in the `experiments/base/` fragments.
 
-There are no in-code defaults: after `extends` is resolved, every key must be present (including `meta.name`, `topology.family` and `run.seed`, where `seed: null` means an unseeded, non-reproducible run), and any key the simulator does not know is an error rather than being ignored.
+There are no in-code defaults: after `extends` is resolved, every key must be present (including `name` and `seed`, where `seed: null` means an unseeded, non-reproducible run), and any key the simulator does not know is an error rather than being ignored.
 
 ### Topology model
 
-`topology.family: clos` is the only topology. An experiment must extend a topology fragment (or provide the full `topology.params` block itself). Example overrides:
+The topology is always a two-layer clos (leaf-spine). An experiment must extend a topology fragment (or provide the full `topology` section itself). Example overrides:
 
 ```yaml
 topology:
-  params:
-    leaf_count: 12
-    spine_count: 6
-    mtu: 32768
-    fabric:
-      server_to_leaf_bandwidth_bps: 400000000000
-      leaf_to_spine_bandwidth_bps: 400000000000
-      link_failure_percent: 5.0
+  leaf_count: 12
+  spine_count: 6
+  server_to_leaf_bandwidth_bps: 400000000000
+  leaf_to_spine_bandwidth_bps: 400000000000
+  link_failure_percent: 5.0
+routing:
+  mtu: 32768
 ```
 
 ### Workload model
 
-- `kind: dp-heavy` selects the DP-heavy training-step model
-- `kind: none` runs the topology with no traffic workload
-
-Example:
+The workload is always the DP-heavy training-step model. Example:
 
 ```yaml
-workload:
-  kind: dp-heavy
-  params:
-    bucket_bytes_per_participant: 4194304
-    flow_redundancy_extra_packets: 2
+ai_workload:
+  bucket_bytes_per_participant: 4194304
+  flow_redundancy_extra_packets: 2
 ```
 
 Each training step runs `prolog_compute_ms` of compute (forward pass plus the backward part that produces the first gradient bucket), then gradient sync, then `optimizer_ms`. Gradient bucket `b` is released `b * bucket_interval_ms` after gradient sync starts, modeling backward compute that overlaps communication. With `bucket_scheduling: concurrent` every bucket starts at its release time and buckets may share the network; with `serialized` bucket `b` waits for bucket `b-1` to finish, like the NCCL bucket queue in PyTorch DDP.
@@ -310,7 +305,7 @@ Each run generates a detailed log file containing:
   - Queue occupancy metrics
   - Total simulation time
 
-When `run.visualize: true`, the simulator also saves visualization files under `results/`, including an AI-factory communication distribution figure showing:
+When `visualize: true`, the simulator also saves visualization files under `results/`, including an AI-factory communication distribution figure showing:
 - gradient bucket completion-time distributions
 - lower-level chunk / flow completion-time distributions
 
@@ -400,10 +395,9 @@ python -m pytest tests/ai_factory/ -v
 
 Enable detailed logging in YAML:
 ```yaml
-run:
-  file_debug: true           # Full DEBUG logs to file
-  message_verbose: true      # Log every packet
-  verbose_route: true        # Log routing decisions
+file_debug: true           # Full DEBUG logs to file
+message_verbose: true      # Log every packet
+verbose_route: true        # Log routing decisions
 ```
 
 ---
@@ -419,7 +413,7 @@ run:
 ### Adding New Scenarios
 
 1. Create the scenario/workload implementation in `network/scenarios/` or `ai_factory/scenarios/`
-2. Register it in `sim/registry/workloads.py`
+2. Build it from the config in `sim/registry/workloads.py`
 3. Add an experiment file under `experiments/` that uses it
 4. Validate it with `python -m apps.sim validate --config experiments/<file>.yaml`
 

@@ -1,0 +1,25 @@
+extends:
+  - ../base/ai_workload-default.yaml
+ai_workload:
+  # Number of training steps to simulate. Range: integer >= 1.
+  steps: 2
+  # Number of gradient buckets synchronized per step. Range: integer >= 1.
+  num_buckets: 1
+  # Useful bytes contributed by each participant to each bucket before optional redundancy. Range: integer >= 1.
+
+
+  # bucket_bytes_per_participant: 6553600
+  bucket_bytes_per_participant: 655360
+
+
+
+  # Compute time from step start until the first gradient bucket is ready (forward pass plus the
+  # backward part that produces bucket 0), in milliseconds. Range: float >= 0.0.
+  prolog_compute_ms: 0.0
+  # Backward compute time between the release of bucket b and bucket b+1, in milliseconds;
+  # bucket b is released b * bucket_interval_ms after gradient sync starts. Range: float >= 0.0.
+  bucket_interval_ms: 0.0
+  # Optimizer/update compute time after gradient synchronization, in milliseconds. Range: float >= 0.0.
+  optimizer_ms: 0.0
+  # If true, run only the reduce-scatter ring and skip all-gather. Allowed values: true | false.
+  single_ring_only: true

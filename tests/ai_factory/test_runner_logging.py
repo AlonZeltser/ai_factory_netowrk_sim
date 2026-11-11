@@ -149,8 +149,9 @@ def test_experiment_parameters_are_logged_one_line_per_value_by_section(caplog) 
     (message,) = [rec.getMessage() for rec in caplog.records]
     lines = message.split("\n")
     assert lines[0].startswith("Experiment parameters (config: ")
-    assert "  workload:" in lines
-    assert "    params:" in lines
-    assert "      flow_redundancy_extra_packets: 0" in lines
-    assert "        packet_stall_percent: 0.01" in lines  # topology.params.fabric
+    assert "  name: test-dp-small" in lines
+    assert "  ai_workload:" in lines
+    assert "    flow_redundancy_extra_packets: 0" in lines
+    assert "  stall_regime:" in lines
+    assert "    packet_stall_percent: 0.01" in lines
     assert "  routing:" in lines

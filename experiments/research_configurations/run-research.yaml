@@ -1,0 +1,5 @@
+extends:
+  - ../base/run-defaults.yaml
+# Seed for the global random generator (packet stalls, routing tie-breaks). Range: integer, or null.
+# null leaves the generator unseeded, so repeated runs give different results.
+seed: 42

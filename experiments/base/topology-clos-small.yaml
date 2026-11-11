@@ -1,39 +1,20 @@
+# Two-layer clos (leaf-spine): 4 leaves, 4 spines, 16 servers.
 topology:
-  # Topology family. Allowed values: `clos` only.
-  family: clos
-  params:
-    # Number of switching layers. Allowed values: 2 only in the current implementation.
-    layers: 2
-    # Number of leaf / ToR switches. Range: integer >= 1.
-    leaf_count: 4
-    # Number of spine switches. Range: integer >= 1.
-    spine_count: 4
-    # Maximum allowed hop count recorded in the network model. Range: integer >= 1.
-    max_path: 64
-    # Packet MTU in bytes used when hosts packetize bulk flows. Range: integer >= 64.
-    mtu: 4096
-    # Packet time-to-live in hops before a packet is dropped as expired. Range: integer >= 1.
-    ttl: 1000
-    fabric:
-      # Number of servers attached to each leaf switch. Range: integer >= 1.
-      servers_per_leaf: 4
-      # Number of parallel NIC / link connections from each server to its leaf. Range: integer >= 1.
-      host_links_per_server: 2
-      # Number of parallel links from each leaf to each spine. Range: integer >= 1.
-      parallel_leaf_to_spine_links: 2
-      # Percentage of links to mark failed when constructing the topology. Range: 0.0 to 100.0.
-      link_failure_percent: 0.0
-      # Percentage of packets to tag for one retransmit-like switch stall. Range: 0.0 to 100.0.
-      packet_stall_percent: 0.01
-      # Delay in milliseconds while a tagged packet is held at its selected switch hop. Range: float >= 0.
-      packet_stall_delay_ms: 8.0
-      # Maximum zero-based switch hop index eligible for the stall. 2 covers leaf->spine->leaf paths. Range: integer >= 0.
-      packet_stall_max_switch_hop: 2
-      # When true, packets reinjected from the source host after a stall bypass regular packets in egress queues
-      # (two-level priority FIFO: retransmit packets first, regular packets second). Allowed values: true | false.
-      packet_stall_retransmit_priority: false
-      # Bandwidth in bits/sec for each server-to-leaf link. Range: float > 0.
-      server_to_leaf_bandwidth_bps: 1.0e+9
-      # Bandwidth in bits/sec for each leaf-to-spine link. Range: float > 0.
-      leaf_to_spine_bandwidth_bps: 1.0e+9
-
+  # Number of switching layers. Allowed values: 2 only in the current implementation.
+  layers: 2
+  # Number of overall leaf / ToR switches. Range: integer >= 1.
+  leaf_count: 4
+  # Number of spine switches. Range: integer >= 1.
+  spine_count: 4
+  # Number of servers attached to each leaf switch. Range: integer >= 1.
+  servers_per_leaf: 4
+  # Number of parallel NIC / link connections from each server to its leaf. Range: integer >= 1.
+  host_links_per_server: 2
+  # Number of parallel links from each leaf to each spine. Range: integer >= 1.
+  parallel_leaf_to_spine_links: 2
+  # Percentage of links to mark failed when constructing the topology. Range: 0.0 to 100.0.
+  link_failure_percent: 0.0
+  # Bandwidth in bits/sec for each server-to-leaf link. Range: float > 0.
+  server_to_leaf_bandwidth_bps: 1.0e+9
+  # Bandwidth in bits/sec for each leaf-to-spine link. Range: float > 0.
+  leaf_to_spine_bandwidth_bps: 1.0e+9

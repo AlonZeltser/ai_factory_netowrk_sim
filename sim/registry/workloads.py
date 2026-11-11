@@ -1,107 +1,36 @@
 ﻿from __future__ import annotations
-from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+
 from ai_factory.core.entities import BUCKET_SCHEDULING_MODES
 from ai_factory.scenarios.ai_factory_su_dp_heavy_scenario import AIFactorySUDpHeavyScenario
 from network.scenarios.base import Scenario
-from network.scenarios.none_scenario import NoneScenario
-from ..config.models import ConfigError, ExperimentSpec, TopologySpec, WorkloadSpec, reject_unknown_keys
-
-_DP_HEAVY_PARAM_KEYS = (
-    "steps",
-    "seed",
-    "num_buckets",
-    "bucket_bytes_per_participant",
-    "gap_us",
-    "prolog_compute_ms",
-    "bucket_interval_ms",
-    "bucket_scheduling",
-    "optimizer_ms",
-    "flow_redundancy_extra_packets",
-    "single_ring_only",
-)
-@dataclass(frozen=True)
-class WorkloadRegistryItem:
-    name: str
-    description: str
-    builder: Callable[[WorkloadSpec, TopologySpec], Scenario]
-def _require_topology(topology: TopologySpec, *valid_names: str) -> None:
-    if topology.name not in valid_names:
-        valid = ", ".join(valid_names)
-        raise ConfigError(f"Workload requires topology in {{{valid}}}, got {topology.name!r}")
+from ..config.models import AIWorkloadSpec, ConfigError, ExperimentSpec
 
 
-def _require_param(params: dict[str, Any], key: str) -> Any:
-    if key not in params:
-        raise ConfigError(f"Missing required key 'workload.params.{key}'")
-    return params[key]
-
-
-def _resolve_bucket_timing(params: dict[str, Any]) -> tuple[float, float, str]:
-    """Return (prolog_compute_ms, bucket_interval_ms, bucket_scheduling) from workload params."""
-    prolog = float(_require_param(params, "prolog_compute_ms"))
-    interval = float(_require_param(params, "bucket_interval_ms"))
-    scheduling = str(_require_param(params, "bucket_scheduling"))
-    if prolog < 0:
-        raise ConfigError(f"workload.params.prolog_compute_ms must be >= 0, got {prolog}")
-    if interval < 0:
-        raise ConfigError(f"workload.params.bucket_interval_ms must be >= 0, got {interval}")
-    if scheduling not in BUCKET_SCHEDULING_MODES:
+def _check_bucket_timing(workload: AIWorkloadSpec) -> None:
+    if workload.prolog_compute_ms < 0:
+        raise ConfigError(f"ai_workload.prolog_compute_ms must be >= 0, got {workload.prolog_compute_ms}")
+    if workload.bucket_interval_ms < 0:
+        raise ConfigError(f"ai_workload.bucket_interval_ms must be >= 0, got {workload.bucket_interval_ms}")
+    if workload.bucket_scheduling not in BUCKET_SCHEDULING_MODES:
         valid = ", ".join(BUCKET_SCHEDULING_MODES)
-        raise ConfigError(f"workload.params.bucket_scheduling must be one of {valid}, got {scheduling!r}")
-    return prolog, interval, scheduling
+        raise ConfigError(f"ai_workload.bucket_scheduling must be one of {valid}, got {workload.bucket_scheduling!r}")
 
 
-def _build_none(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
-    # `none` has no parameters, so workload.params is not read or checked. This lets a sweep
-    # vary workload.kind between a real workload and `none` while the file keeps that
-    # workload's params (a sweep can change values but not remove keys).
-    return NoneScenario()
-def _build_dp_heavy(workload: WorkloadSpec, topology: TopologySpec) -> Scenario:
-    _require_topology(topology, "clos")
-    params = dict(workload.params)
-    reject_unknown_keys(params, _DP_HEAVY_PARAM_KEYS, "workload.params")
-    seed = int(_require_param(params, "seed"))
-    if "mtu" not in topology.params:
-        raise ConfigError("Missing required key 'topology.params.mtu'")
-    mtu = int(topology.params["mtu"])
-    prolog_compute_ms, bucket_interval_ms, bucket_scheduling = _resolve_bucket_timing(params)
-    return AIFactorySUDpHeavyScenario(
-        steps=int(_require_param(params, "steps")),
-        seed=seed,
-        num_buckets=int(_require_param(params, "num_buckets")),
-        bucket_bytes_per_participant=int(_require_param(params, "bucket_bytes_per_participant")),
-        gap_us=float(_require_param(params, "gap_us")),
-        prolog_compute_ms=prolog_compute_ms,
-        bucket_interval_ms=bucket_interval_ms,
-        bucket_scheduling=bucket_scheduling,
-        optimizer_ms=float(_require_param(params, "optimizer_ms")),
-        mtu=mtu,
-        flow_redundancy_extra_packets=int(_require_param(params, "flow_redundancy_extra_packets")),
-        single_ring_only=bool(_require_param(params, "single_ring_only")),
-    )
-
-_REGISTRY: dict[str, WorkloadRegistryItem] = {
-    "dp-heavy": WorkloadRegistryItem(
-        name="dp-heavy",
-        description="AI-factory DP-heavy workload on the AI scale-unit clos topology",
-        builder=_build_dp_heavy,
-    ),
-    "none": WorkloadRegistryItem(
-        name="none",
-        description="Topology-only run with no traffic workload",
-        builder=_build_none,
-    ),
-}
-def iter_workload_items() -> Iterable[WorkloadRegistryItem]:
-    return (_REGISTRY[name] for name in sorted(_REGISTRY))
-def get_workload_item(name: str) -> WorkloadRegistryItem:
-    key = str(name).strip().lower()
-    item = _REGISTRY.get(key)
-    if item is None:
-        valid = ", ".join(sorted(_REGISTRY))
-        raise ConfigError(f"Unknown workload '{name}'. Valid: {valid}")
-    return item
 def build_scenario(spec: ExperimentSpec) -> Scenario:
-    item = get_workload_item(spec.workload.name)
-    return item.builder(spec.workload, spec.topology)
+    """Build the DP-heavy training scenario described by the config."""
+    workload = spec.ai_workload
+    _check_bucket_timing(workload)
+    return AIFactorySUDpHeavyScenario(
+        steps=workload.steps,
+        seed=workload.seed,
+        num_buckets=workload.num_buckets,
+        bucket_bytes_per_participant=workload.bucket_bytes_per_participant,
+        gap_us=workload.gap_us,
+        prolog_compute_ms=workload.prolog_compute_ms,
+        bucket_interval_ms=workload.bucket_interval_ms,
+        bucket_scheduling=workload.bucket_scheduling,
+        optimizer_ms=workload.optimizer_ms,
+        mtu=spec.routing.mtu,
+        flow_redundancy_extra_packets=workload.flow_redundancy_extra_packets,
+        single_ring_only=workload.single_ring_only,
+    )

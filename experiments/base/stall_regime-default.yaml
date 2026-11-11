@@ -1,0 +1,10 @@
+stall_regime:
+  # Percentage of packets to tag for one retransmit-like switch stall. Range: 0.0 to 100.0.
+  packet_stall_percent: 0.01
+  # Delay in milliseconds while a tagged packet is held at its selected switch hop. Range: float >= 0.
+  packet_stall_delay_ms: 8.0
+  # Maximum zero-based switch hop index eligible for the stall. 2 covers leaf->spine->leaf paths. Range: integer >= 0.
+  packet_stall_max_switch_hop: 2
+  # When true, packets reinjected from the source host after a stall bypass regular packets in egress queues
+  # (two-level priority FIFO: retransmit packets first, regular packets second). Allowed values: true | false.
+  packet_stall_retransmit_priority: false

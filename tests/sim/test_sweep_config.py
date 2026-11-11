@@ -31,7 +31,7 @@ def test_sweep_section_is_parsed_in_file_order() -> None:
 
     assert sweep.vary == (
         ("routing.mode", ("ecmp", "adaptive")),
-        ("workload.params.flow_redundancy_extra_packets", (0, 1)),
+        ("ai_workload.flow_redundancy_extra_packets", (0, 1)),
     )
     assert sweep.combination_count() == 4
     assert Path(sweep.summary_out) == _REPO_ROOT / "results" / "test-dp-small-sweep" / "summary.yaml"
@@ -51,35 +51,34 @@ def test_single_run_ignores_sweep_section() -> None:
 
     # Base values from the extended files, not the sweep values.
     assert spec.routing.mode == "adaptive"
-    assert spec.workload.params["flow_redundancy_extra_packets"] == 0
+    assert spec.ai_workload.flow_redundancy_extra_packets == 0
 
 
 def test_build_sweep_inputs_uses_file_dimensions() -> None:
     inputs = build_sweep_inputs(config_path=DP_SMALL_SWEEP, sweep=load_sweep_spec(DP_SMALL_SWEEP))
 
     assert [item.overrides for item in inputs] == [
-        ("routing.mode=ecmp", "workload.params.flow_redundancy_extra_packets=0"),
-        ("routing.mode=ecmp", "workload.params.flow_redundancy_extra_packets=1"),
-        ("routing.mode=adaptive", "workload.params.flow_redundancy_extra_packets=0"),
-        ("routing.mode=adaptive", "workload.params.flow_redundancy_extra_packets=1"),
+        ("routing.mode=ecmp", "ai_workload.flow_redundancy_extra_packets=0"),
+        ("routing.mode=ecmp", "ai_workload.flow_redundancy_extra_packets=1"),
+        ("routing.mode=adaptive", "ai_workload.flow_redundancy_extra_packets=0"),
+        ("routing.mode=adaptive", "ai_workload.flow_redundancy_extra_packets=1"),
     ]
-    assert inputs[0].label == f"{DP_SMALL_SWEEP} | routing.mode=ecmp | workload.params.flow_redundancy_extra_packets=0"
+    assert inputs[0].label == f"{DP_SMALL_SWEEP} | routing.mode=ecmp | ai_workload.flow_redundancy_extra_packets=0"
 
 
 def test_sweep_values_apply_with_their_yaml_types(write_sweep_config) -> None:
     cfg = write_sweep_config(
         {
-            "topology.params.fabric.packet_stall_retransmit_priority": [True, False],
-            "topology.params.fabric.packet_stall_percent": [0.5],
+            "stall_regime.packet_stall_retransmit_priority": [True, False],
+            "stall_regime.packet_stall_percent": [0.5],
         },
         drop=(),
     )
     first = build_sweep_inputs(config_path=cfg, sweep=load_sweep_spec(cfg))[0]
 
     spec = load_experiment_spec(config_path=cfg, overrides=list(first.overrides))
-    fabric = spec.topology.params["fabric"]
-    assert fabric["packet_stall_retransmit_priority"] is True
-    assert fabric["packet_stall_percent"] == 0.5
+    assert spec.stall_regime.packet_stall_retransmit_priority is True
+    assert spec.stall_regime.packet_stall_percent == 0.5
 
 
 @pytest.mark.parametrize("key", _SWEEP_SETTING_KEYS)
