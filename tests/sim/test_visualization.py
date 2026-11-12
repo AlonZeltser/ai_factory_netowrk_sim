@@ -273,56 +273,203 @@ def _layout_summary(vary: dict[str, list]) -> list[dict]:
     return rows
 
 
-def test_layout_plot_writes_one_fixed_name_pdf_with_one_panel_per_split_value(tmp_path: Path) -> None:
+def _record_saved_figures(monkeypatch) -> dict:
+    """Patch Figure.savefig to record each saved figure by file name."""
     import matplotlib.pyplot as plt
 
-    from sim.config.models import PlotLayout
-    from visualization.experiment_visualizer import SWEEP_LAYOUT_PLOT_NAME, visualize_sweep_layout
-
-    vary = {
-        "stall_regime.packet_stall_percent": [0.1, 1, 4],
-        "ai_workload.flow_redundancy_extra_packets": [0, 2, 8],
-        "stall_regime.packet_stall_delay_ms": [0.5, 2],
-    }
-    layout = PlotLayout(
-        split="stall_regime.packet_stall_percent",
-        x="ai_workload.flow_redundancy_extra_packets",
-        lines="stall_regime.packet_stall_delay_ms",
-    )
-    saved_figures: list = []
+    saved: dict = {}
     original_savefig = plt.Figure.savefig
 
-    def _record_savefig(fig, *args, **kwargs):
-        saved_figures.append(fig)
-        return original_savefig(fig, *args, **kwargs)
+    def _record_savefig(fig, filepath, *args, **kwargs):
+        saved[Path(str(filepath)).name] = fig
+        return original_savefig(fig, filepath, *args, **kwargs)
 
-    plt.Figure.savefig = _record_savefig
-    try:
-        outputs = visualize_sweep_layout(
-            _layout_summary(vary),
-            vary=tuple((key, tuple(values)) for key, values in vary.items()),
-            layout=layout,
-            out_dir=str(tmp_path),
-            show=False,
-        )
-    finally:
-        plt.Figure.savefig = original_savefig
+    monkeypatch.setattr(plt.Figure, "savefig", _record_savefig)
+    return saved
 
-    assert outputs == [str(tmp_path / SWEEP_LAYOUT_PLOT_NAME)]
-    assert sorted(path.name for path in tmp_path.iterdir()) == [SWEEP_LAYOUT_PLOT_NAME]
-    axes = saved_figures[0].axes
-    assert [ax.get_title() for ax in axes] == ["p = 0.1 %", "p = 1 %", "p = 4 %"]
-    assert [line.get_label() for line in axes[0].get_lines()] == ["d = 0.5 ms", "d = 2 ms"]
-    assert [tick.get_text() for tick in axes[0].get_xticklabels()] == ["0", "2", "8"]
+
+def _colorbar_label(fig) -> str:
+    # The colour bar is the figure's last axes; a vertical bar carries its label as the y label.
+    return fig.axes[-1].get_ylabel()
+
+
+def _cell_texts(ax) -> list[str]:
+    return [text.get_text() for text in ax.texts]
+
+
+_STALL_KEY = "stall_regime.packet_stall_percent"
+_REDUNDANCY_KEY = "ai_workload.flow_redundancy_extra_packets"
+_DELAY_KEY = "stall_regime.packet_stall_delay_ms"
+
+
+def test_layout_plots_write_three_fixed_name_pdfs_with_one_panel_per_split_value(tmp_path: Path, monkeypatch) -> None:
+    from sim.config.models import PlotLayout
+    from visualization.experiment_visualizer import (
+        SWEEP_LAYOUT_HEATMAP_NAME,
+        SWEEP_LAYOUT_PLOT_NAME,
+        sweep_layout_zoom_plot_name,
+        visualize_sweep_layout,
+    )
+
+    vary = {_STALL_KEY: [0.1, 1, 4], _REDUNDANCY_KEY: [0, 2, 8], _DELAY_KEY: [0.5, 2]}
+    layout = PlotLayout(split=_STALL_KEY, x=_REDUNDANCY_KEY, lines=_DELAY_KEY)
+    saved = _record_saved_figures(monkeypatch)
+
+    outputs = visualize_sweep_layout(
+        _layout_summary(vary),
+        vary=tuple((key, tuple(values)) for key, values in vary.items()),
+        layout=layout,
+        out_dir=str(tmp_path),
+        show=False,
+        lower_zoom_percent=15.0,
+    )
+
+    zoom_name = sweep_layout_zoom_plot_name(15.0)
+    assert zoom_name == "training_step_time_layout_lower_15pct.pdf"
+    assert outputs == [str(tmp_path / name) for name in (SWEEP_LAYOUT_PLOT_NAME, zoom_name, SWEEP_LAYOUT_HEATMAP_NAME)]
+    assert sorted(path.name for path in tmp_path.iterdir()) == sorted([SWEEP_LAYOUT_PLOT_NAME, zoom_name, SWEEP_LAYOUT_HEATMAP_NAME])
+    for name in (SWEEP_LAYOUT_PLOT_NAME, zoom_name):
+        axes = saved[name].axes
+        assert [ax.get_title() for ax in axes] == ["p = 0.1 %", "p = 1 %", "p = 4 %"]
+        assert [line.get_label() for line in axes[0].get_lines()] == ["d = 0.5 ms", "d = 2 ms"]
+        assert [tick.get_text() for tick in axes[0].get_xticklabels()] == ["0", "2", "8"]
+        assert axes[0].get_ylabel() == "Training step time [ms]"
+    heatmap_axes = saved[SWEEP_LAYOUT_HEATMAP_NAME].axes[:-1]
+    assert [ax.get_title() for ax in heatmap_axes] == ["p = 0.1 %", "p = 1 %", "p = 4 %"]
+    assert [tick.get_text() for tick in heatmap_axes[0].get_yticklabels()] == ["0.5", "2"]
+    assert heatmap_axes[0].get_ylabel() == "Stall delay d [ms]"
+
+
+def test_layout_zoom_plot_zooms_each_panel_into_its_own_lowest_range(tmp_path: Path, monkeypatch) -> None:
+    import pytest
+
+    from sim.config.models import PlotLayout
+    from visualization.experiment_visualizer import _lower_zoom_ylim, sweep_layout_zoom_plot_name, visualize_sweep_layout
+
+    vary = {_STALL_KEY: [0.1, 1], _REDUNDANCY_KEY: [0, 2, 8], _DELAY_KEY: [0.5, 2]}
+    saved = _record_saved_figures(monkeypatch)
+
+    visualize_sweep_layout(
+        _layout_summary(vary),
+        vary=tuple((key, tuple(values)) for key, values in vary.items()),
+        layout=PlotLayout(split=_STALL_KEY, x=_REDUNDANCY_KEY, lines=_DELAY_KEY),
+        out_dir=str(tmp_path),
+        show=False,
+        lower_zoom_percent=15.0,
+    )
+
+    # _layout_summary gives the runs step times 10, 11, ... in vary-product order: 6 per stall panel.
+    axes = saved[sweep_layout_zoom_plot_name(15.0)].axes
+    for panel, ax in enumerate(axes):
+        means = [10.0 + 6 * panel + idx for idx in range(6)]
+        assert ax.get_ylim() == pytest.approx(_lower_zoom_ylim(means, 15.0))
+
+
+def test_layout_heatmap_shows_slowdown_when_the_sweep_has_the_healthy_run(tmp_path: Path, monkeypatch) -> None:
+    from sim.config.models import PlotLayout
+    from visualization.experiment_visualizer import SWEEP_LAYOUT_HEATMAP_NAME, visualize_sweep_layout
+
+    times = {(0, 0): 10.0, (0, 1): 14.0, (0, 4): 20.0, (2, 0): 11.0, (2, 1): 11.5, (2, 4): 13.0}
+    summary = [
+        {
+            "ok": True,
+            "label": f"cfg.yaml | {_STALL_KEY}={p} | {_REDUNDANCY_KEY}={r}",
+            "flow_redundancy_extra_packets": r,
+            "packet_stall_percent": p,
+            "training_step_time_avg_ms": t,
+            "training_step_time_std_ms": 0.5,
+        }
+        for (r, p), t in times.items()
+    ]
+    saved = _record_saved_figures(monkeypatch)
+
+    visualize_sweep_layout(
+        summary,
+        vary=((_STALL_KEY, (0, 1, 4)), (_REDUNDANCY_KEY, (0, 2))),
+        layout=PlotLayout(split=None, x=_STALL_KEY, lines=_REDUNDANCY_KEY),
+        out_dir=str(tmp_path),
+        show=False,
+        lower_zoom_percent=0.0,
+    )
+
+    fig = saved[SWEEP_LAYOUT_HEATMAP_NAME]
+    assert _colorbar_label(fig) == "Slowdown T/T0"
+    ax = fig.axes[0]
+    # Written column by column (p = 0, 1, 4), R = 0 then R = 2 in each; T0 = 10 ms.
+    assert _cell_texts(ax) == ["1.00", "1.10", "1.40", "1.15", "2.00", "1.30"]
+    assert ax.get_ylabel() == "Redundancy R [packets]"
+    assert ax.get_xlabel() == "Packet stall probability p [%]"
+    assert ax.get_title() == ""
+
+
+def test_layout_heatmap_shows_step_time_without_a_healthy_run(tmp_path: Path, monkeypatch) -> None:
+    from sim.config.models import PlotLayout
+    from visualization.experiment_visualizer import SWEEP_LAYOUT_HEATMAP_NAME, visualize_sweep_layout
+
+    vary = {_STALL_KEY: [0.1, 1], _REDUNDANCY_KEY: [0, 2], _DELAY_KEY: [0.5, 2]}
+    saved = _record_saved_figures(monkeypatch)
+
+    visualize_sweep_layout(
+        _layout_summary(vary),
+        vary=tuple((key, tuple(values)) for key, values in vary.items()),
+        layout=PlotLayout(split=_DELAY_KEY, x=_STALL_KEY, lines=_REDUNDANCY_KEY),
+        out_dir=str(tmp_path),
+        show=False,
+        lower_zoom_percent=0.0,
+    )
+
+    fig = saved[SWEEP_LAYOUT_HEATMAP_NAME]
+    assert _colorbar_label(fig) == "Training step time [ms]"
+    # Step times 10, 11, ... in vary-product order (stall, R, delay); the d = 0.5 ms panel holds the even ones.
+    assert sorted(_cell_texts(fig.axes[0])) == ["10.00", "12.00", "14.00", "16.00"]
 
 
 def test_layout_plot_without_layout_or_matching_runs_writes_nothing(tmp_path: Path) -> None:
     from sim.config.models import PlotLayout
     from visualization.experiment_visualizer import visualize_sweep_layout
 
-    vary = (("stall_regime.packet_stall_percent", (0, 1)), ("ai_workload.flow_redundancy_extra_packets", (0, 2)))
-    layout = PlotLayout(split=None, x="stall_regime.packet_stall_percent", lines="ai_workload.flow_redundancy_extra_packets")
+    vary = ((_STALL_KEY, (0, 1)), (_REDUNDANCY_KEY, (0, 2)))
+    layout = PlotLayout(split=None, x=_STALL_KEY, lines=_REDUNDANCY_KEY)
 
-    assert visualize_sweep_layout([], vary=vary, layout=None, out_dir=str(tmp_path), show=False) == []
-    assert visualize_sweep_layout([{"ok": True, "label": "ok"}], vary=vary, layout=layout, out_dir=str(tmp_path), show=False) == []
+    assert visualize_sweep_layout([], vary=vary, layout=None, out_dir=str(tmp_path), show=False, lower_zoom_percent=15.0) == []
+    assert (
+        visualize_sweep_layout(
+            [{"ok": True, "label": "ok"}], vary=vary, layout=layout, out_dir=str(tmp_path), show=False, lower_zoom_percent=15.0
+        )
+        == []
+    )
     assert list(tmp_path.iterdir()) == []
+
+
+def test_paper_style_lower_zoom_plot_has_the_paper_look(tmp_path: Path, monkeypatch) -> None:
+    times = {(0, 0.0): 10.0, (0, 1.0): 14.0, (2, 0.0): 11.0, (2, 1.0): 11.5}
+    summary = [
+        {
+            "ok": True,
+            "label": f"r{r}-p{p}",
+            "flow_redundancy_extra_packets": r,
+            "packet_stall_percent": p,
+            "training_step_time_avg_ms": t,
+            "training_step_time_std_ms": 0.5,
+            "training_step_time_min_ms": t - 1.0,
+            "training_step_time_max_ms": t + 1.0,
+        }
+        for (r, p), t in times.items()
+    ]
+    saved = _record_saved_figures(monkeypatch)
+
+    visualize_sweep_time_comparison(
+        summary, out_dir=str(tmp_path), show=False, training_step_time_lower_zoom_percent=15.0, paper_style=True
+    )
+
+    assert (tmp_path / "training_step_time_vs_packet_stall_lower_15pct.pdf").exists()
+    zoom = saved["training_step_time_vs_packet_stall_lower_15pct.pdf"]
+    full = saved["training_step_time_vs_packet_stall.pdf"]
+    for fig in (zoom, full):
+        ax = fig.axes[0]
+        assert ax.get_title() == ""
+        assert ax.get_xlabel() == "Packet stall probability p [%]"
+        assert ax.get_ylabel() == "Training step time [ms]"
+        assert [text.get_text() for text in ax.get_legend().get_texts()] == ["R = 0", "R = 2"]
+        assert fig.get_facecolor()[:3] == (1.0, 1.0, 1.0)
+    assert zoom.get_size_inches().tolist() == full.get_size_inches().tolist()

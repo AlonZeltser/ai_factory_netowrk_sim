@@ -1,10 +1,11 @@
 import csv
+from dataclasses import dataclass
 import datetime
 import logging
 import os
 from pathlib import Path
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import yaml
 
@@ -1243,8 +1244,8 @@ def visualize_sweep_time_comparison(
 ) -> list[str]:
     """Create aggregate and per-redundancy comparison plots across the varying impairment percentage.
 
-    `paper_style` draws the training-step-time and best-redundancy plots in the paper look (the
-    slowdown heatmap always uses it).
+    `paper_style` draws the training-step-time plots (full and lower zoom) and the best-redundancy
+    plot in the paper look (the slowdown heatmap always uses it).
     """
     rows = [row for row in summary if row.get("ok")]
     if not rows:
@@ -1429,30 +1430,43 @@ def visualize_sweep_time_comparison(
         saved_paths.append(filepath)
 
         if metric["stem"] == "training_step_time" and training_step_time_lower_zoom_percent > 0.0:
-            fig_zoom, ax_zoom = plt.subplots(figsize=(11, 7))
-            spread_suffix_zoom = _plot_sweep_metric_series(ax_zoom, sorted_series, include_legend=True)
-            ax_zoom.set_title(
-                f"{metric['title'].replace('impairment', title_suffix)} (lower {training_step_time_lower_zoom_percent:g}% zoom){spread_suffix_zoom}",
-                fontsize=14,
-                fontweight='bold',
-            )
-            ax_zoom.set_xlabel(x_label, fontsize=12)
-            ax_zoom.set_ylabel(metric["ylabel"], fontsize=12)
-            _apply_exponential_x_axis(ax_zoom, sorted_series)
-            _set_sweep_x_ticks(ax_zoom, sorted_series)
             zoom_ylim = _lower_zoom_ylim(
                 [point["y"] for _, points in sorted_series for point in points],
                 training_step_time_lower_zoom_percent,
             )
-            if zoom_ylim is not None:
-                ax_zoom.set_ylim(*zoom_ylim)
-            ax_zoom.grid(alpha=0.3, linestyle='--', linewidth=0.7)
-
             filepath_zoom = os.path.join(
                 out_dir,
                 f"{metric['stem']}_vs_{file_suffix}_lower_{int(round(training_step_time_lower_zoom_percent))}pct_{timestamp}.png",
             )
-            _save_or_show(fig_zoom, filepath_zoom, show=show)
+            if paper_style:
+                # Same look as the full training-step-time plot, only the y range differs.
+                with plt.rc_context(_PAPER_RC):
+                    fig_zoom, ax_zoom = plt.subplots(figsize=PAPER_FIGSIZE)
+                    _plot_paper_metric_series(plt, ax_zoom, sorted_series)
+                    ax_zoom.set_xlabel(_paper_x_label(x_key, x_label))
+                    ax_zoom.set_ylabel(_PAPER_STEP_TIME_Y_LABEL)
+                    _apply_exponential_x_axis(ax_zoom, sorted_series)
+                    _set_sweep_x_ticks(ax_zoom, sorted_series)
+                    if zoom_ylim is not None:
+                        ax_zoom.set_ylim(*zoom_ylim)
+                    fig_zoom.tight_layout()
+                    _save_or_show(fig_zoom, filepath_zoom, show=show)
+            else:
+                fig_zoom, ax_zoom = plt.subplots(figsize=(11, 7))
+                spread_suffix_zoom = _plot_sweep_metric_series(ax_zoom, sorted_series, include_legend=True)
+                ax_zoom.set_title(
+                    f"{metric['title'].replace('impairment', title_suffix)} (lower {training_step_time_lower_zoom_percent:g}% zoom){spread_suffix_zoom}",
+                    fontsize=14,
+                    fontweight='bold',
+                )
+                ax_zoom.set_xlabel(x_label, fontsize=12)
+                ax_zoom.set_ylabel(metric["ylabel"], fontsize=12)
+                _apply_exponential_x_axis(ax_zoom, sorted_series)
+                _set_sweep_x_ticks(ax_zoom, sorted_series)
+                if zoom_ylim is not None:
+                    ax_zoom.set_ylim(*zoom_ylim)
+                ax_zoom.grid(alpha=0.3, linestyle='--', linewidth=0.7)
+                _save_or_show(fig_zoom, filepath_zoom, show=show)
             logging.info("Sweep comparison (lower-zoom) graph saved to: %s", filepath_zoom)
             saved_paths.append(filepath_zoom)
 
@@ -1564,8 +1578,17 @@ def standard_plot_merged_keys(vary: tuple[tuple[str, tuple[Any, ...]], ...]) -> 
     return [key for key in varied if key not in (_STANDARD_PLOT_LINE_KEY, x_key)]
 
 
-# Fixed file name of the layout plot; each sweep writes into its own folder.
+# Fixed file names of the layout plots; each sweep writes into its own folder.
 SWEEP_LAYOUT_PLOT_NAME = "training_step_time_layout.pdf"
+SWEEP_LAYOUT_HEATMAP_NAME = "training_step_slowdown_heatmap_layout.pdf"
+
+
+def sweep_layout_zoom_plot_name(lower_zoom_percent: float) -> str:
+    """File name of the zoomed layout plot, e.g. `training_step_time_layout_lower_15pct.pdf`."""
+    return f"training_step_time_layout_lower_{int(round(lower_zoom_percent))}pct.pdf"
+
+
+
 # Vary key -> (short symbol, unit suffix, axis label) for the layout plot; other keys use their last part.
 _LAYOUT_KEY_NAMES = {
     "stall_regime.packet_stall_percent": ("p", " %", _PAPER_STALL_X_LABEL),
@@ -1590,25 +1613,36 @@ def _layout_value_text(key: str, value: Any) -> str:
     return f"{short} = {_format_layout_value(value)}{unit}"
 
 
-def visualize_sweep_layout(
+class _LayoutPoint(NamedTuple):
+    mean: float  # mean training step time, ms
+    std: float  # std over the steps, ms
+    healthy: bool  # R = 0, no stall and no link failure: the slowdown baseline T0
+
+
+@dataclass(frozen=True)
+class _LayoutGrid:
+    """Successful runs placed by the plot layout; items are (value as the run labels write it, value)."""
+
+    layout: Any
+    split_items: list[tuple[str | None, Any]]  # [(None, None)] when there is no split
+    x_items: list[tuple[str, Any]]
+    line_items: list[tuple[str, Any]]
+    cells: dict[tuple[str | None, str], dict[str, _LayoutPoint]]  # (split, line) -> x -> point
+
+
+def _is_healthy_row(row: Dict[str, Any]) -> bool:
+    redundancy = _summary_float(row, "flow_redundancy_extra_packets")
+    stall = _summary_float(row, "packet_stall_percent")
+    link_failure = _summary_float(row, "link_failure_percent")
+    return redundancy == 0.0 and stall == 0.0 and not link_failure
+
+
+def _collect_layout_grid(
     summary: List[Dict[str, Any]],
     *,
     vary: tuple[tuple[str, tuple[Any, ...]], ...],
     layout: Any,
-    out_dir: str,
-    show: bool,
-) -> list[str]:
-    """Mean training step time (± std over steps), laid out by the sweep's own vary keys.
-
-    `layout` (a `PlotLayout`, or None for no plot) names the vary key of each role: one panel
-    per `split` value, side by side; `x` on the x axis; one line per `lines` value. Values keep
-    their `sweep.vary` order and sit at equal spacing on the x axis. The run values are read
-    from the run labels. Written in the paper style as one PDF, `SWEEP_LAYOUT_PLOT_NAME`.
-    """
-    if layout is None:
-        logging.info("Layout plot skipped: no sweep.plot_layout and the sweep does not vary 2 or 3 keys")
-        return []
-
+) -> _LayoutGrid | None:
     # Imported here: sim.runners may import this module, so a top-level import could be circular.
     from sim.runners.sweep_runner import format_override_value, label_vary_values
 
@@ -1619,8 +1653,7 @@ def visualize_sweep_layout(
         return [(format_override_value(value), value) for value in vary_values[key]]
 
     roles = [key for key in (layout.split, layout.x, layout.lines) if key is not None]
-    # (split text, line text) -> x text -> (mean, std) step time in ms.
-    cells: dict[tuple[str | None, str], dict[str, tuple[float, float]]] = {}
+    cells: dict[tuple[str | None, str], dict[str, _LayoutPoint]] = {}
     for row in summary:
         if not isinstance(row, dict) or not row.get("ok"):
             continue
@@ -1635,9 +1668,211 @@ def visualize_sweep_layout(
             continue
         std = _summary_float(row, "training_step_time_std_ms") or 0.0
         split_text = run_values[layout.split] if layout.split is not None else None
-        cells.setdefault((split_text, run_values[layout.lines]), {})[run_values[layout.x]] = (avg, max(0.0, std))
+        cells.setdefault((split_text, run_values[layout.lines]), {})[run_values[layout.x]] = _LayoutPoint(
+            avg, max(0.0, std), _is_healthy_row(row)
+        )
     if not cells:
-        logging.warning("Layout plot skipped: no successful run with a training step time and all of %s", ", ".join(roles))
+        logging.warning("Layout plots skipped: no successful run with a training step time and all of %s", ", ".join(roles))
+        return None
+
+    split_items = ordered(layout.split) if layout.split is not None else [(None, None)]
+    return _LayoutGrid(
+        layout=layout,
+        split_items=[(text, value) for text, value in split_items if any(key[0] == text for key in cells)],
+        x_items=ordered(layout.x),
+        line_items=ordered(layout.lines),
+        cells=cells,
+    )
+
+
+def _layout_subplots(plt, panel_count: int, *, extra_width: float = 0.0, **kwargs):
+    """One row of panels: the paper size for one panel, 3 in per panel beyond that."""
+    width = PAPER_FIGSIZE[0] if panel_count == 1 else 3.0 * panel_count + extra_width
+    return plt.subplots(1, panel_count, figsize=(width, PAPER_FIGSIZE[1]), squeeze=False, **kwargs)
+
+
+def _save_layout_figure(plt, fig, filepath: str, *, show: bool) -> None:
+    fig.savefig(filepath, bbox_inches='tight')
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+
+def _draw_layout_step_time(plt, grid: _LayoutGrid, *, zoom_percent: float, filepath: str, show: bool) -> None:
+    """Mean ± std lines per panel; `zoom_percent` > 0 shows the lowest part of each panel's own y range."""
+    layout = grid.layout
+    markers = ['o', 's', '^', 'v', 'D', 'p', '*', 'h', 'X', 'P', '<', '>']
+    cmap = plt.get_cmap("viridis")
+    line_count = len(grid.line_items)
+    x_position = {text: idx for idx, (text, _) in enumerate(grid.x_items)}
+    fig, axes = _layout_subplots(plt, len(grid.split_items))
+    for ax, (split_text, split_value) in zip(axes[0], grid.split_items):
+        panel_means: list[float] = []
+        for idx, (line_text, line_value) in enumerate(grid.line_items):
+            cell = grid.cells.get((split_text, line_text))
+            if not cell:
+                continue
+            x_texts = [text for text, _ in grid.x_items if text in cell]
+            xs = [x_position[text] for text in x_texts]
+            ys = [cell[text].mean for text in x_texts]
+            stds = [cell[text].std for text in x_texts]
+            panel_means.extend(ys)
+            # Colour by the line's place in the vary list, so it matches across panels;
+            # stop at 0.9 so the last line is not the pale yellow end of viridis.
+            color = cmap(0.9 * idx / (line_count - 1)) if line_count > 1 else cmap(0.0)
+            if any(std > 0.0 for std in stds):
+                ax.fill_between(
+                    xs,
+                    [y - std for y, std in zip(ys, stds)],
+                    [y + std for y, std in zip(ys, stds)],
+                    color=color,
+                    alpha=0.15,
+                    linewidth=0.0,
+                    zorder=2,
+                )
+            ax.plot(
+                xs,
+                ys,
+                marker=markers[idx % len(markers)],
+                markersize=3.5,
+                linewidth=1.2,
+                color=color,
+                label=_layout_value_text(layout.lines, line_value),
+                zorder=3,
+            )
+        ax.set_xticks(range(len(grid.x_items)))
+        ax.set_xticklabels([_format_layout_value(value) for _, value in grid.x_items])
+        ax.set_xlim(-0.5, len(grid.x_items) - 0.5)
+        ax.set_xlabel(_layout_key_names(layout.x)[2])
+        if layout.split is not None:
+            ax.set_title(_layout_value_text(layout.split, split_value), fontsize=9)
+        if zoom_percent > 0.0:
+            zoom_ylim = _lower_zoom_ylim(panel_means, zoom_percent)
+            if zoom_ylim is not None:
+                ax.set_ylim(*zoom_ylim)
+    axes[0][0].set_ylabel(_PAPER_STEP_TIME_Y_LABEL)
+    # The lines are the same in every panel, so one legend is enough.
+    axes[0][0].legend(loc="best", ncol=2, framealpha=0.9, handlelength=1.8, columnspacing=1.0)
+    fig.tight_layout()
+    _save_layout_figure(plt, fig, filepath, show=show)
+
+
+def _draw_layout_heatmap(plt, grid: _LayoutGrid, *, filepath: str, show: bool) -> None:
+    """One heatmap per panel: rows = lines key, columns = x key, the lowest value of each column bold.
+
+    Cells hold T/T0 when every panel has a healthy run (T0 = the panel's own, or the sweep's only
+    one), else the mean step time in ms. All panels share one colour scale and colour bar.
+    """
+    import numpy as np
+    from matplotlib.colors import LogNorm, Normalize
+
+    layout = grid.layout
+    panels: list[Any] = []
+    baselines: list[float | None] = []
+    for split_text, _ in grid.split_items:
+        data = np.full((len(grid.line_items), len(grid.x_items)), np.nan)
+        baseline = None
+        for i, (line_text, _) in enumerate(grid.line_items):
+            cell = grid.cells.get((split_text, line_text), {})
+            for j, (x_text, _) in enumerate(grid.x_items):
+                point = cell.get(x_text)
+                if point is None:
+                    continue
+                data[i, j] = point.mean
+                if point.healthy:
+                    baseline = point.mean
+        panels.append(data)
+        baselines.append(baseline)
+
+    if not all(baseline is not None for baseline in baselines):
+        # A split by R or by the stall puts the healthy run in one panel only: use it for all
+        # panels when it is the sweep's only healthy run.
+        healthy = [point.mean for cell in grid.cells.values() for point in cell.values() if point.healthy]
+        if len(healthy) == 1:
+            baselines = [healthy[0]] * len(baselines)
+    slowdown = all(baseline is not None and baseline > 0.0 for baseline in baselines)
+    if slowdown:
+        panels = [data / baseline for data, baseline in zip(panels, baselines)]
+    else:
+        logging.info("Layout heatmap shows step times in ms: not every panel has a healthy run (R = 0, stall 0)")
+    values = np.concatenate([data[~np.isnan(data)] for data in panels])
+    vmin, vmax = float(values.min()), float(values.max())
+    if slowdown:
+        # Light = 1: values below 1 (noise) are clipped to the lightest colour, as in the 2-key heatmap.
+        norm = LogNorm(vmin=1.0, vmax=max(vmax, 1.0 + 1e-6), clip=True)
+    else:
+        norm = Normalize(vmin=vmin, vmax=vmax if vmax > vmin else vmin + 1e-6, clip=True)
+
+    panel_count = len(grid.split_items)
+    fig, axes = _layout_subplots(plt, panel_count, extra_width=1.0, constrained_layout=True)
+    image = None
+    for ax, (_, split_value), data in zip(axes[0], grid.split_items, panels):
+        image = ax.imshow(np.ma.masked_invalid(data), cmap="Blues", norm=norm, aspect="auto", origin="lower")
+        ax.grid(False)
+        for j in range(len(grid.x_items)):
+            column = data[:, j]
+            best_i = int(np.nanargmin(column)) if not np.all(np.isnan(column)) else None
+            for i in range(len(grid.line_items)):
+                value = column[i]
+                if np.isnan(value):
+                    continue
+                ax.text(
+                    j,
+                    i,
+                    f"{value:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=6.5,
+                    fontweight="bold" if i == best_i else "normal",
+                    color="white" if float(norm(value)) > 0.6 else "#111111",
+                )
+        ax.set_xticks(range(len(grid.x_items)))
+        ax.set_xticklabels([_format_layout_value(value) for _, value in grid.x_items])
+        ax.set_yticks(range(len(grid.line_items)))
+        ax.set_yticklabels([_format_layout_value(value) for _, value in grid.line_items])
+        ax.set_xlabel(_layout_key_names(layout.x)[2])
+        if layout.split is not None:
+            ax.set_title(_layout_value_text(layout.split, split_value), fontsize=9)
+    axes[0][0].set_ylabel(_layout_key_names(layout.lines)[2])
+
+    cbar = fig.colorbar(image, ax=list(axes[0]), fraction=0.046 if panel_count == 1 else 0.03, pad=0.03)
+    if slowdown:
+        cbar.set_label("Slowdown T/T0")
+        ticks = [t for t in (1, 1.25, 1.5, 2, 3, 5, 10, 20, 50, 100) if t <= max(vmax, 1.0)]
+        cbar.minorticks_off()
+        cbar.set_ticks(ticks)
+        cbar.set_ticklabels([f"{t:g}" for t in ticks])
+    else:
+        cbar.set_label(_PAPER_STEP_TIME_Y_LABEL)
+    _save_layout_figure(plt, fig, filepath, show=show)
+
+
+def visualize_sweep_layout(
+    summary: List[Dict[str, Any]],
+    *,
+    vary: tuple[tuple[str, tuple[Any, ...]], ...],
+    layout: Any,
+    out_dir: str,
+    show: bool,
+    lower_zoom_percent: float,
+) -> list[str]:
+    """The training-step plots, laid out by the sweep's own vary keys, in the paper style.
+
+    `layout` (a `PlotLayout`, or None for no plots) names the vary key of each role: one panel
+    per `split` value, side by side; `x` on the x axis (or heatmap columns); one line (or heatmap
+    row) per `lines` value. Values keep their `sweep.vary` order, at equal spacing. The run values
+    are read from the run labels. Each plot is one fixed-name PDF:
+    - `SWEEP_LAYOUT_PLOT_NAME`: mean training step time ± std over the steps;
+    - `sweep_layout_zoom_plot_name(...)`: the same, each panel showing the lowest
+      `lower_zoom_percent` of its y range (skipped when it is 0);
+    - `SWEEP_LAYOUT_HEATMAP_NAME`: slowdown T/T0, or the step time in ms without a healthy run.
+    """
+    if layout is None:
+        logging.info("Layout plots skipped: no sweep.plot_layout and the sweep does not vary 2 or 3 keys")
+        return []
+    grid = _collect_layout_grid(summary, vary=vary, layout=layout)
+    if grid is None:
         return []
 
     try:
@@ -1646,82 +1881,32 @@ def visualize_sweep_layout(
             matplotlib.use('Agg')
         import matplotlib.pyplot as plt
     except ImportError:
-        logging.warning("matplotlib not available, skipping the layout plot")
+        logging.warning("matplotlib not available, skipping the layout plots")
         return []
 
-    try:
-        split_items = ordered(layout.split) if layout.split is not None else [(None, None)]
-        split_items = [(text, value) for text, value in split_items if any(key[0] == text for key in cells)]
-        x_items = ordered(layout.x)
-        x_position = {text: idx for idx, (text, _) in enumerate(x_items)}
-        line_items = ordered(layout.lines)
-        markers = ['o', 's', '^', 'v', 'D', 'p', '*', 'h', 'X', 'P', '<', '>']
-        line_count = len(line_items)
-
-        with plt.rc_context(_PAPER_RC):
-            cmap = plt.get_cmap("viridis")
-            panel_count = len(split_items)
-            fig, axes = plt.subplots(
-                1,
-                panel_count,
-                figsize=(max(PAPER_FIGSIZE[0], 3.0 * panel_count), PAPER_FIGSIZE[1]),
-                squeeze=False,
+    plots = [(SWEEP_LAYOUT_PLOT_NAME, lambda path: _draw_layout_step_time(plt, grid, zoom_percent=0.0, filepath=path, show=show))]
+    if lower_zoom_percent > 0.0:
+        plots.append(
+            (
+                sweep_layout_zoom_plot_name(lower_zoom_percent),
+                lambda path: _draw_layout_step_time(plt, grid, zoom_percent=lower_zoom_percent, filepath=path, show=show),
             )
-            for ax, (split_text, split_value) in zip(axes[0], split_items):
-                for idx, (line_text, line_value) in enumerate(line_items):
-                    cell = cells.get((split_text, line_text))
-                    if not cell:
-                        continue
-                    x_texts = [text for text, _ in x_items if text in cell]
-                    xs = [x_position[text] for text in x_texts]
-                    ys = [cell[text][0] for text in x_texts]
-                    stds = [cell[text][1] for text in x_texts]
-                    # Colour by the line's place in the vary list, so it matches across panels;
-                    # stop at 0.9 so the last line is not the pale yellow end of viridis.
-                    color = cmap(0.9 * idx / (line_count - 1)) if line_count > 1 else cmap(0.0)
-                    if any(std > 0.0 for std in stds):
-                        ax.fill_between(
-                            xs,
-                            [y - std for y, std in zip(ys, stds)],
-                            [y + std for y, std in zip(ys, stds)],
-                            color=color,
-                            alpha=0.15,
-                            linewidth=0.0,
-                            zorder=2,
-                        )
-                    ax.plot(
-                        xs,
-                        ys,
-                        marker=markers[idx % len(markers)],
-                        markersize=3.5,
-                        linewidth=1.2,
-                        color=color,
-                        label=_layout_value_text(layout.lines, line_value),
-                        zorder=3,
-                    )
-                ax.set_xticks(range(len(x_items)))
-                ax.set_xticklabels([_format_layout_value(value) for _, value in x_items])
-                ax.set_xlim(-0.5, len(x_items) - 0.5)
-                ax.set_xlabel(_layout_key_names(layout.x)[2])
-                if layout.split is not None:
-                    ax.set_title(_layout_value_text(layout.split, split_value), fontsize=9)
-            axes[0][0].set_ylabel(_PAPER_STEP_TIME_Y_LABEL)
-            # The lines are the same in every panel, so one legend is enough.
-            axes[0][0].legend(loc="best", ncol=2, framealpha=0.9, handlelength=1.8, columnspacing=1.0)
-            fig.tight_layout()
+        )
+    plots.append((SWEEP_LAYOUT_HEATMAP_NAME, lambda path: _draw_layout_heatmap(plt, grid, filepath=path, show=show)))
 
-            os.makedirs(out_dir, exist_ok=True)
-            filepath = os.path.join(out_dir, SWEEP_LAYOUT_PLOT_NAME)
-            fig.savefig(filepath, bbox_inches='tight')
-            if show:
-                plt.show()
-            else:
-                plt.close(fig)
+    os.makedirs(out_dir, exist_ok=True)
+    saved: list[str] = []
+    for name, draw in plots:
+        filepath = os.path.join(out_dir, name)
+        try:
+            with plt.rc_context(_PAPER_RC):
+                draw(filepath)
+        except Exception as e:
+            logging.exception(f"Failed to create the layout plot {name}: {e}")
+            continue
         logging.info("Layout plot saved to: %s", filepath)
-        return [filepath]
-    except Exception as e:
-        logging.exception(f"Failed to create the layout plot: {e}")
-        return []
+        saved.append(filepath)
+    return saved
 
 
 def visualize_sweep_time_comparison_from_yaml(
@@ -1808,5 +1993,6 @@ __all__ = [
     "visualize_summary_training_step_traffic_matrices",
     "visualize_sweep_time_comparison_from_yaml",
     "visualize_sweep_layout",
+    "sweep_layout_zoom_plot_name",
     "standard_plot_merged_keys",
 ]

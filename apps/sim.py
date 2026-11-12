@@ -193,6 +193,7 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
                     layout=sweep.plot_layout,
                     out_dir=out_dir,
                     show=sweep.show_visualization_window,
+                    lower_zoom_percent=sweep.lower_zoom_percent,
                 )
             )
         if sweep.plot_ring_heatmaps:
