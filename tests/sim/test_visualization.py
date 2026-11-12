@@ -95,13 +95,14 @@ def test_visualize_sweep_time_comparison_saves_aggregate_and_per_redundancy_file
         {"ok": True, "label": "run-d", "routing_mode": "adaptive", "flow_redundancy_extra_packets": 2, "link_failure_percent": 0.0, "packet_stall_percent": 3.0, "flow_time_avg_ms": 1.3, "flow_time_std_ms": 0.11, "flow_time_min_ms": 1.0, "flow_time_max_ms": 1.6, "ring_flow_time_avg_ms": 1.3, "ring_flow_time_std_ms": 0.11, "ring_flow_time_min_ms": 1.0, "ring_flow_time_max_ms": 1.6, "gradient_bucket_time_avg_ms": 5.2, "gradient_bucket_time_std_ms": 0.24, "gradient_bucket_time_min_ms": 4.7, "gradient_bucket_time_max_ms": 5.7, "training_step_time_avg_ms": 21.0, "training_step_time_std_ms": 0.9, "training_step_time_min_ms": 19.8, "training_step_time_max_ms": 22.8, "training_job_time_avg_ms": 52.0, "training_job_time_std_ms": 1.6, "training_job_time_min_ms": 50.2, "training_job_time_max_ms": 54.3, "total_packets": 900, "packet_stall_marked_count": 16, "packet_stall_triggered_count": 12, "packet_stall_triggered_percent": 1.3333333333, "avg_stalls_per_flow": 0.75, "max_stalls_per_flow": 2, "gradient_bucket_bottleneck_stalls": 5, "stalls_per_flow_histogram": {0: 30, 1: 15, 2: 5}, "total_redundant_packets": 113},
     ]
 
-    outputs = visualize_sweep_time_comparison(summary, out_dir=str(tmp_path), show=False, training_step_time_lower_zoom_percent=15.0)
+    outputs = visualize_sweep_time_comparison(summary, out_dir=str(tmp_path), show=False, training_step_time_lower_zoom_percent=15.0, paper_style=False)
 
-    assert len(outputs) == 20
+    assert len(outputs) == 21
     assert all(Path(output).exists() for output in outputs)
-    # 7 aggregate plots: flow, ring flow, gradient bucket, training step, training step lower-15% zoom,
-    # best training step, training job.
-    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name for output in outputs) == 7
+    # 8 aggregate plots: flow, ring flow, gradient bucket, training step, training step lower-15% zoom,
+    # best training step, training job, slowdown heatmap.
+    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name for output in outputs) == 8
+    assert any(Path(output).name.startswith("training_step_slowdown_heatmap_") for output in outputs)
     assert sum("training_step_time_vs_packet_stall_lower_15pct_" in Path(output).name for output in outputs) == 1
     assert sum("_redundancy_0pkt_" in Path(output).name for output in outputs) == 5
     assert sum("_redundancy_2pkt_" in Path(output).name for output in outputs) == 5
@@ -193,7 +194,7 @@ def test_sweep_comparison_skips_ring_flow_plot_for_summaries_without_ring_keys(t
         for i, stall in enumerate([0.0, 3.0])
     ]
 
-    outputs = visualize_sweep_time_comparison(summary, out_dir=str(tmp_path), show=False, training_step_time_lower_zoom_percent=0.0)
+    outputs = visualize_sweep_time_comparison(summary, out_dir=str(tmp_path), show=False, training_step_time_lower_zoom_percent=0.0, paper_style=False)
 
     assert any(Path(output).name.startswith("flow_time_vs_") for output in outputs)
     assert not any(Path(output).name.startswith("ring_flow_time_vs_") for output in outputs)
@@ -209,12 +210,12 @@ def test_visualize_sweep_time_comparison_from_yaml_saves_plots_and_step_heatmaps
     summary_path = tmp_path / "sweep_summary.yaml"
     summary_path.write_text(yaml.safe_dump(summary, sort_keys=False), encoding="utf-8")
 
-    outputs = visualize_sweep_time_comparison_from_yaml(str(summary_path), out_dir=str(tmp_path), show=False, training_step_time_lower_zoom_percent=15.0, include_training_step_traffic_matrices=True)
+    outputs = visualize_sweep_time_comparison_from_yaml(str(summary_path), out_dir=str(tmp_path), show=False, training_step_time_lower_zoom_percent=15.0, include_training_step_traffic_matrices=True, paper_style=False)
 
-    assert len(outputs) == 19
+    assert len(outputs) == 20
     assert all(Path(output).exists() for output in outputs)
-    # 6 aggregate plots: 4 metric plots + training step lower-15% zoom + best-training-step-time view.
-    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name and "training_step_traffic_matrix_" not in Path(output).name for output in outputs) == 6
+    # 7 aggregate plots: 4 metric plots + training step lower-15% zoom + best-training-step-time view + slowdown heatmap.
+    assert sum(Path(output).suffix == ".png" and "_redundancy_" not in Path(output).name and "training_step_traffic_matrix_" not in Path(output).name for output in outputs) == 7
     assert sum("training_step_time_vs_packet_stall_lower_15pct_" in Path(output).name for output in outputs) == 1
     # 2 training step traffic matrix heatmaps (one per row that has training_step_traffic_matrices data)
     assert sum("training_step_traffic_matrix_" in Path(output).name for output in outputs) == 2
@@ -222,3 +223,33 @@ def test_visualize_sweep_time_comparison_from_yaml_saves_plots_and_step_heatmaps
     assert sum(Path(output).suffix == ".csv" for output in outputs) == 2
 
 
+
+
+
+def test_paper_style_sweep_writes_fixed_name_pdfs_and_slowdown_heatmap(tmp_path: Path) -> None:
+    times = {(0, 0.0): 10.0, (0, 1.0): 14.0, (0, 4.0): 20.0, (2, 0.0): 11.0, (2, 1.0): 11.5, (2, 4.0): 13.0}
+    summary = [
+        {
+            "ok": True,
+            "label": f"r{r}-p{p}",
+            "flow_redundancy_extra_packets": r,
+            "packet_stall_percent": p,
+            "training_step_time_avg_ms": t,
+            "training_step_time_std_ms": 0.5,
+            "training_step_time_min_ms": t - 1.0,
+            "training_step_time_max_ms": t + 1.0,
+        }
+        for (r, p), t in times.items()
+    ]
+
+    outputs = visualize_sweep_time_comparison(
+        summary, out_dir=str(tmp_path), show=False, training_step_time_lower_zoom_percent=0.0, paper_style=True
+    )
+
+    for name in (
+        "training_step_time_vs_packet_stall.pdf",
+        "best_redundancy_vs_packet_stall.pdf",
+        "training_step_slowdown_heatmap.pdf",
+    ):
+        assert (tmp_path / name).exists(), name
+    assert all(Path(output).exists() for output in outputs)

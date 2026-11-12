@@ -3,6 +3,8 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
+import xxhash
+
 
 @dataclass
 class IdGenerator:
@@ -23,6 +25,8 @@ class IdGenerator:
         return self._rnd.getrandbits(bits)
 
     def child(self, salt: int | str) -> "IdGenerator":
-        # Derive a new generator deterministically.
-        return IdGenerator(seed=(hash((self.seed, salt)) & 0x7FFFFFFF))
+        # Derive a new generator deterministically. Built-in hash() of a str changes per process,
+        # so use xxhash on bytes (newer xxhash versions reject str).
+        key = f"{self.seed}/{salt}".encode("utf-8")
+        return IdGenerator(seed=xxhash.xxh64(key).intdigest() & 0x7FFFFFFF)
 

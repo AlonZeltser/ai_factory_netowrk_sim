@@ -1,6 +1,6 @@
 ai_workload:
   # Number of training steps to simulate. Range: integer >= 1.
-  steps: 50
+  steps: 2
   # Deterministic seed for training-job / ring-order generation. Range: integer >= 0.
   seed: 1972
   # Number of gradient buckets synchronized per step. Range: integer >= 1.

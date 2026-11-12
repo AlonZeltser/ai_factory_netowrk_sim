@@ -168,6 +168,7 @@ def test_sweep_writes_gantt_pdfs_for_sample_steps(tmp_path: Path) -> None:
                     "processes": 1,
                     "plot_topology_once": False,
                     "show_visualization_window": False,
+                    "paper_style": False,
                     "gantt_pdfs": True,
                     "gantt_chain_limit": 40,
                     "gantt_compare": {"ai_workload.flow_redundancy_extra_packets": [0, 1]},

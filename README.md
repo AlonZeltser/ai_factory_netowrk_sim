@@ -177,7 +177,7 @@ show_visualization_window: true
 
 A sweep runs every combination of a set of parameter values on top of one experiment file, in parallel worker processes. The `sweep:` section of the experiment file is the only way to set up a sweep: every key below is required, and the `sweep` command takes only `--config`. One command reproduces a whole result set.
 
-The research sweep is `experiments/research_configurations/main_sweep.yaml` (7 redundancy values x 10 stall percentages = 70 runs):
+The research sweep is `experiments/research_configurations/main_sweep.yaml` (9 redundancy values x 10 stall percentages = 90 runs):
 
 ```yaml
 extends:
@@ -189,7 +189,7 @@ extends:
 name: research-sweep
 sweep:
   vary:                                         # dotted config key -> list of values
-    ai_workload.flow_redundancy_extra_packets: [0, 1, 2, 4, 8, 12, 16]
+    ai_workload.flow_redundancy_extra_packets: [0, 1, 2, 3, 4, 6, 8, 12, 16]
     stall_regime.packet_stall_percent: [0, 0.02, 0.05, 0.1, 0.25, 0.5, 1, 2, 4, 8]
   summary_out: repo:results/research-sweep/main_sweep_summary.yaml   # summary file; plots and deep logs go next to it
   visualize_summary: true                       # comparison plots
@@ -199,6 +199,7 @@ sweep:
   processes: auto                               # worker processes: an integer, or auto (balanced across CPUs)
   plot_topology_once: false                     # draw the topology of the first combination before running
   show_visualization_window: false              # open the plots in a window as well as saving them
+  paper_style: true                             # paper look (no title, white, 6x3.6 in, 9 pt) for the step-time, best-redundancy and slowdown plots
   gantt_pdfs: true                              # visualizer Gantt PDFs of the first, middle and slowest step of each run (needs deep_flow_chain_log: true)
   gantt_chain_limit: 40                         # most ring chains drawn in one Gantt
   gantt_compare:                                # also put runs that differ only in this vary key side by side (2 to 4 values; {} = none)
@@ -207,7 +208,7 @@ sweep:
 
 ```bash
 python -m apps.sim validate --config experiments/research_configurations/main_sweep.yaml   # prints the sweep plan
-python -m apps.sim sweep --config experiments/research_configurations/main_sweep.yaml      # runs all 70 combinations
+python -m apps.sim sweep --config experiments/research_configurations/main_sweep.yaml      # runs all 90 combinations
 ```
 
 - Any config key can be swept, e.g. `routing.mode: [ecmp, adaptive]` or `stall_regime.packet_stall_delay_ms: [2, 8, 32]`.
@@ -215,7 +216,7 @@ python -m apps.sim sweep --config experiments/research_configurations/main_sweep
 - `processes: auto` spreads the runs across the CPU cores; a stronger machine finishes a sweep proportionally faster.
 - `gantt_pdfs: true` makes the visualizer's Gantt charts during the sweep, without opening the web app (see [Gantt PDFs from a sweep](#gantt-pdfs-from-a-sweep)). The sweep checks before it starts that every run has `deep_flow_chain_log: true` and that PDF export works, so a missing package fails at once rather than after hours of runs.
 
-To redraw the comparison plots from a saved summary, pass the experiment file and an output folder; the file's `sweep:` section supplies `lower_zoom_percent` and `show_visualization_window`:
+To redraw the comparison plots from a saved summary, pass the experiment file and an output folder; the file's `sweep:` section supplies `lower_zoom_percent`, `show_visualization_window` and `paper_style`:
 
 ```bash
 python -m apps.sim plot-summary --summary results/research-sweep/main_sweep_summary.yaml --config experiments/research_configurations/main_sweep.yaml --out-dir results/research-sweep/replot
@@ -364,7 +365,9 @@ In this project, **gradient buckets are not the same as flows**:
 
 Everything goes next to `sweep.summary_out` (for the research sweep: `results/research-sweep/`):
 - **Summary YAML**: one row per run with the swept values and all metrics (flow, ring flow, bucket, training-step and job times; stall counts and the stalls-per-flow histogram; redundancy and packet counts; drops). With `gantt_pdfs: true`, `deep_flow_chain_sample_steps` lists the sample steps of each run. The raw chain records are left out; the chain logs hold them
-- **Comparison plots** (PNG + PDF, with `visualize_summary: true`): each time metric against the stall percent (or link failure percent), one line per redundancy value; the zoomed lower part of the training-step-time plot; the best redundancy per stall percent; per-redundancy charts under `detailed_charts/`
+- **Comparison plots** (PNG + PDF, with `visualize_summary: true`): each time metric against the stall percent (or link failure percent), one line per redundancy value; the zoomed lower part of the training-step-time plot; the best redundancy per stall percent; the slowdown heatmap (`training_step_slowdown_heatmap`: mean step time of each (R, p) divided by that of the healthy run R = 0, p = 0, best R of each column in bold); per-redundancy charts under `detailed_charts/`
+- **Fixed-name PDFs**: every plot is also written as a PDF without the timestamp (e.g. `training_step_time_vs_packet_stall.pdf`), so a LaTeX paper can include it directly; each sweep overwrites them
+- **Paper style** (`paper_style: true`): the training-step-time (mean ± std), best-redundancy and slowdown plots have no title, a white background with a light grid, legend entries `R = 0`, `R = 1`, … and a 6 x 3.6 in size with ~9 pt text. The slowdown heatmap always uses this style
 - **CSV files**: the training-step-time points and the stall distribution behind the plots
 - **Traffic heatmaps** per training step (with `plot_ring_heatmaps: true`)
 - **Deep flow chain logs** (with `deep_flow_chain_log: true` in the config): `deep_flow_chain_logs/<run>/job_<j>_step_<s>.txt`, one file per training step, listing every ring chain hop by hop. These are the input of the visualizer below. With `gantt_pdfs: true`, only the sample steps get a log.
@@ -407,7 +410,7 @@ Only these steps are kept (in the worker processes) and written as chain logs, w
 - `gantt_pdfs/<run>/job_<j>_step_<s>_<kinds>.pdf`: one PDF per sample step of each run
 - `gantt_pdfs/compare_<key>/<other values>_<kind>.pdf` (with `gantt_compare`): for each combination of the other vary keys, the runs with the listed values of the compared key, one panel each, in the listed order. For example `compare_flow_redundancy_extra_packets/packet_stall_percent_1_slowest.pdf` shows the slowest step at 1% stalls with 0, 2, 8 and 16 extra packets. Each panel names the step it shows, since each run has its own slowest step.
 
-`gantt_chain_limit` caps the ring chains drawn per panel (the research ring has 16). Export takes about 0.7 s per PDF; the research sweep makes about 240 (210 single-run PDFs and 30 comparisons), about 3 minutes in total. The chain logs stay in `deep_flow_chain_logs/`, so any of them can still be opened in the web app.
+`gantt_chain_limit` caps the ring chains drawn per panel (the research ring has 16). Export takes about 0.7 s per PDF; the research sweep makes up to about 300 (up to 270 single-run PDFs and 30 comparisons), about 4 minutes in total. The chain logs stay in `deep_flow_chain_logs/`, so any of them can still be opened in the web app.
 
 ### Topology drawing
 

@@ -76,7 +76,7 @@ def _build_parser() -> argparse.ArgumentParser:
     plot_summary_p.add_argument(
         "--config",
         required=True,
-        help="Experiment YAML whose sweep section sets the plot settings (lower_zoom_percent, show_visualization_window)",
+        help="Experiment YAML whose sweep section sets the plot settings (lower_zoom_percent, show_visualization_window, paper_style)",
     )
     plot_summary_p.add_argument("--out-dir", required=True, help="Directory for generated plot files")
     return parser
@@ -180,6 +180,7 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
                     out_dir=out_dir,
                     show=sweep.show_visualization_window,
                     training_step_time_lower_zoom_percent=sweep.lower_zoom_percent,
+                    paper_style=sweep.paper_style,
                 )
             )
         if sweep.plot_ring_heatmaps:
@@ -198,6 +199,7 @@ def _cmd_plot_summary(args: argparse.Namespace) -> int:
         show=sweep.show_visualization_window,
         training_step_time_lower_zoom_percent=sweep.lower_zoom_percent,
         include_training_step_traffic_matrices=True,
+        paper_style=sweep.paper_style,
     )
     if not paths:
         print("No comparison plots were generated from the provided summary.")

@@ -337,13 +337,28 @@ def _summary_spread(
     }
 
 
+_TIMESTAMP_SUFFIX = re.compile(r"_\d{8}_\d{6}$")
+
+
+def _stable_path(filepath: str) -> str | None:
+    """Return `filepath` without its `_YYYYmmdd_HHMMSS` suffix, or None if it has none."""
+    stem, ext = os.path.splitext(filepath)
+    stable_stem = _TIMESTAMP_SUFFIX.sub("", stem)
+    return None if stable_stem == stem else stable_stem + ext
+
+
 def _save_or_show(fig, filepath: str, *, show: bool) -> None:
     fig.savefig(filepath, dpi=150, bbox_inches='tight')
-    # Also save a vector PDF copy alongside the raster PNG.
+    # Also save a vector PDF copy alongside the raster PNG, plus one under a fixed name
+    # (no timestamp) that the LaTeX paper can include directly; each sweep overwrites it.
     pdf_filepath = os.path.splitext(filepath)[0] + ".pdf"
     try:
         fig.savefig(pdf_filepath, bbox_inches='tight')
         logging.info("PDF copy saved to: %s", pdf_filepath)
+        stable_pdf = _stable_path(pdf_filepath)
+        if stable_pdf is not None:
+            fig.savefig(stable_pdf, bbox_inches='tight')
+            logging.info("Fixed-name PDF saved to: %s", stable_pdf)
     except Exception as _pdf_exc:
         logging.warning("Could not save PDF copy of %s: %s", filepath, _pdf_exc)
     if show:
@@ -352,6 +367,35 @@ def _save_or_show(fig, filepath: str, *, show: bool) -> None:
     else:
         import matplotlib.pyplot as plt
         plt.close(fig)
+
+
+# Paper style (sweep.paper_style): no title, white background, light grid, ~9 pt text at 6 x 3.6 in.
+PAPER_FIGSIZE = (6.0, 3.6)
+_PAPER_RC = {
+    "font.size": 9,
+    "axes.labelsize": 9,
+    "xtick.labelsize": 8,
+    "ytick.labelsize": 8,
+    "legend.fontsize": 7.5,
+    "figure.facecolor": "white",
+    "savefig.facecolor": "white",
+    "axes.facecolor": "white",
+    "axes.edgecolor": "#333333",
+    "axes.linewidth": 0.8,
+    "axes.grid": True,
+    "grid.color": "#dddddd",
+    "grid.linestyle": "-",
+    "grid.linewidth": 0.6,
+    # Embed TrueType fonts so the PDF text stays editable/searchable in the paper.
+    "pdf.fonttype": 42,
+}
+_PAPER_STALL_X_LABEL = "Packet stall probability p [%]"
+_PAPER_STEP_TIME_Y_LABEL = "Training step time [ms]"
+_PAPER_BEST_R_Y_LABEL = "Best redundancy R [packets]"
+
+
+def _paper_x_label(x_key: str, x_label: str) -> str:
+    return _PAPER_STALL_X_LABEL if x_key == "packet_stall_percent" else x_label
 
 
 def _choose_sweep_x_axis(rows: List[Dict[str, Any]]) -> tuple[str, str, str, str]:
@@ -660,6 +704,40 @@ def _plot_sweep_metric_series(
     return spread_suffix
 
 
+def _plot_paper_metric_series(plt, ax, series: list[tuple[float, list[dict[str, float]]]]) -> None:
+    """Paper-style mean ± std curves, one per redundancy R, coloured along a sequential scale."""
+    markers = ['o', 's', '^', 'v', 'D', 'p', '*', 'h', 'X', 'P', '<', '>']
+    cmap = plt.get_cmap("viridis")
+    x_position_map = _sweep_x_position_map(series)
+    count = len(series)
+    for idx, (redundancy, points) in enumerate(series):
+        # Stop at 0.9 so the last curve is not the pale yellow end of viridis.
+        color = cmap(0.9 * idx / (count - 1)) if count > 1 else cmap(0.0)
+        x_vals = [x_position_map[float(p["x"])] for p in points]
+        y_vals = [p["y"] for p in points]
+        if any(bool(p.get("has_std")) for p in points):
+            ax.fill_between(
+                x_vals,
+                [p["y"] - p["std_low"] if p.get("has_std") else p["y"] for p in points],
+                [p["y"] + p["std_high"] if p.get("has_std") else p["y"] for p in points],
+                color=color,
+                alpha=0.15,
+                linewidth=0.0,
+                zorder=2,
+            )
+        ax.plot(
+            x_vals,
+            y_vals,
+            marker=markers[idx % len(markers)],
+            markersize=3.5,
+            linewidth=1.2,
+            color=color,
+            label=f"R = {int(redundancy)}",
+            zorder=3,
+        )
+    ax.legend(loc="upper left", ncol=2, framealpha=0.9, handlelength=1.8, columnspacing=1.0)
+
+
 def _sweep_style_maps(
     redundancies: list[float],
 ) -> tuple[dict[float, str], dict[float, str], dict[float, str]]:
@@ -681,9 +759,11 @@ def _plot_best_training_step_time_views(
     out_dir: str,
     file_suffix: str,
     timestamp: str,
+    x_key: str,
     x_label: str,
     title_suffix: str,
     show: bool,
+    paper_style: bool,
 ) -> list[str]:
     """Create two complementary views of the best redundancy choice per impairment point."""
     if not grouped:
@@ -769,6 +849,23 @@ def _plot_best_training_step_time_views(
     saved_paths.append(filepath_a)
 
     # View B: selected best redundancy with best-time annotations.
+    filepath_b = os.path.join(out_dir, f"best_redundancy_vs_{file_suffix}_{timestamp}.png")
+    if paper_style:
+        with plt.rc_context(_PAPER_RC):
+            _plot_paper_best_redundancy(
+                plt,
+                best_by_x,
+                all_redundancies=sorted(grouped),
+                x_position_map=x_position_map,
+                sorted_series=sorted_series,
+                x_label=_paper_x_label(x_key, x_label),
+                filepath=filepath_b,
+                show=show,
+            )
+        logging.info("Best redundancy-selection graph saved to: %s", filepath_b)
+        saved_paths.append(filepath_b)
+        return saved_paths
+
     fig_b, ax_b = plt.subplots(figsize=(11, 7))
     ax_b.set_facecolor('#EAEAF2')
     ax_b.grid(True, color='white', linewidth=1.1, alpha=0.95)
@@ -825,12 +922,138 @@ def _plot_best_training_step_time_views(
     ax_b.grid(alpha=0.3, linestyle='--', linewidth=0.7)
     ax_b.legend(loc='best', fontsize=11, framealpha=0.95, edgecolor='black', fancybox=True)
 
-    filepath_b = os.path.join(out_dir, f"best_redundancy_vs_{file_suffix}_{timestamp}.png")
     _save_or_show(fig_b, filepath_b, show=show)
     logging.info("Best redundancy-selection graph saved to: %s", filepath_b)
     saved_paths.append(filepath_b)
 
     return saved_paths
+
+
+def _plot_paper_best_redundancy(
+    plt,
+    best_by_x: list[dict[str, float]],
+    *,
+    all_redundancies: list[float],
+    x_position_map: dict[float, float],
+    sorted_series: list[tuple[float, list[dict[str, float]]]],
+    x_label: str,
+    filepath: str,
+    show: bool,
+) -> None:
+    """Paper-style best-redundancy plot: the simulated best R per stall level, with its step time."""
+    fig, ax = plt.subplots(figsize=PAPER_FIGSIZE)
+    xs = [x_position_map[float(point["x"])] for point in best_by_x]
+    ys = [point["redundancy"] for point in best_by_x]
+    ax.plot(
+        xs,
+        ys,
+        color="#222222",
+        linewidth=1.0,
+        marker="o",
+        markersize=4.5,
+        markerfacecolor="white",
+        markeredgewidth=1.2,
+        zorder=3,
+    )
+    for x_pos, point in zip(xs, best_by_x):
+        ax.annotate(
+            f"{point['y']:.2f} ms",
+            xy=(x_pos, point["redundancy"]),
+            xytext=(3, 4),
+            textcoords="offset points",
+            fontsize=6.5,
+            color="#222222",
+            zorder=4,
+        )
+
+    ax.set_yticks(all_redundancies)
+    ax.set_yticklabels([str(int(value)) for value in all_redundancies])
+    span = max(all_redundancies) - min(all_redundancies)
+    # Head room so the step-time labels of the top points stay inside the axes.
+    ax.set_ylim(min(all_redundancies) - max(0.5, 0.04 * span), max(all_redundancies) + max(1.0, 0.1 * span))
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(_PAPER_BEST_R_Y_LABEL)
+    _apply_exponential_x_axis(ax, sorted_series)
+    _set_sweep_x_ticks(ax, sorted_series)
+    fig.tight_layout()
+    _save_or_show(fig, filepath, show=show)
+
+
+def _plot_slowdown_heatmap(
+    plt,
+    grouped: dict[float, list[dict[str, float]]],
+    *,
+    x_label: str,
+    out_dir: str,
+    timestamp: str,
+    show: bool,
+) -> str | None:
+    """Heatmap of mean step time / mean step time of the healthy run (R = 0, x = 0).
+
+    Rows are redundancy values, columns the impairment levels; the best R of each column is bold.
+    """
+    import numpy as np
+    from matplotlib.colors import LogNorm
+
+    redundancies = sorted(grouped)
+    x_values = sorted({float(point["x"]) for points in grouped.values() for point in points})
+    times = {(float(r), float(point["x"])): float(point["y"]) for r, points in grouped.items() for point in points}
+    baseline = times.get((0.0, 0.0))
+    if baseline is None or baseline <= 0.0:
+        logging.warning("Slowdown heatmap skipped: the sweep has no healthy run (redundancy 0 at impairment 0)")
+        return None
+
+    data = np.full((len(redundancies), len(x_values)), np.nan)
+    for i, r in enumerate(redundancies):
+        for j, x in enumerate(x_values):
+            value = times.get((float(r), x))
+            if value is not None:
+                data[i, j] = value / baseline
+
+    vmax = float(np.nanmax(data))
+    # Light = 1: values below 1 (noise) are clipped to the lightest colour.
+    norm = LogNorm(vmin=1.0, vmax=max(vmax, 1.0 + 1e-6), clip=True)
+
+    with plt.rc_context(_PAPER_RC):
+        fig, ax = plt.subplots(figsize=PAPER_FIGSIZE)
+        im = ax.imshow(np.ma.masked_invalid(data), cmap="Blues", norm=norm, aspect="auto", origin="lower")
+        ax.grid(False)
+        cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
+        cbar.set_label("Slowdown T/T0")
+        ticks = [t for t in (1, 1.25, 1.5, 2, 3, 5, 10, 20, 50, 100) if t <= max(vmax, 1.0)]
+        cbar.minorticks_off()
+        cbar.set_ticks(ticks)
+        cbar.set_ticklabels([f"{t:g}" for t in ticks])
+
+        for j in range(len(x_values)):
+            column = data[:, j]
+            best_i = int(np.nanargmin(column)) if not np.all(np.isnan(column)) else None
+            for i in range(len(redundancies)):
+                value = column[i]
+                if np.isnan(value):
+                    continue
+                ax.text(
+                    j,
+                    i,
+                    f"{value:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=6.5,
+                    fontweight="bold" if i == best_i else "normal",
+                    color="white" if norm(value) > 0.6 else "#111111",
+                )
+
+        ax.set_xticks(range(len(x_values)))
+        ax.set_xticklabels([_format_sweep_x_tick(x) for x in x_values])
+        ax.set_yticks(range(len(redundancies)))
+        ax.set_yticklabels([str(int(r)) for r in redundancies])
+        ax.set_xlabel(x_label)
+        ax.set_ylabel("Redundancy R [packets]")
+        fig.tight_layout()
+        filepath = os.path.join(out_dir, f"training_step_slowdown_heatmap_{timestamp}.png")
+        _save_or_show(fig, filepath, show=show)
+    logging.info("Slowdown heatmap saved to: %s", filepath)
+    return filepath
 
 
 def _summary_stall_triggered_percent(row: Dict[str, Any]) -> float | None:
@@ -1016,8 +1239,13 @@ def visualize_sweep_time_comparison(
     out_dir: str,
     show: bool,
     training_step_time_lower_zoom_percent: float,
+    paper_style: bool,
 ) -> list[str]:
-    """Create aggregate and per-redundancy comparison plots across the varying impairment percentage."""
+    """Create aggregate and per-redundancy comparison plots across the varying impairment percentage.
+
+    `paper_style` draws the training-step-time and best-redundancy plots in the paper look (the
+    slowdown heatmap always uses it).
+    """
     rows = [row for row in summary if row.get("ok")]
     if not rows:
         logging.warning("No successful sweep rows available for comparison visualization")
@@ -1175,18 +1403,28 @@ def visualize_sweep_time_comparison(
             for redundancy, points in sorted(grouped.items())
         ]
 
-        fig, ax = plt.subplots(figsize=(11, 7))
-        spread_suffix_global = _plot_sweep_metric_series(ax, sorted_series, include_legend=True)
-
-        ax.set_title(f"{metric['title'].replace('impairment', title_suffix)}{spread_suffix_global}", fontsize=14, fontweight='bold')
-        ax.set_xlabel(x_label, fontsize=12)
-        ax.set_ylabel(metric["ylabel"], fontsize=12)
-        _apply_exponential_x_axis(ax, sorted_series)
-        _set_sweep_x_ticks(ax, sorted_series)
-        ax.grid(alpha=0.3, linestyle='--', linewidth=0.7)
-
         filepath = os.path.join(out_dir, f"{metric['stem']}_vs_{file_suffix}_{timestamp}.png")
-        _save_or_show(fig, filepath, show=show)
+        if paper_style and metric["stem"] == "training_step_time":
+            with plt.rc_context(_PAPER_RC):
+                fig, ax = plt.subplots(figsize=PAPER_FIGSIZE)
+                _plot_paper_metric_series(plt, ax, sorted_series)
+                ax.set_xlabel(_paper_x_label(x_key, x_label))
+                ax.set_ylabel(_PAPER_STEP_TIME_Y_LABEL)
+                _apply_exponential_x_axis(ax, sorted_series)
+                _set_sweep_x_ticks(ax, sorted_series)
+                fig.tight_layout()
+                _save_or_show(fig, filepath, show=show)
+        else:
+            fig, ax = plt.subplots(figsize=(11, 7))
+            spread_suffix_global = _plot_sweep_metric_series(ax, sorted_series, include_legend=True)
+
+            ax.set_title(f"{metric['title'].replace('impairment', title_suffix)}{spread_suffix_global}", fontsize=14, fontweight='bold')
+            ax.set_xlabel(x_label, fontsize=12)
+            ax.set_ylabel(metric["ylabel"], fontsize=12)
+            _apply_exponential_x_axis(ax, sorted_series)
+            _set_sweep_x_ticks(ax, sorted_series)
+            ax.grid(alpha=0.3, linestyle='--', linewidth=0.7)
+            _save_or_show(fig, filepath, show=show)
         logging.info("Sweep comparison graph saved to: %s", filepath)
         saved_paths.append(filepath)
 
@@ -1267,11 +1505,23 @@ def visualize_sweep_time_comparison(
                     out_dir=out_dir,
                     file_suffix=file_suffix,
                     timestamp=timestamp,
+                    x_key=x_key,
                     x_label=x_label,
                     title_suffix=title_suffix,
                     show=show,
+                    paper_style=paper_style,
                 )
             )
+            heatmap_path = _plot_slowdown_heatmap(
+                plt,
+                grouped,
+                x_label=_paper_x_label(x_key, x_label),
+                out_dir=out_dir,
+                timestamp=timestamp,
+                show=show,
+            )
+            if heatmap_path:
+                saved_paths.append(heatmap_path)
             csv_path = _write_training_step_time_points_csv(
                 grouped_rows,
                 out_dir=out_dir,
@@ -1303,6 +1553,7 @@ def visualize_sweep_time_comparison_from_yaml(
     show: bool,
     training_step_time_lower_zoom_percent: float,
     include_training_step_traffic_matrices: bool,
+    paper_style: bool,
 ) -> list[str]:
     """Load a sweep summary YAML file and create aggregate comparison plots and training-step traffic matrices."""
     path = Path(summary_yaml_path)
@@ -1322,6 +1573,7 @@ def visualize_sweep_time_comparison_from_yaml(
         out_dir=out_dir,
         show=show,
         training_step_time_lower_zoom_percent=training_step_time_lower_zoom_percent,
+        paper_style=paper_style,
     )
     if not include_training_step_traffic_matrices:
         return sweep_paths

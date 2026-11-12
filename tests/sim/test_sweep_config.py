@@ -23,6 +23,7 @@ _SWEEP_SETTING_KEYS = (
     "processes",
     "plot_topology_once",
     "show_visualization_window",
+    "paper_style",
     "gantt_pdfs",
     "gantt_chain_limit",
     "gantt_compare",
@@ -41,7 +42,8 @@ def test_sweep_section_is_parsed_in_file_order() -> None:
     assert sweep.lower_zoom_percent == 15.0
     assert sweep.max_processes is None  # processes: auto
     assert not any(
-        (sweep.visualize_summary, sweep.plot_ring_heatmaps, sweep.stop_on_error, sweep.plot_topology_once, sweep.show_visualization_window)
+        (sweep.visualize_summary, sweep.plot_ring_heatmaps, sweep.stop_on_error, sweep.plot_topology_once, sweep.show_visualization_window,
+         sweep.paper_style)
     )
 
 
@@ -121,6 +123,7 @@ def test_sweep_cli_uses_output_settings_from_config(monkeypatch, write_sweep_con
         visualize_summary=True,
         lower_zoom_percent=25.0,
         show_visualization_window=True,
+        paper_style=True,
         drop=(),
     )
     summary_path = Path(load_sweep_spec(cfg).summary_out)
@@ -130,8 +133,8 @@ def test_sweep_cli_uses_output_settings_from_config(monkeypatch, write_sweep_con
         calls["run_sweep"] = kwargs
         return [{"label": "ok", "ok": True}]
 
-    def _fake_compare(summary, *, out_dir, show, training_step_time_lower_zoom_percent):
-        calls["compare"] = (out_dir, show, training_step_time_lower_zoom_percent)
+    def _fake_compare(summary, *, out_dir, show, training_step_time_lower_zoom_percent, paper_style):
+        calls["compare"] = (out_dir, show, training_step_time_lower_zoom_percent, paper_style)
         return []
 
     monkeypatch.setattr(sim_app, "run_sweep", _fake_run_sweep)
@@ -141,7 +144,7 @@ def test_sweep_cli_uses_output_settings_from_config(monkeypatch, write_sweep_con
 
     assert exit_code == 0
     assert summary_path.exists()
-    assert calls["compare"] == (str(summary_path.parent), True, 25.0)
+    assert calls["compare"] == (str(summary_path.parent), True, 25.0, True)
 
 
 @pytest.mark.parametrize(
@@ -176,8 +179,11 @@ def test_plot_summary_reads_plot_settings_from_config(monkeypatch, tmp_path: Pat
     cfg = write_sweep_config({"routing.mode": ["ecmp"]}, lower_zoom_percent=30.0, drop=())
     calls: dict[str, object] = {}
 
-    def _fake_from_yaml(summary_yaml_path, *, out_dir, show, training_step_time_lower_zoom_percent, include_training_step_traffic_matrices):
-        calls["from_yaml"] = (out_dir, show, training_step_time_lower_zoom_percent, include_training_step_traffic_matrices)
+    def _fake_from_yaml(
+        summary_yaml_path, *, out_dir, show, training_step_time_lower_zoom_percent, include_training_step_traffic_matrices,
+        paper_style,
+    ):
+        calls["from_yaml"] = (out_dir, show, training_step_time_lower_zoom_percent, include_training_step_traffic_matrices, paper_style)
         return ["plot.png"]
 
     monkeypatch.setattr(sim_app, "visualize_sweep_time_comparison_from_yaml", _fake_from_yaml)
@@ -187,7 +193,7 @@ def test_plot_summary_reads_plot_settings_from_config(monkeypatch, tmp_path: Pat
     )
 
     assert exit_code == 0
-    assert calls["from_yaml"] == (str(tmp_path / "plots"), False, 30.0, True)
+    assert calls["from_yaml"] == (str(tmp_path / "plots"), False, 30.0, True, False)
 
 
 @pytest.mark.parametrize("missing", ["--config", "--out-dir"])

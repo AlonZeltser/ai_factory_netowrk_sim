@@ -106,7 +106,7 @@ def test_sweep_cli_plot_ring_heatmaps_without_comparison(monkeypatch, write_swee
     def _fake_run_sweep(**kwargs):
         return [{"label": "ok", "ok": True, "training_step_traffic_matrices": []}]
 
-    def _fake_compare(summary, *, out_dir, show, training_step_time_lower_zoom_percent):
+    def _fake_compare(summary, *, out_dir, show, training_step_time_lower_zoom_percent, paper_style):
         calls["comparison"] = int(calls["comparison"]) + 1
         return ["cmp.png"]
 

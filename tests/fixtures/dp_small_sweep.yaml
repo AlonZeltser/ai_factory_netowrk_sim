@@ -13,6 +13,7 @@ sweep:
   processes: auto
   plot_topology_once: false
   show_visualization_window: false
+  paper_style: false
   gantt_pdfs: false
   gantt_chain_limit: 40
   gantt_compare: {}

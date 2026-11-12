@@ -250,6 +250,7 @@ _SWEEP_KEYS = (
     "processes",
     "plot_topology_once",
     "show_visualization_window",
+    "paper_style",
     "gantt_pdfs",
     "gantt_chain_limit",
     "gantt_compare",
@@ -318,6 +319,9 @@ class SweepSpec:
     max_processes: int | None
     plot_topology_once: bool
     show_visualization_window: bool
+    # Paper look (no title, white background, 6 x 3.6 in, 9 pt) for the training-step-time,
+    # best-redundancy and slowdown-heatmap plots.
+    paper_style: bool
     # Gantt PDFs of sample training steps (first, middle, slowest) of every run, made without the web app.
     gantt_pdfs: bool
     gantt_chain_limit: int
@@ -361,6 +365,7 @@ class SweepSpec:
             max_processes=_require_processes(data),
             plot_topology_once=bool(_require_key(data, "plot_topology_once", "sweep")),
             show_visualization_window=bool(_require_key(data, "show_visualization_window", "sweep")),
+            paper_style=bool(_require_key(data, "paper_style", "sweep")),
             gantt_pdfs=bool(_require_key(data, "gantt_pdfs", "sweep")),
             gantt_chain_limit=gantt_chain_limit,
             gantt_compare=_require_gantt_compare(data, tuple(vary)),

@@ -6,4 +6,5 @@ visualize_sweep_time_comparison_from_yaml(
     show=False,
     training_step_time_lower_zoom_percent=15.0,
     include_training_step_traffic_matrices=False,
+    paper_style=True,
 )
