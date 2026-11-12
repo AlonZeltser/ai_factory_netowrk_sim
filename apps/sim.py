@@ -33,6 +33,8 @@ from sim.runners.sweep_runner import build_sweep_inputs, run_sweep
 from visualization.experiment_visualizer import (
     visualize_summary_training_step_traffic_matrices,
     visualize_sweep_time_comparison,
+    standard_plot_merged_keys,
+    visualize_sweep_layout,
     visualize_sweep_time_comparison_from_yaml,
 )
 
@@ -174,13 +176,23 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
         out_dir = str(sweep_out_dir)
         paths: list[str] = []
         if sweep.visualize_summary:
+            if not _standard_plots_would_merge(sweep):
+                paths.extend(
+                    visualize_sweep_time_comparison(
+                        summary,
+                        out_dir=out_dir,
+                        show=sweep.show_visualization_window,
+                        training_step_time_lower_zoom_percent=sweep.lower_zoom_percent,
+                        paper_style=sweep.paper_style,
+                    )
+                )
             paths.extend(
-                visualize_sweep_time_comparison(
+                visualize_sweep_layout(
                     summary,
+                    vary=sweep.vary,
+                    layout=sweep.plot_layout,
                     out_dir=out_dir,
                     show=sweep.show_visualization_window,
-                    training_step_time_lower_zoom_percent=sweep.lower_zoom_percent,
-                    paper_style=sweep.paper_style,
                 )
             )
         if sweep.plot_ring_heatmaps:
@@ -190,8 +202,21 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
     return 0 if all(item.get("ok") for item in summary) else 1
 
 
+def _standard_plots_would_merge(sweep: SweepSpec) -> bool:
+    """True (after printing why) when the sweep varies a key the standard comparison plots do not group by."""
+    merged = standard_plot_merged_keys(sweep.vary)
+    if merged:
+        print(
+            "Skipped the standard comparison plots: they group runs only by redundancy and the stall "
+            f"(or link failure) percent, so runs that differ in {', '.join(merged)} would be merged"
+        )
+    return bool(merged)
+
+
 def _cmd_plot_summary(args: argparse.Namespace) -> int:
     sweep = _require_sweep_spec(args.config)
+    if _standard_plots_would_merge(sweep):
+        return 1
     summary_path = resolve_cli_path(args.summary)
     paths = visualize_sweep_time_comparison_from_yaml(
         str(summary_path),

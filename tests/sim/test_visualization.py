@@ -253,3 +253,76 @@ def test_paper_style_sweep_writes_fixed_name_pdfs_and_slowdown_heatmap(tmp_path:
     ):
         assert (tmp_path / name).exists(), name
     assert all(Path(output).exists() for output in outputs)
+
+
+def _layout_summary(vary: dict[str, list]) -> list[dict]:
+    """One successful row per combination of `vary`, labelled like a real sweep run."""
+    from itertools import product
+
+    rows = []
+    for idx, combo in enumerate(product(*vary.values())):
+        overrides = [f"{key}={value}" for key, value in zip(vary, combo)]
+        rows.append(
+            {
+                "ok": True,
+                "label": " | ".join(["cfg.yaml", *overrides]),
+                "training_step_time_avg_ms": 10.0 + idx,
+                "training_step_time_std_ms": 0.5,
+            }
+        )
+    return rows
+
+
+def test_layout_plot_writes_one_fixed_name_pdf_with_one_panel_per_split_value(tmp_path: Path) -> None:
+    import matplotlib.pyplot as plt
+
+    from sim.config.models import PlotLayout
+    from visualization.experiment_visualizer import SWEEP_LAYOUT_PLOT_NAME, visualize_sweep_layout
+
+    vary = {
+        "stall_regime.packet_stall_percent": [0.1, 1, 4],
+        "ai_workload.flow_redundancy_extra_packets": [0, 2, 8],
+        "stall_regime.packet_stall_delay_ms": [0.5, 2],
+    }
+    layout = PlotLayout(
+        split="stall_regime.packet_stall_percent",
+        x="ai_workload.flow_redundancy_extra_packets",
+        lines="stall_regime.packet_stall_delay_ms",
+    )
+    saved_figures: list = []
+    original_savefig = plt.Figure.savefig
+
+    def _record_savefig(fig, *args, **kwargs):
+        saved_figures.append(fig)
+        return original_savefig(fig, *args, **kwargs)
+
+    plt.Figure.savefig = _record_savefig
+    try:
+        outputs = visualize_sweep_layout(
+            _layout_summary(vary),
+            vary=tuple((key, tuple(values)) for key, values in vary.items()),
+            layout=layout,
+            out_dir=str(tmp_path),
+            show=False,
+        )
+    finally:
+        plt.Figure.savefig = original_savefig
+
+    assert outputs == [str(tmp_path / SWEEP_LAYOUT_PLOT_NAME)]
+    assert sorted(path.name for path in tmp_path.iterdir()) == [SWEEP_LAYOUT_PLOT_NAME]
+    axes = saved_figures[0].axes
+    assert [ax.get_title() for ax in axes] == ["p = 0.1 %", "p = 1 %", "p = 4 %"]
+    assert [line.get_label() for line in axes[0].get_lines()] == ["d = 0.5 ms", "d = 2 ms"]
+    assert [tick.get_text() for tick in axes[0].get_xticklabels()] == ["0", "2", "8"]
+
+
+def test_layout_plot_without_layout_or_matching_runs_writes_nothing(tmp_path: Path) -> None:
+    from sim.config.models import PlotLayout
+    from visualization.experiment_visualizer import visualize_sweep_layout
+
+    vary = (("stall_regime.packet_stall_percent", (0, 1)), ("ai_workload.flow_redundancy_extra_packets", (0, 2)))
+    layout = PlotLayout(split=None, x="stall_regime.packet_stall_percent", lines="ai_workload.flow_redundancy_extra_packets")
+
+    assert visualize_sweep_layout([], vary=vary, layout=None, out_dir=str(tmp_path), show=False) == []
+    assert visualize_sweep_layout([{"ok": True, "label": "ok"}], vary=vary, layout=layout, out_dir=str(tmp_path), show=False) == []
+    assert list(tmp_path.iterdir()) == []

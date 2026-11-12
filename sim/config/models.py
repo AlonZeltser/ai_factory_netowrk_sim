@@ -254,7 +254,10 @@ _SWEEP_KEYS = (
     "gantt_pdfs",
     "gantt_chain_limit",
     "gantt_compare",
+    # Optional (the only sweep key that may be left out): roles of the vary keys in the layout plot.
+    "plot_layout",
 )
+_PLOT_LAYOUT_ROLES = ("split", "x", "lines")
 # Most logs one Gantt comparison page can show side by side (the visualizer's limit).
 GANTT_MAX_PANELS = 4
 _SCALAR_TYPES = (str, int, float, bool)
@@ -301,11 +304,53 @@ def _require_gantt_compare(
 
 
 @dataclass(frozen=True)
+class PlotLayout:
+    """Roles of the vary keys in the layout plot: one panel per `split` value (None = one panel),
+    `x` on the x axis, one line per `lines` value."""
+
+    split: str | None
+    x: str
+    lines: str
+
+
+def _resolve_plot_layout(data: dict[str, Any], vary: tuple[tuple[str, tuple[Any, ...]], ...]) -> PlotLayout | None:
+    """Return the layout-plot roles: `sweep.plot_layout` if given, else by vary order.
+
+    By default 2 vary keys give x = first, lines = second; 3 give split = first, x = second,
+    lines = third. Any other count has no default layout (None: the plot is not made).
+    """
+    keys = [key for key, _ in vary]
+    raw = data.get("plot_layout")
+    if raw is None:
+        if len(keys) == 2:
+            return PlotLayout(split=None, x=keys[0], lines=keys[1])
+        if len(keys) == 3:
+            return PlotLayout(split=keys[0], x=keys[1], lines=keys[2])
+        return None
+
+    layout = _require_mapping(raw, "sweep.plot_layout")
+    reject_unknown_keys(layout, _PLOT_LAYOUT_ROLES, "sweep.plot_layout")
+    for role in ("x", "lines"):
+        if layout.get(role) is None:
+            raise ConfigError(f"Missing required key 'sweep.plot_layout.{role}'")
+    roles = {role: layout[role] for role in _PLOT_LAYOUT_ROLES if layout.get(role) is not None}
+    for role, key in roles.items():
+        if key not in keys:
+            raise ConfigError(f"'sweep.plot_layout.{role}' must be one of the 'sweep.vary' keys, got {key!r}")
+    if len(set(roles.values())) != len(roles):
+        raise ConfigError("'sweep.plot_layout' must give each role a different vary key")
+    if set(roles.values()) != set(keys):
+        unassigned = [key for key in keys if key not in roles.values()]
+        raise ConfigError(f"'sweep.plot_layout' must give every 'sweep.vary' key a role; no role for {', '.join(unassigned)}")
+    return PlotLayout(split=roles.get("split"), x=roles["x"], lines=roles["lines"])
+
+
+@dataclass(frozen=True)
 class SweepSpec:
     """The `sweep:` section of an experiment file, the only interface for a sweep.
 
     `vary` maps a dotted config key to the list of values to try; the sweep runs
-    every combination. Every other key is required too.
+    every combination. Every other key is required too, except the optional `plot_layout`.
     """
 
     vary: tuple[tuple[str, tuple[Any, ...]], ...]
@@ -327,6 +372,9 @@ class SweepSpec:
     gantt_chain_limit: int
     # (vary key, values): also put the runs that differ only in this key side by side. None = no comparisons.
     gantt_compare: tuple[str, tuple[Any, ...]] | None
+    # Roles of the vary keys in the layout plot (training step time, one panel per split value).
+    # None = no layout plot (no `plot_layout` and not 2 or 3 vary keys).
+    plot_layout: PlotLayout | None
 
     @staticmethod
     def from_mapping(value: Any) -> "SweepSpec":
@@ -369,6 +417,7 @@ class SweepSpec:
             gantt_pdfs=bool(_require_key(data, "gantt_pdfs", "sweep")),
             gantt_chain_limit=gantt_chain_limit,
             gantt_compare=_require_gantt_compare(data, tuple(vary)),
+            plot_layout=_resolve_plot_layout(data, tuple(vary)),
         )
 
     def combination_count(self) -> int:

@@ -204,6 +204,9 @@ sweep:
   gantt_chain_limit: 40                         # most ring chains drawn in one Gantt
   gantt_compare:                                # also put runs that differ only in this vary key side by side (2 to 4 values; {} = none)
     ai_workload.flow_redundancy_extra_packets: [0, 2, 8, 16]
+  plot_layout:                                  # layout plot: stall percent on x, one line per redundancy, like the other plots
+    x: stall_regime.packet_stall_percent
+    lines: ai_workload.flow_redundancy_extra_packets
 ```
 
 ```bash
@@ -212,6 +215,10 @@ python -m apps.sim sweep --config experiments/research_configurations/main_sweep
 ```
 
 - Any config key can be swept, e.g. `routing.mode: [ecmp, adaptive]` or `stall_regime.packet_stall_delay_ms: [2, 8, 32]`.
+- Two more research sweeps use the same base files and sweep settings, each writing to its own results folder:
+  - `message_size_sweep.yaml`: 1000 packets per flow and an 80 ms stall delay. It varies the stall percent and the redundancy, and writes to `results/message-size-sweep/`.
+  - `stall_delay_sweep.yaml`: varies the stall percent, the redundancy and the stall delay, and writes to `results/stall-delay-sweep/`.
+- The optional `plot_layout: {split: <vary key>, x: <vary key>, lines: <vary key>}` sets the layout plot (see [Sweep outputs](#sweep-outputs)). Without it, the roles follow the order of the `vary` keys: with 2 keys, x = first and lines = second; with 3 keys, split = first, x = second and lines = third. With any other number of keys there is no layout plot.
 - `run` and `validate` ignore the `sweep` section and use the base values.
 - `processes: auto` spreads the runs across the CPU cores; a stronger machine finishes a sweep proportionally faster.
 - `gantt_pdfs: true` makes the visualizer's Gantt charts during the sweep, without opening the web app (see [Gantt PDFs from a sweep](#gantt-pdfs-from-a-sweep)). The sweep checks before it starts that every run has `deep_flow_chain_log: true` and that PDF export works, so a missing package fails at once rather than after hours of runs.
@@ -366,6 +373,8 @@ In this project, **gradient buckets are not the same as flows**:
 Everything goes next to `sweep.summary_out` (for the research sweep: `results/research-sweep/`):
 - **Summary YAML**: one row per run with the swept values and all metrics (flow, ring flow, bucket, training-step and job times; stall counts and the stalls-per-flow histogram; redundancy and packet counts; drops). With `gantt_pdfs: true`, `deep_flow_chain_sample_steps` lists the sample steps of each run. The raw chain records are left out; the chain logs hold them
 - **Comparison plots** (PNG + PDF, with `visualize_summary: true`): each time metric against the stall percent (or link failure percent), one line per redundancy value; the zoomed lower part of the training-step-time plot; the best redundancy per stall percent; the slowdown heatmap (`training_step_slowdown_heatmap`: mean step time of each (R, p) divided by that of the healthy run R = 0, p = 0, best R of each column in bold); per-redundancy charts under `detailed_charts/`
+- **Skipped comparison plots**: the comparison plots above (and their CSVs) group runs only by redundancy and the stall (or link failure) percent. If the sweep also varies another key, for example `stall_regime.packet_stall_delay_ms` in `stall_delay_sweep.yaml`, they would merge runs, so they are skipped with a one-line message. The layout plot and the Gantt PDFs are still written
+- **Layout plot** (with `visualize_summary: true`): `training_step_time_layout.pdf`, in the paper style. It shows the mean training step time with a ±std band, with one panel per `split` value side by side, the `x` key on the x axis and one line per `lines` value. Only this PDF is written, with no timestamped copy
 - **Fixed-name PDFs**: every plot is also written as a PDF without the timestamp (e.g. `training_step_time_vs_packet_stall.pdf`), so a LaTeX paper can include it directly; each sweep overwrites them
 - **Paper style** (`paper_style: true`): the training-step-time (mean ± std), best-redundancy and slowdown plots have no title, a white background with a light grid, legend entries `R = 0`, `R = 1`, … and a 6 x 3.6 in size with ~9 pt text. The slowdown heatmap always uses this style
 - **CSV files**: the training-step-time points and the stall distribution behind the plots

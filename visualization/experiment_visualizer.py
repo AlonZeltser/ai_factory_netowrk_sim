@@ -1546,6 +1546,184 @@ def visualize_sweep_time_comparison(
     return saved_paths
 
 
+# Vary keys the standard comparison plots group runs by: one line per redundancy, and the
+# impairment on the x axis (the stall percent if it varies, else the link failure percent,
+# as _choose_sweep_x_axis picks it).
+_STANDARD_PLOT_LINE_KEY = "ai_workload.flow_redundancy_extra_packets"
+_STANDARD_PLOT_X_KEYS = ("stall_regime.packet_stall_percent", "topology.link_failure_percent")
+
+
+def standard_plot_merged_keys(vary: tuple[tuple[str, tuple[Any, ...]], ...]) -> list[str]:
+    """Varied keys the standard comparison plots do not group by, in vary order.
+
+    Runs that differ only in such a key would land on the same point of those plots, so the
+    plots must not be drawn when this is non-empty. Keys with a single value do not count.
+    """
+    varied = [key for key, values in vary if len({str(value) for value in values}) > 1]
+    x_key = next((key for key in _STANDARD_PLOT_X_KEYS if key in varied), None)
+    return [key for key in varied if key not in (_STANDARD_PLOT_LINE_KEY, x_key)]
+
+
+# Fixed file name of the layout plot; each sweep writes into its own folder.
+SWEEP_LAYOUT_PLOT_NAME = "training_step_time_layout.pdf"
+# Vary key -> (short symbol, unit suffix, axis label) for the layout plot; other keys use their last part.
+_LAYOUT_KEY_NAMES = {
+    "stall_regime.packet_stall_percent": ("p", " %", _PAPER_STALL_X_LABEL),
+    "ai_workload.flow_redundancy_extra_packets": ("R", "", "Redundancy R [packets]"),
+    "stall_regime.packet_stall_delay_ms": ("d", " ms", "Stall delay d [ms]"),
+}
+
+
+def _layout_key_names(key: str) -> tuple[str, str, str]:
+    short = key.rsplit(".", 1)[-1]
+    return _LAYOUT_KEY_NAMES.get(key, (short, "", short))
+
+
+def _format_layout_value(value: Any) -> str:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return _format_sweep_x_tick(float(value))
+    return str(value)
+
+
+def _layout_value_text(key: str, value: Any) -> str:
+    short, unit, _ = _layout_key_names(key)
+    return f"{short} = {_format_layout_value(value)}{unit}"
+
+
+def visualize_sweep_layout(
+    summary: List[Dict[str, Any]],
+    *,
+    vary: tuple[tuple[str, tuple[Any, ...]], ...],
+    layout: Any,
+    out_dir: str,
+    show: bool,
+) -> list[str]:
+    """Mean training step time (± std over steps), laid out by the sweep's own vary keys.
+
+    `layout` (a `PlotLayout`, or None for no plot) names the vary key of each role: one panel
+    per `split` value, side by side; `x` on the x axis; one line per `lines` value. Values keep
+    their `sweep.vary` order and sit at equal spacing on the x axis. The run values are read
+    from the run labels. Written in the paper style as one PDF, `SWEEP_LAYOUT_PLOT_NAME`.
+    """
+    if layout is None:
+        logging.info("Layout plot skipped: no sweep.plot_layout and the sweep does not vary 2 or 3 keys")
+        return []
+
+    # Imported here: sim.runners may import this module, so a top-level import could be circular.
+    from sim.runners.sweep_runner import format_override_value, label_vary_values
+
+    vary_values = dict(vary)
+
+    def ordered(key: str) -> list[tuple[str, Any]]:
+        # (value as the run labels write it, value) in vary order.
+        return [(format_override_value(value), value) for value in vary_values[key]]
+
+    roles = [key for key in (layout.split, layout.x, layout.lines) if key is not None]
+    # (split text, line text) -> x text -> (mean, std) step time in ms.
+    cells: dict[tuple[str | None, str], dict[str, tuple[float, float]]] = {}
+    for row in summary:
+        if not isinstance(row, dict) or not row.get("ok"):
+            continue
+        avg = _summary_float(row, "training_step_time_avg_ms")
+        if avg is None:
+            continue
+        try:
+            run_values = label_vary_values(str(row.get("label", "")))
+        except ValueError:
+            continue
+        if any(key not in run_values for key in roles):
+            continue
+        std = _summary_float(row, "training_step_time_std_ms") or 0.0
+        split_text = run_values[layout.split] if layout.split is not None else None
+        cells.setdefault((split_text, run_values[layout.lines]), {})[run_values[layout.x]] = (avg, max(0.0, std))
+    if not cells:
+        logging.warning("Layout plot skipped: no successful run with a training step time and all of %s", ", ".join(roles))
+        return []
+
+    try:
+        import matplotlib
+        if not show:
+            matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+    except ImportError:
+        logging.warning("matplotlib not available, skipping the layout plot")
+        return []
+
+    try:
+        split_items = ordered(layout.split) if layout.split is not None else [(None, None)]
+        split_items = [(text, value) for text, value in split_items if any(key[0] == text for key in cells)]
+        x_items = ordered(layout.x)
+        x_position = {text: idx for idx, (text, _) in enumerate(x_items)}
+        line_items = ordered(layout.lines)
+        markers = ['o', 's', '^', 'v', 'D', 'p', '*', 'h', 'X', 'P', '<', '>']
+        line_count = len(line_items)
+
+        with plt.rc_context(_PAPER_RC):
+            cmap = plt.get_cmap("viridis")
+            panel_count = len(split_items)
+            fig, axes = plt.subplots(
+                1,
+                panel_count,
+                figsize=(max(PAPER_FIGSIZE[0], 3.0 * panel_count), PAPER_FIGSIZE[1]),
+                squeeze=False,
+            )
+            for ax, (split_text, split_value) in zip(axes[0], split_items):
+                for idx, (line_text, line_value) in enumerate(line_items):
+                    cell = cells.get((split_text, line_text))
+                    if not cell:
+                        continue
+                    x_texts = [text for text, _ in x_items if text in cell]
+                    xs = [x_position[text] for text in x_texts]
+                    ys = [cell[text][0] for text in x_texts]
+                    stds = [cell[text][1] for text in x_texts]
+                    # Colour by the line's place in the vary list, so it matches across panels;
+                    # stop at 0.9 so the last line is not the pale yellow end of viridis.
+                    color = cmap(0.9 * idx / (line_count - 1)) if line_count > 1 else cmap(0.0)
+                    if any(std > 0.0 for std in stds):
+                        ax.fill_between(
+                            xs,
+                            [y - std for y, std in zip(ys, stds)],
+                            [y + std for y, std in zip(ys, stds)],
+                            color=color,
+                            alpha=0.15,
+                            linewidth=0.0,
+                            zorder=2,
+                        )
+                    ax.plot(
+                        xs,
+                        ys,
+                        marker=markers[idx % len(markers)],
+                        markersize=3.5,
+                        linewidth=1.2,
+                        color=color,
+                        label=_layout_value_text(layout.lines, line_value),
+                        zorder=3,
+                    )
+                ax.set_xticks(range(len(x_items)))
+                ax.set_xticklabels([_format_layout_value(value) for _, value in x_items])
+                ax.set_xlim(-0.5, len(x_items) - 0.5)
+                ax.set_xlabel(_layout_key_names(layout.x)[2])
+                if layout.split is not None:
+                    ax.set_title(_layout_value_text(layout.split, split_value), fontsize=9)
+            axes[0][0].set_ylabel(_PAPER_STEP_TIME_Y_LABEL)
+            # The lines are the same in every panel, so one legend is enough.
+            axes[0][0].legend(loc="best", ncol=2, framealpha=0.9, handlelength=1.8, columnspacing=1.0)
+            fig.tight_layout()
+
+            os.makedirs(out_dir, exist_ok=True)
+            filepath = os.path.join(out_dir, SWEEP_LAYOUT_PLOT_NAME)
+            fig.savefig(filepath, bbox_inches='tight')
+            if show:
+                plt.show()
+            else:
+                plt.close(fig)
+        logging.info("Layout plot saved to: %s", filepath)
+        return [filepath]
+    except Exception as e:
+        logging.exception(f"Failed to create the layout plot: {e}")
+        return []
+
+
 def visualize_sweep_time_comparison_from_yaml(
     summary_yaml_path: str,
     *,
@@ -1629,4 +1807,6 @@ __all__ = [
     "visualize_sweep_time_comparison",
     "visualize_summary_training_step_traffic_matrices",
     "visualize_sweep_time_comparison_from_yaml",
+    "visualize_sweep_layout",
+    "standard_plot_merged_keys",
 ]
