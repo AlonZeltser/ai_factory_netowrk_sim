@@ -287,7 +287,7 @@ def test_plot_layout_must_give_every_vary_key_a_role(write_sweep_config) -> None
     ("config", "summary_dir", "layout", "runs"),
     [
         ("message_size_sweep.yaml", "message-size-sweep", (None, _STALL, _REDUNDANCY), 54),
-        ("stall_delay_sweep.yaml", "stall-delay-sweep", (_STALL, _REDUNDANCY, _DELAY), 108),
+        ("stall_delay_sweep.yaml", "stall-delay-sweep", (_DELAY, _STALL, _REDUNDANCY), 144),
     ],
 )
 def test_research_side_sweeps_have_their_own_output_and_layout(config, summary_dir, layout, runs) -> None:
@@ -299,8 +299,8 @@ def test_research_side_sweeps_have_their_own_output_and_layout(config, summary_d
     assert Path(sweep.summary_out).parent != Path(main.summary_out).parent
     assert (sweep.plot_layout.split, sweep.plot_layout.x, sweep.plot_layout.lines) == layout
     assert sweep.combination_count() == runs
-    # Every other sweep setting is main_sweep's.
-    for field in ("visualize_summary", "plot_ring_heatmaps", "lower_zoom_percent", "stop_on_error", "max_processes",
+    # Every other sweep setting is main_sweep's, except the worker count, which depends on the machine.
+    for field in ("visualize_summary", "plot_ring_heatmaps", "lower_zoom_percent", "stop_on_error",
                   "plot_topology_once", "show_visualization_window", "paper_style", "gantt_pdfs", "gantt_chain_limit",
                   "gantt_compare"):
         assert getattr(sweep, field) == getattr(main, field), field

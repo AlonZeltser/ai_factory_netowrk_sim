@@ -20,7 +20,7 @@ sweep:
   plot_ring_heatmaps: false                     # per-training-step traffic heatmaps
   lower_zoom_percent: 15.0                      # extra training-step-time plot of the lowest 15% (0 = skip it)
   stop_on_error: false                          # stop at the first failed run
-  processes: auto                               # worker processes: an integer, or auto (balanced across CPUs)
+  processes: 13                               # worker processes: an integer, or auto (balanced across CPUs)
   plot_topology_once: false                     # draw the topology of the first combination before running
   show_visualization_window: false              # open the plots in a window as well as saving them
   paper_style: true                             # paper look (no title, white, 6x3.6 in, 9 pt) for the step-time, best-redundancy and slowdown plots
