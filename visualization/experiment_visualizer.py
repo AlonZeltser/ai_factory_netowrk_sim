@@ -1685,10 +1685,10 @@ def _collect_layout_grid(
     )
 
 
-def _layout_subplots(plt, panel_count: int, *, extra_width: float = 0.0, **kwargs):
+def _layout_subplots(plt, panel_count: int):
     """One row of panels: the paper size for one panel, 3 in per panel beyond that."""
-    width = PAPER_FIGSIZE[0] if panel_count == 1 else 3.0 * panel_count + extra_width
-    return plt.subplots(1, panel_count, figsize=(width, PAPER_FIGSIZE[1]), squeeze=False, **kwargs)
+    width = PAPER_FIGSIZE[0] if panel_count == 1 else 3.0 * panel_count
+    return plt.subplots(1, panel_count, figsize=(width, PAPER_FIGSIZE[1]), squeeze=False)
 
 
 def _save_layout_figure(plt, fig, filepath: str, *, show: bool) -> None:
@@ -1759,10 +1759,11 @@ def _draw_layout_step_time(plt, grid: _LayoutGrid, *, zoom_percent: float, filep
 
 
 def _draw_layout_heatmap(plt, grid: _LayoutGrid, *, filepath: str, show: bool) -> None:
-    """One heatmap per panel: rows = lines key, columns = x key, the lowest value of each column bold.
+    """One heatmap per panel, panels stacked vertically: rows = lines key, columns = x key.
 
-    Cells hold T/T0 when every panel has a healthy run (T0 = the panel's own, or the sweep's only
-    one), else the mean step time in ms. All panels share one colour scale and colour bar.
+    Cells hold T/T0 (2 decimals) when every panel has a healthy run (T0 = the panel's own, or the
+    sweep's only one), else the mean step time in ms (1 decimal). All panels share one colour
+    scale and colour bar.
     """
     import numpy as np
     from matplotlib.colors import LogNorm, Normalize
@@ -1805,38 +1806,40 @@ def _draw_layout_heatmap(plt, grid: _LayoutGrid, *, filepath: str, show: bool) -
         norm = Normalize(vmin=vmin, vmax=vmax if vmax > vmin else vmin + 1e-6, clip=True)
 
     panel_count = len(grid.split_items)
-    fig, axes = _layout_subplots(plt, panel_count, extra_width=1.0, constrained_layout=True)
+    # Panels stacked one per row at full width, so the cells stay wide enough for their values.
+    height = PAPER_FIGSIZE[1] if panel_count == 1 else 2.4 * panel_count
+    fig, axes = plt.subplots(panel_count, 1, figsize=(PAPER_FIGSIZE[0], height), squeeze=False, constrained_layout=True)
+    panel_axes = list(axes[:, 0])
+    value_format = "{:.2f}" if slowdown else "{:.1f}"
     image = None
-    for ax, (_, split_value), data in zip(axes[0], grid.split_items, panels):
+    for ax, (_, split_value), data in zip(panel_axes, grid.split_items, panels):
         image = ax.imshow(np.ma.masked_invalid(data), cmap="Blues", norm=norm, aspect="auto", origin="lower")
         ax.grid(False)
         for j in range(len(grid.x_items)):
-            column = data[:, j]
-            best_i = int(np.nanargmin(column)) if not np.all(np.isnan(column)) else None
             for i in range(len(grid.line_items)):
-                value = column[i]
+                value = data[i, j]
                 if np.isnan(value):
                     continue
                 ax.text(
                     j,
                     i,
-                    f"{value:.2f}",
+                    value_format.format(value),
                     ha="center",
                     va="center",
                     fontsize=6.5,
-                    fontweight="bold" if i == best_i else "normal",
                     color="white" if float(norm(value)) > 0.6 else "#111111",
                 )
         ax.set_xticks(range(len(grid.x_items)))
         ax.set_xticklabels([_format_layout_value(value) for _, value in grid.x_items])
         ax.set_yticks(range(len(grid.line_items)))
         ax.set_yticklabels([_format_layout_value(value) for _, value in grid.line_items])
-        ax.set_xlabel(_layout_key_names(layout.x)[2])
+        ax.set_ylabel(_layout_key_names(layout.lines)[2])
         if layout.split is not None:
             ax.set_title(_layout_value_text(layout.split, split_value), fontsize=9)
-    axes[0][0].set_ylabel(_layout_key_names(layout.lines)[2])
+    # The columns are the same in every panel, so only the bottom one names them.
+    panel_axes[-1].set_xlabel(_layout_key_names(layout.x)[2])
 
-    cbar = fig.colorbar(image, ax=list(axes[0]), fraction=0.046 if panel_count == 1 else 0.03, pad=0.03)
+    cbar = fig.colorbar(image, ax=panel_axes, fraction=0.046 if panel_count == 1 else 0.03, pad=0.03)
     if slowdown:
         cbar.set_label("Slowdown T/T0")
         ticks = [t for t in (1, 1.25, 1.5, 2, 3, 5, 10, 20, 50, 100) if t <= max(vmax, 1.0)]

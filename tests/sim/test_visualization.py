@@ -334,10 +334,17 @@ def test_layout_plots_write_three_fixed_name_pdfs_with_one_panel_per_split_value
         assert [line.get_label() for line in axes[0].get_lines()] == ["d = 0.5 ms", "d = 2 ms"]
         assert [tick.get_text() for tick in axes[0].get_xticklabels()] == ["0", "2", "8"]
         assert axes[0].get_ylabel() == "Training step time [ms]"
-    heatmap_axes = saved[SWEEP_LAYOUT_HEATMAP_NAME].axes[:-1]
+    heatmap = saved[SWEEP_LAYOUT_HEATMAP_NAME]
+    heatmap_axes = heatmap.axes[:-1]
     assert [ax.get_title() for ax in heatmap_axes] == ["p = 0.1 %", "p = 1 %", "p = 4 %"]
     assert [tick.get_text() for tick in heatmap_axes[0].get_yticklabels()] == ["0.5", "2"]
-    assert heatmap_axes[0].get_ylabel() == "Stall delay d [ms]"
+    assert all(ax.get_ylabel() == "Stall delay d [ms]" for ax in heatmap_axes)
+    # Stacked one per row, top to bottom in vary order, each at the full width.
+    heatmap.canvas.draw()
+    boxes = [ax.get_position() for ax in heatmap_axes]
+    assert [box.y0 for box in boxes] == sorted((box.y0 for box in boxes), reverse=True)
+    assert len({round(box.x0, 3) for box in boxes}) == 1
+    assert [ax.get_xlabel() for ax in heatmap_axes] == ["", "", "Redundancy R [packets]"]
 
 
 def test_layout_zoom_plot_zooms_each_panel_into_its_own_lowest_range(tmp_path: Path, monkeypatch) -> None:
@@ -397,6 +404,7 @@ def test_layout_heatmap_shows_slowdown_when_the_sweep_has_the_healthy_run(tmp_pa
     ax = fig.axes[0]
     # Written column by column (p = 0, 1, 4), R = 0 then R = 2 in each; T0 = 10 ms.
     assert _cell_texts(ax) == ["1.00", "1.10", "1.40", "1.15", "2.00", "1.30"]
+    assert all(text.get_fontweight() == "normal" for text in ax.texts)
     assert ax.get_ylabel() == "Redundancy R [packets]"
     assert ax.get_xlabel() == "Packet stall probability p [%]"
     assert ax.get_title() == ""
@@ -421,7 +429,8 @@ def test_layout_heatmap_shows_step_time_without_a_healthy_run(tmp_path: Path, mo
     fig = saved[SWEEP_LAYOUT_HEATMAP_NAME]
     assert _colorbar_label(fig) == "Training step time [ms]"
     # Step times 10, 11, ... in vary-product order (stall, R, delay); the d = 0.5 ms panel holds the even ones.
-    assert sorted(_cell_texts(fig.axes[0])) == ["10.00", "12.00", "14.00", "16.00"]
+    assert sorted(_cell_texts(fig.axes[0])) == ["10.0", "12.0", "14.0", "16.0"]
+    assert all(text.get_fontweight() == "normal" for text in fig.axes[0].texts)
 
 
 def test_layout_plot_without_layout_or_matching_runs_writes_nothing(tmp_path: Path) -> None:
